@@ -61,10 +61,13 @@ class KioskWebViewController {
       : navState = ValueNotifier(WebNavState.empty);
 
   /// 지정한 URL을 로드한다.
-  Future<void> loadUrl(String url) {
-    return _controller.loadUrl(
+  Future<void> loadUrl(String url) async {
+    await _controller.loadUrl(
       urlRequest: URLRequest(url: WebUri(url)),
     );
+    // 로드 직후/약간의 지연 후에 nav 상태를 갱신해서 뒤로 버튼이 즉시 활성화되도록.
+    await _refreshNavState();
+    Future.delayed(const Duration(milliseconds: 300), _refreshNavState);
   }
 
   /// 뒤로 갈 수 있는지 여부.
@@ -74,10 +77,18 @@ class KioskWebViewController {
   Future<bool> canGoForward() => _controller.canGoForward();
 
   /// 뒤로 이동한다.
-  Future<void> goBack() => _controller.goBack();
+  Future<void> goBack() async {
+    await _controller.goBack();
+    await _refreshNavState();
+    Future.delayed(const Duration(milliseconds: 300), _refreshNavState);
+  }
 
   /// 앞으로 이동한다.
-  Future<void> goForward() => _controller.goForward();
+  Future<void> goForward() async {
+    await _controller.goForward();
+    await _refreshNavState();
+    Future.delayed(const Duration(milliseconds: 300), _refreshNavState);
+  }
 
   /// 현재 페이지를 다시 로드한다.
   Future<void> reload() => _controller.reload();
