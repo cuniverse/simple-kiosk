@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// 네비게이션 바 표시 위치.
 ///
 /// - [auto]: 화면 폭이 [LayoutConfig.breakpoint] 이상이면 [left], 아니면 [bottom].
@@ -114,6 +116,21 @@ class LayoutConfig {
   /// 네비게이션 바 시작점(좌/상)에 WebView 뒤로/앞으로 컨트롤을 표시할지.
   final bool showHistoryButtons;
 
+  /// 네비게이션 바 배경색. `null`이면 테마 기본값.
+  final Color? barColor;
+
+  /// 비선택 버튼의 배경색. `null`이면 테마 기본값.
+  final Color? buttonColor;
+
+  /// 비선택 버튼의 전경색(텍스트/아이콘). `null`이면 테마 기본값.
+  final Color? buttonForegroundColor;
+
+  /// 선택된 버튼의 배경색. `null`이면 테마 기본값(primary).
+  final Color? selectedButtonColor;
+
+  /// 선택된 버튼의 전경색. `null`이면 테마 기본값(onPrimary).
+  final Color? selectedButtonForegroundColor;
+
   const LayoutConfig({
     this.navPosition = NavPosition.auto,
     this.sideWidth = 220,
@@ -124,6 +141,11 @@ class LayoutConfig {
     this.buttonGap = 8,
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
+    this.barColor,
+    this.buttonColor,
+    this.buttonForegroundColor,
+    this.selectedButtonColor,
+    this.selectedButtonForegroundColor,
   });
 
   /// 모든 기본값을 가진 설정.
@@ -174,6 +196,52 @@ class LayoutConfig {
           'menu.json layout.showHistoryButtons: bool 필요',
         );
       }(),
+      barColor: _parseColor(json['barColor'], 'barColor'),
+      buttonColor: _parseColor(json['buttonColor'], 'buttonColor'),
+      buttonForegroundColor:
+          _parseColor(json['buttonForegroundColor'], 'buttonForegroundColor'),
+      selectedButtonColor:
+          _parseColor(json['selectedButtonColor'], 'selectedButtonColor'),
+      selectedButtonForegroundColor: _parseColor(
+        json['selectedButtonForegroundColor'],
+        'selectedButtonForegroundColor',
+      ),
     );
   }
+}
+
+/// 색상 문자열을 [Color] 로 파싱한다.
+///
+/// 지원 형식 (대소문자 무관, `#` 선택):
+/// - `#RGB`        → 짧은 표현 (예: `#f00` = 빨강)
+/// - `#RRGGBB`     → 불투명 RGB
+/// - `#AARRGGBB`   → 알파 + RGB
+/// - 명명 색상: `transparent`
+Color? _parseColor(Object? raw, String key) {
+  if (raw == null) return null;
+  if (raw is! String) {
+    throw FormatException('menu.json layout.$key: 문자열 필요');
+  }
+  var s = raw.trim().toLowerCase();
+  if (s.isEmpty) return null;
+  if (s == 'transparent') return const Color(0x00000000);
+
+  if (s.startsWith('#')) s = s.substring(1);
+
+  // #RGB → #RRGGBB 로 확장.
+  if (s.length == 3) {
+    s = s.split('').map((c) => '$c$c').join();
+  }
+
+  if (s.length == 6) {
+    s = 'ff$s'; // 알파 채우기
+  }
+
+  if (s.length != 8 || int.tryParse(s, radix: 16) == null) {
+    throw FormatException(
+      'menu.json layout.$key: 색상 형식 오류 "$raw" '
+      '(예: "#1976d2", "#80ffffff")',
+    );
+  }
+  return Color(int.parse(s, radix: 16));
 }

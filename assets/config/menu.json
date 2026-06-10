@@ -8,7 +8,12 @@
     "buttonWidth": 0,
     "buttonGap": 8,
     "buttonAlignment": "stretch",
-    "showHistoryButtons": true
+    "showHistoryButtons": true,
+    "barColor": "#1f2937",
+    "buttonColor": "#374151",
+    "buttonForegroundColor": "#ffffff",
+    "selectedButtonColor": "#2563eb",
+    "selectedButtonForegroundColor": "#ffffff"
   },
   "idle": {
     "enabled": true,

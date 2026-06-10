@@ -54,6 +54,21 @@ class NavigationMenu extends StatelessWidget {
   /// [showHistoryButtons]가 `true`일 때만 사용된다.
   final KioskWebViewController? historyController;
 
+  /// 네비 바 배경색. `null`이면 테마 기본값.
+  final Color? barColor;
+
+  /// 비선택 버튼 배경색.
+  final Color? buttonColor;
+
+  /// 비선택 버튼 전경색.
+  final Color? buttonForegroundColor;
+
+  /// 선택 버튼 배경색.
+  final Color? selectedButtonColor;
+
+  /// 선택 버튼 전경색.
+  final Color? selectedButtonForegroundColor;
+
   const NavigationMenu({
     super.key,
     required this.items,
@@ -68,6 +83,11 @@ class NavigationMenu extends StatelessWidget {
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
     this.historyController,
+    this.barColor,
+    this.buttonColor,
+    this.buttonForegroundColor,
+    this.selectedButtonColor,
+    this.selectedButtonForegroundColor,
   });
 
   @override
@@ -112,13 +132,17 @@ class NavigationMenu extends StatelessWidget {
           selected: i == selectedIndex,
           orientation: NavigationOrientation.side,
           fixedHeight: buttonHeight > 0 ? buttonHeight : null,
+          buttonColor: buttonColor,
+          buttonForegroundColor: buttonForegroundColor,
+          selectedButtonColor: selectedButtonColor,
+          selectedButtonForegroundColor: selectedButtonForegroundColor,
           onPressed: () => onSelected(i),
         ),
       );
     }
 
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
+      color: barColor ?? theme.colorScheme.surfaceContainerHighest,
       child: SafeArea(
         right: false,
         child: SizedBox(
@@ -159,6 +183,10 @@ class NavigationMenu extends StatelessWidget {
           selected: i == selectedIndex,
           orientation: NavigationOrientation.bottom,
           fixedHeight: buttonHeight > 0 ? buttonHeight : null,
+          buttonColor: buttonColor,
+          buttonForegroundColor: buttonForegroundColor,
+          selectedButtonColor: selectedButtonColor,
+          selectedButtonForegroundColor: selectedButtonForegroundColor,
           onPressed: () => onSelected(i),
         );
 
@@ -194,7 +222,7 @@ class NavigationMenu extends StatelessWidget {
         );
       }
       return Material(
-        color: theme.colorScheme.surfaceContainerHighest,
+        color: barColor ?? theme.colorScheme.surfaceContainerHighest,
         child: SafeArea(
           top: false,
           child: SizedBox(
@@ -229,7 +257,7 @@ class NavigationMenu extends StatelessWidget {
     }
 
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
+      color: barColor ?? theme.colorScheme.surfaceContainerHighest,
       child: SafeArea(
         top: false,
         child: SizedBox(
@@ -369,6 +397,12 @@ class _NavButton extends StatelessWidget {
   /// 외부에서 지정하는 고정 높이. `null`이면 아이콘/텍스트 유무에 따라 자동 결정.
   final double? fixedHeight;
 
+  /// 색상 오버라이드(테마 기본값 대신 쓸 값). `null`이면 테마 사용.
+  final Color? buttonColor;
+  final Color? buttonForegroundColor;
+  final Color? selectedButtonColor;
+  final Color? selectedButtonForegroundColor;
+
   final VoidCallback onPressed;
 
   const _NavButton({
@@ -379,17 +413,23 @@ class _NavButton extends StatelessWidget {
     required this.orientation,
     required this.onPressed,
     this.fixedHeight,
+    this.buttonColor,
+    this.buttonForegroundColor,
+    this.selectedButtonColor,
+    this.selectedButtonForegroundColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    // 선택 상태를 색상과 두께로 구분한다.
-    final background =
-        selected ? scheme.primary : scheme.surface;
-    final foreground =
-        selected ? scheme.onPrimary : scheme.onSurface;
+    // 선택 상태에 따른 색 결정 (설정 > 테마).
+    final background = selected
+        ? (selectedButtonColor ?? scheme.primary)
+        : (buttonColor ?? scheme.surface);
+    final foreground = selected
+        ? (selectedButtonForegroundColor ?? scheme.onPrimary)
+        : (buttonForegroundColor ?? scheme.onSurface);
 
     final hasIcon = iconPath != null && iconPath!.isNotEmpty;
     // 아이콘 없으면 텍스트는 무조건 보여줘야 빈 버튼이 안 된다.

@@ -223,6 +223,12 @@ class _KioskHomeState extends State<_KioskHome> {
                 buttonAlignment: widget.layout.buttonAlignment,
                 showHistoryButtons: widget.layout.showHistoryButtons,
                 historyController: _webController,
+                barColor: widget.layout.barColor,
+                buttonColor: widget.layout.buttonColor,
+                buttonForegroundColor: widget.layout.buttonForegroundColor,
+                selectedButtonColor: widget.layout.selectedButtonColor,
+                selectedButtonForegroundColor:
+                    widget.layout.selectedButtonForegroundColor,
               );
 
               switch (position) {

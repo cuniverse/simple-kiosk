@@ -145,6 +145,24 @@ android:usesCleartextTraffic="true"
 | `buttonGap` | 숫자 ≥ 0 | `8` | 버튼 사이 간격(dp) |
 | `buttonAlignment` | 문자열 | `stretch` | 정렬 방식 (아래 표) |
 | `showHistoryButtons` | bool | `false` | 네비 시작점에 ←/→ 버튼 표시 |
+| `barColor` | 색상 문자열 | (테마) | 네비 바 배경색 |
+| `buttonColor` | 색상 문자열 | (테마) | 비선택 버튼 배경색 |
+| `buttonForegroundColor` | 색상 문자열 | (테마) | 비선택 버튼 텍스트/아이콘 색 |
+| `selectedButtonColor` | 색상 문자열 | (테마) | 선택된 버튼 배경색 |
+| `selectedButtonForegroundColor` | 색상 문자열 | (테마) | 선택된 버튼 텍스트/아이콘 색 |
+
+### 색상 문자열 형식
+
+대소문자 무관, `#` 선택. 다음 형식 지원:
+
+| 형식 | 예시 | 의미 |
+|------|------|------|
+| `#RGB` | `#f00` | 짧은 표현 = `#ff0000` |
+| `#RRGGBB` | `#1976d2` | 불투명 RGB |
+| `#AARRGGBB` | `#801976d2` | 알파 + RGB (`80` ≈ 50% 투명) |
+| `transparent` | `transparent` | 완전 투명 |
+
+미지정(`null`/생략) 시 시스템 테마(Material 3)의 기본 색을 사용합니다.
 
 ### `buttonAlignment` 값
 
