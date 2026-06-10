@@ -1,0 +1,17 @@
+[
+  {
+    "id": "home",
+    "title": "홈",
+    "url": "https://example.com"
+  },
+  {
+    "id": "notice",
+    "title": "공지",
+    "url": "https://example.com/notice"
+  },
+  {
+    "id": "video",
+    "title": "영상",
+    "url": "https://example.com/video"
+  }
+]
