@@ -7,8 +7,9 @@
 
 - Android
 - Windows
+- macOS
 
-> macOS / iOS / Linux도 `flutter_inappwebview`가 지원하지만, 본 프로젝트는 Android 와 Windows를 1차 타겟으로 합니다.
+> iOS / Linux도 `flutter_inappwebview`가 지원하지만, 본 프로젝트는 Android / Windows / macOS를 지원 대상으로 합니다.
 
 ## 주요 기능
 
@@ -32,15 +33,18 @@ flutter run -d android
 
 # Windows에서 실행 (WebView2 Runtime 필요할 수 있음)
 flutter run -d windows
+
+# macOS에서 실행
+flutter run -d macos
 ```
 
 ### 플랫폼 폴더가 없는 경우
 
 이 저장소는 Dart 소스/에셋/설정 위주로 관리됩니다.
-처음 빌드하기 전에 플랫폼 폴더(`android/`, `windows/` 등)를 생성해야 할 수 있습니다.
+처음 빌드하기 전에 플랫폼 폴더(`android/`, `windows/`, `macos/` 등)를 생성해야 할 수 있습니다.
 
 ```bash
-flutter create --platforms=android,windows .
+flutter create --platforms=android,windows,macos .
 flutter pub get
 ```
 
@@ -85,12 +89,19 @@ HTTP URL을 사용해야 하는 경우, `AndroidManifest.xml`의 `<application>`
   설치되지 않은 경우 Microsoft 공식 페이지에서 "Microsoft Edge WebView2 Runtime"을 다운로드해 설치하세요.
 - `flutter_inappwebview` Windows 구현은 WebView2를 기반으로 동작합니다.
 
+## macOS에서 실행 시 주의사항
+
+- macOS 데스크톱 앱 빌드를 위해 Xcode와 CocoaPods 설정이 필요합니다.
+- WebView에서 외부 URL을 로드할 수 있도록 macOS entitlements에 `com.apple.security.network.client`가 포함되어 있습니다.
+- 키오스크 용도로 배포하는 경우 전체 화면 실행, 자동 로그인, 절전 방지 등 macOS 시스템 설정을 함께 구성하는 것을 권장합니다.
+
 ## WebView 제약사항
 
 - 일부 사이트는 보안 정책상 `iframe`/WebView 임베드를 차단합니다. 이 경우 앱에서 우회할 수 없습니다.
 - 일부 사이트는 User-Agent 검사 등으로 WebView 접속 자체를 차단할 수 있습니다.
 - 동영상 **자동재생**은 브라우저/플랫폼 정책 영향을 받습니다 (사용자 제스처 없이는 재생이 시작되지 않을 수 있음).
 - Windows에서는 WebView2 Runtime이 설치되어 있어야 동작합니다.
+- macOS에서는 앱 샌드박스 및 entitlements 설정에 따라 네트워크 접근 권한이 필요합니다.
 - 다운로드 / 팝업 / 외부 스킴(전화, 메일 등)은 키오스크 보안 정책상 의도적으로 차단됩니다.
 
 ## 프로젝트 구조
