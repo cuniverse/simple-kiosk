@@ -53,56 +53,106 @@ class WebNavState {
 }
 
 /// 외부에서 WebView를 제어하기 위한 컨트롤러.
+///
+/// 플랫폼 WebView의 `canGoBack/Forward()` 는 환경에 따라 신뢰성이 다르므로
+/// (특히 Flutter Web의 iframe 환경) 자체 히스토리 스택으로 뒤/앞 이동을
+/// 관리한다. 메뉴 클릭으로 URL이 바뀌거나, 페이지 내 링크 클릭으로
+/// `onLoadStart` 가 새 URL과 함께 호출될 때마다 스택에 푸시한다.
 class KioskWebViewController {
   final InAppWebViewController _controller;
   final ValueNotifier<WebNavState> navState;
 
+  // 히스토리 스택과 현재 인덱스(0..length-1). 비어있으면 빈 상태.
+  final List<String> _history = [];
+  int _index = -1;
+
+  // goBack/goForward 로 이동 중일 때 onLoadStart 의 자동 푸시를 막기 위한 플래그.
+  bool _navigatingHistory = false;
+
   KioskWebViewController._(this._controller)
       : navState = ValueNotifier(WebNavState.empty);
 
-  /// 지정한 URL을 로드한다.
+  WebNavState _computeState() => WebNavState(
+        canGoBack: _index > 0,
+        canGoForward: _index >= 0 && _index < _history.length - 1,
+      );
+
+  void _publishState() {
+    navState.value = _computeState();
+  }
+
+  /// 새로운 URL을 히스토리에 푸시한다.
+  /// - 현재 위치 뒤쪽의 항목들은 잘려나가고 새 항목이 추가된다(브라우저 기본 동작).
+  /// - 직전 URL과 같으면 중복으로 추가하지 않는다.
+  void _pushHistory(String url) {
+    if (_index >= 0 && _history[_index] == url) return;
+    if (_index < _history.length - 1) {
+      _history.removeRange(_index + 1, _history.length);
+    }
+    _history.add(url);
+    _index = _history.length - 1;
+    _publishState();
+  }
+
+  /// 메뉴 선택 등으로 명시적으로 새 URL을 로드한다(히스토리에 푸시됨).
   Future<void> loadUrl(String url) async {
+    _pushHistory(url);
     await _controller.loadUrl(
       urlRequest: URLRequest(url: WebUri(url)),
     );
-    // 로드 직후/약간의 지연 후에 nav 상태를 갱신해서 뒤로 버튼이 즉시 활성화되도록.
-    await _refreshNavState();
-    Future.delayed(const Duration(milliseconds: 300), _refreshNavState);
   }
 
   /// 뒤로 갈 수 있는지 여부.
-  Future<bool> canGoBack() => _controller.canGoBack();
+  bool canGoBackSync() => _index > 0;
 
   /// 앞으로 갈 수 있는지 여부.
-  Future<bool> canGoForward() => _controller.canGoForward();
+  bool canGoForwardSync() => _index >= 0 && _index < _history.length - 1;
 
-  /// 뒤로 이동한다.
+  /// 비동기 호환용(기존 API 유지).
+  Future<bool> canGoBack() async => canGoBackSync();
+  Future<bool> canGoForward() async => canGoForwardSync();
+
+  /// 자체 스택으로 뒤로 이동.
   Future<void> goBack() async {
-    await _controller.goBack();
-    await _refreshNavState();
-    Future.delayed(const Duration(milliseconds: 300), _refreshNavState);
+    if (!canGoBackSync()) return;
+    _index -= 1;
+    _publishState();
+    await _loadHistoryEntry();
   }
 
-  /// 앞으로 이동한다.
+  /// 자체 스택으로 앞으로 이동.
   Future<void> goForward() async {
-    await _controller.goForward();
-    await _refreshNavState();
-    Future.delayed(const Duration(milliseconds: 300), _refreshNavState);
+    if (!canGoForwardSync()) return;
+    _index += 1;
+    _publishState();
+    await _loadHistoryEntry();
+  }
+
+  Future<void> _loadHistoryEntry() async {
+    final url = _history[_index];
+    _navigatingHistory = true;
+    try {
+      await _controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(url)),
+      );
+    } finally {
+      // 로드 콜백이 끝날 시점까지 잠깐 보호.
+      Future.delayed(const Duration(milliseconds: 300), () {
+        _navigatingHistory = false;
+      });
+    }
   }
 
   /// 현재 페이지를 다시 로드한다.
   Future<void> reload() => _controller.reload();
 
-  /// 내부에서 [_KioskWebViewState] 가 네비게이션 상태를 갱신한다.
-  Future<void> _refreshNavState() async {
-    try {
-      final back = await _controller.canGoBack();
-      final forward = await _controller.canGoForward();
-      navState.value =
-          WebNavState(canGoBack: back, canGoForward: forward);
-    } catch (_) {
-      // 컨트롤러가 이미 해제되었거나 일시적 오류 — 무시.
-    }
+  /// WebView 내부에서 발생한 네비게이션(페이지 내 링크 클릭 등)을 히스토리에
+  /// 반영한다. 호출자는 [_KioskWebViewState] 의 `onLoadStart`.
+  void _noteNavigationStart(String? url) {
+    if (url == null || url.isEmpty) return;
+    if (url == 'about:blank') return;
+    if (_navigatingHistory) return; // goBack/goForward 중에는 무시.
+    _pushHistory(url);
   }
 }
 
@@ -172,6 +222,8 @@ class _KioskWebViewState extends State<KioskWebView> {
               _webController = controller;
               final kc = KioskWebViewController._(controller);
               _kioskController = kc;
+              // 초기 URL을 히스토리 스택의 첫 항목으로 등록.
+              kc._noteNavigationStart(widget.initialUrl);
               widget.onReady?.call(kc);
             },
             onLoadStart: (controller, url) {
@@ -182,7 +234,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                 _currentUrl = url?.toString();
               });
               _scheduleLoadingFallback();
-              _kioskController?._refreshNavState();
+              _kioskController?._noteNavigationStart(url?.toString());
             },
             onLoadStop: (controller, url) {
               if (!mounted) return;
@@ -190,13 +242,14 @@ class _KioskWebViewState extends State<KioskWebView> {
                 _currentUrl = url?.toString();
               });
               _finishLoading();
-              _kioskController?._refreshNavState();
+              // 일부 사이트는 onLoadStart 없이 리다이렉트만 되는 경우도 있으므로 공식
+              // 종료 시점의 url 도 히스토리에 안전하게 포함시킨다(중복은 자체 필터됨).
+              _kioskController?._noteNavigationStart(url?.toString());
             },
             onProgressChanged: (controller, progress) {
               if (!mounted) return;
               if (progress >= 100) {
                 _finishLoading();
-                _kioskController?._refreshNavState();
               }
             },
             // 네비게이션 요청 가로채기:
