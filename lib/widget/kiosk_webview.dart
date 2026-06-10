@@ -94,12 +94,25 @@ class KioskWebViewController {
     _publishState();
   }
 
-  /// 메뉴 선택 등으로 명시적으로 새 URL을 로드한다(히스토리에 푸시됨).
+  /// 메뉴 선택 등으로 명시적으로 새 URL을 로드한다.
+  ///
+  /// 메뉴 전환은 "새 탭"과 같은 의미이므로 **이전 히스토리는 모두 초기화**하고
+  /// 새 URL을 첫 항목으로 둔다. 사용자가 그 페이지에서 링크를 따라간 이동만이
+  /// 뒤/앞 버튼의 대상이 된다.
   Future<void> loadUrl(String url) async {
-    _pushHistory(url);
+    _resetHistory(url);
     await _controller.loadUrl(
       urlRequest: URLRequest(url: WebUri(url)),
     );
+  }
+
+  /// 히스토리를 초기화하고 주어진 URL을 첫 항목으로 만든다.
+  void _resetHistory(String url) {
+    _history
+      ..clear()
+      ..add(url);
+    _index = 0;
+    _publishState();
   }
 
   /// 뒤로 갈 수 있는지 여부.
@@ -222,8 +235,8 @@ class _KioskWebViewState extends State<KioskWebView> {
               _webController = controller;
               final kc = KioskWebViewController._(controller);
               _kioskController = kc;
-              // 초기 URL을 히스토리 스택의 첫 항목으로 등록.
-              kc._noteNavigationStart(widget.initialUrl);
+              // 초기 URL을 히스토리 첫 항목으로 등록(메뉴 첫 항목과 동일).
+              kc._resetHistory(widget.initialUrl);
               widget.onReady?.call(kc);
             },
             onLoadStart: (controller, url) {
