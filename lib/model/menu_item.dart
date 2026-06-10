@@ -3,32 +3,59 @@
 /// `assets/config/menu.json`에 정의된 단일 항목을 표현한다.
 /// JSON 구조 예:
 /// ```json
-/// { "id": "home", "title": "홈", "url": "https://example.com" }
+/// {
+///   "id": "home",
+///   "title": "홈",
+///   "url": "https://example.com",
+///   "icon": "assets/icons/home.png",
+///   "showTitle": false
+/// }
 /// ```
 class MenuItem {
   /// 메뉴 식별자(중복 불가 권장).
   final String id;
 
   /// 네비게이션 버튼에 표시될 텍스트.
+  ///
+  /// [showTitle]이 `false`이면 화면에는 표시되지 않지만,
+  /// 접근성(스크린리더, 툴팁 등) 용도로는 계속 사용된다.
   final String title;
 
   /// 버튼을 눌렀을 때 WebView에 로드할 URL.
   /// 운영에서는 HTTPS 사용을 권장한다.
   final String url;
 
+  /// 버튼에 표시할 아이콘 경로(선택).
+  ///
+  /// - `assets/...` 로 시작하면 Flutter 에셋으로 로드한다.
+  /// - `http(s)://` 로 시작하면 네트워크 이미지로 로드한다.
+  /// - 값이 없거나 비어있으면 텍스트만 표시한다.
+  final String? icon;
+
+  /// 버튼에 [title] 텍스트를 표시할지 여부. 기본값은 `true`.
+  ///
+  /// `false`로 두면 아이콘만 표시한다. 단, 아이콘이 없으면
+  /// 이 값과 상관없이 텍스트가 표시된다(빈 버튼 방지).
+  final bool showTitle;
+
   const MenuItem({
     required this.id,
     required this.title,
     required this.url,
+    this.icon,
+    this.showTitle = true,
   });
 
   /// JSON 한 항목을 모델로 변환한다.
   ///
   /// 필수 필드(id/title/url)가 비어있으면 [FormatException]을 던진다.
+  /// `icon`/`showTitle`은 선택 필드이며, 누락되면 기본값을 사용한다.
   factory MenuItem.fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     final title = json['title'];
     final url = json['url'];
+    final icon = json['icon'];
+    final showTitle = json['showTitle'];
 
     if (id is! String || id.isEmpty) {
       throw const FormatException('menu item: "id" 누락 또는 형식 오류');
@@ -40,6 +67,17 @@ class MenuItem {
       throw const FormatException('menu item: "url" 누락 또는 형식 오류');
     }
 
-    return MenuItem(id: id, title: title, url: url);
+    String? iconPath;
+    if (icon is String && icon.isNotEmpty) {
+      iconPath = icon;
+    }
+
+    return MenuItem(
+      id: id,
+      title: title,
+      url: url,
+      icon: iconPath,
+      showTitle: showTitle is bool ? showTitle : true,
+    );
   }
 }

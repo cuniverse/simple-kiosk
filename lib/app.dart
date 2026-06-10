@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'model/layout_config.dart';
+import 'model/menu_config.dart';
 import 'model/menu_item.dart';
 import 'service/menu_config_loader.dart';
 import 'widget/kiosk_webview.dart';
@@ -34,7 +36,7 @@ class _MenuBootstrap extends StatefulWidget {
 }
 
 class _MenuBootstrapState extends State<_MenuBootstrap> {
-  late Future<List<MenuItem>> _future;
+  late Future<MenuConfig> _future;
 
   @override
   void initState() {
@@ -50,7 +52,7 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<MenuItem>>(
+    return FutureBuilder<MenuConfig>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -90,7 +92,10 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
             ),
           );
         }
-        return _KioskHome(items: snapshot.data!);
+        return _KioskHome(
+          items: snapshot.data!.items,
+          layout: snapshot.data!.layout,
+        );
       },
     );
   }
@@ -98,14 +103,17 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
 
 /// 키오스크 메인 화면.
 ///
-/// - 좌측(또는 하단) 네비게이션 + 우측 WebView 영역 구조.
-/// - 화면 폭이 좁으면 하단 네비게이션으로 자동 전환.
+/// - [LayoutConfig.navPosition] 에 따라 네비게이션 위치를 결정한다.
+///   - `auto`: 화면 폭이 [LayoutConfig.breakpoint] 이상이면 좌측, 아니면 하단.
+///   - `left`/`right`: 항상 좌/우측.
+///   - `top`/`bottom`: 항상 상/하단.
 /// - Android Back 버튼:
 ///   - WebView 뒤로갈 수 있으면 WebView 뒤로
 ///   - 아니면 첫 번째(홈) 메뉴로 이동(앱 종료 방지)
 class _KioskHome extends StatefulWidget {
   final List<MenuItem> items;
-  const _KioskHome({required this.items});
+  final LayoutConfig layout;
+  const _KioskHome({required this.items, required this.layout});
 
   @override
   State<_KioskHome> createState() => _KioskHomeState();
@@ -114,9 +122,6 @@ class _KioskHome extends StatefulWidget {
 class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
   KioskWebViewController? _webController;
-
-  // 화면 폭이 이 값보다 좁으면 하단 네비게이션을 사용.
-  static const double _sideNavBreakpoint = 720;
 
   void _onSelect(int index) {
     if (index < 0 || index >= widget.items.length) return;
@@ -141,6 +146,15 @@ class _KioskHomeState extends State<_KioskHome> {
     return false;
   }
 
+  /// 현재 화면 크기와 설정을 토대로 실제 적용될 위치를 계산한다.
+  NavPosition _effectivePosition(double width) {
+    final p = widget.layout.navPosition;
+    if (p != NavPosition.auto) return p;
+    return width >= widget.layout.breakpoint
+        ? NavPosition.left
+        : NavPosition.bottom;
+  }
+
   @override
   Widget build(BuildContext context) {
     // WebView는 한 번만 생성되므로 초기 URL은 항상 첫 번째 메뉴(홈) URL을 사용.
@@ -157,7 +171,7 @@ class _KioskHomeState extends State<_KioskHome> {
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final useSide = constraints.maxWidth >= _sideNavBreakpoint;
+              final position = _effectivePosition(constraints.maxWidth);
               final webView = KioskWebView(
                 // WebView는 한 번만 생성되며, 이후 URL 변경은 컨트롤러로 수행.
                 key: const ValueKey('kiosk-webview'),
@@ -165,32 +179,58 @@ class _KioskHomeState extends State<_KioskHome> {
                 onReady: (c) => _webController = c,
               );
 
-              if (useSide) {
-                return Row(
-                  children: [
-                    NavigationMenu(
-                      items: widget.items,
-                      selectedIndex: _selectedIndex,
-                      onSelected: _onSelect,
-                      orientation: NavigationOrientation.side,
-                    ),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: webView),
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  Expanded(child: webView),
-                  const Divider(height: 1),
-                  NavigationMenu(
-                    items: widget.items,
-                    selectedIndex: _selectedIndex,
-                    onSelected: _onSelect,
-                    orientation: NavigationOrientation.bottom,
-                  ),
-                ],
+              final isSide =
+                  position == NavPosition.left || position == NavPosition.right;
+              final nav = NavigationMenu(
+                items: widget.items,
+                selectedIndex: _selectedIndex,
+                onSelected: _onSelect,
+                orientation: isSide
+                    ? NavigationOrientation.side
+                    : NavigationOrientation.bottom,
+                sideWidth: widget.layout.sideWidth,
+                barHeight: widget.layout.barHeight,
+                buttonHeight: widget.layout.buttonHeight,
+                buttonWidth: widget.layout.buttonWidth,
+                buttonGap: widget.layout.buttonGap,
+                buttonAlignment: widget.layout.buttonAlignment,
               );
+
+              switch (position) {
+                case NavPosition.left:
+                  return Row(
+                    children: [
+                      nav,
+                      const VerticalDivider(width: 1),
+                      Expanded(child: webView),
+                    ],
+                  );
+                case NavPosition.right:
+                  return Row(
+                    children: [
+                      Expanded(child: webView),
+                      const VerticalDivider(width: 1),
+                      nav,
+                    ],
+                  );
+                case NavPosition.top:
+                  return Column(
+                    children: [
+                      nav,
+                      const Divider(height: 1),
+                      Expanded(child: webView),
+                    ],
+                  );
+                case NavPosition.bottom:
+                case NavPosition.auto: // 이론상 도달 불가 — 안전망.
+                  return Column(
+                    children: [
+                      Expanded(child: webView),
+                      const Divider(height: 1),
+                      nav,
+                    ],
+                  );
+              }
             },
           ),
         ),

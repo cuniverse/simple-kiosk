@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -57,6 +59,35 @@ class _KioskWebViewState extends State<KioskWebView> {
   String? _errorMessage;
   String? _currentUrl;
 
+  /// `onLoadStop`/`onProgressChanged` 이벤트가 도착하지 않을 경우(특히
+  /// 웹 타겟의 cross-origin iframe) 로딩 표시가 영원히 남는 것을 방지하는
+  /// 안전망 타이머.
+  Timer? _loadingFallback;
+  static const Duration _loadingTimeout = Duration(seconds: 8);
+
+  void _scheduleLoadingFallback() {
+    _loadingFallback?.cancel();
+    _loadingFallback = Timer(_loadingTimeout, () {
+      if (!mounted) return;
+      if (_isLoading) {
+        setState(() => _isLoading = false);
+      }
+    });
+  }
+
+  void _finishLoading() {
+    _loadingFallback?.cancel();
+    if (_isLoading) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _loadingFallback?.cancel();
+    super.dispose();
+  }
+
   // WebView 동작 정책 설정.
   final InAppWebViewSettings _settings = InAppWebViewSettings(
     javaScriptEnabled: true,
@@ -93,18 +124,19 @@ class _KioskWebViewState extends State<KioskWebView> {
                 _errorMessage = null;
                 _currentUrl = url?.toString();
               });
+              _scheduleLoadingFallback();
             },
             onLoadStop: (controller, url) {
               if (!mounted) return;
               setState(() {
-                _isLoading = false;
                 _currentUrl = url?.toString();
               });
+              _finishLoading();
             },
             onProgressChanged: (controller, progress) {
               if (!mounted) return;
-              if (progress >= 100 && _isLoading) {
-                setState(() => _isLoading = false);
+              if (progress >= 100) {
+                _finishLoading();
               }
             },
             // 네비게이션 요청 가로채기:
@@ -163,7 +195,11 @@ class _KioskWebViewState extends State<KioskWebView> {
         ),
 
         // 로딩 인디케이터.
-        if (_isLoading && _errorMessage == null)
+        // 웹(Chrome) 빌드에서는 iframe 구조 특성상 로드 완료 이벤트를 감지하지
+        // 못하는 경우가 많아 항상 돌아가는 것처럼 보일 수 있다. 이를 피하기 위해
+        // 웹에서는 인디케이터를 표시하지 않고, 네이티브 빌드(Android/Windows/macOS)
+        // 에서만 표시한다.
+        if (!kIsWeb && _isLoading && _errorMessage == null)
           const Positioned(
             top: 0,
             left: 0,
