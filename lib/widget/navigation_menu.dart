@@ -30,6 +30,19 @@ class NavigationMenu extends StatelessWidget {
   /// [orientation]이 [NavigationOrientation.bottom]일 때 적용되는 높이(dp).
   final double barHeight;
 
+  /// 각 버튼의 높이(dp). `0`이면 아이콘/텍스트 유무에 따라 자동 결정.
+  final double buttonHeight;
+
+  /// 하단/상단 모드에서 각 버튼의 가로 폭(dp). `0`이면 균등 분배(stretch).
+  /// 사이드 모드에서는 무시된다.
+  final double buttonWidth;
+
+  /// 버튼 사이 간격(dp).
+  final double buttonGap;
+
+  /// 버튼 정렬 방식.
+  final NavAlignment buttonAlignment;
+
   const NavigationMenu({
     super.key,
     required this.items,
@@ -38,6 +51,10 @@ class NavigationMenu extends StatelessWidget {
     required this.orientation,
     this.sideWidth = 220,
     this.barHeight = 96,
+    this.buttonHeight = 0,
+    this.buttonWidth = 0,
+    this.buttonGap = 8,
+    this.buttonAlignment = NavAlignment.stretch,
   });
 
   @override
