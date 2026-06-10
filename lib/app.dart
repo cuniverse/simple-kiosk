@@ -143,7 +143,9 @@ class _KioskHomeState extends State<_KioskHome> {
 
   @override
   Widget build(BuildContext context) {
-    final initialUrl = widget.items[_selectedIndex].url;
+    // WebView는 한 번만 생성되므로 초기 URL은 항상 첫 번째 메뉴(홈) URL을 사용.
+    // 이후 메뉴 전환은 _webController.loadUrl()로 처리한다.
+    final initialUrl = widget.items.first.url;
 
     return PopScope(
       canPop: false,
