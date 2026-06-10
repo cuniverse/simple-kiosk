@@ -2,10 +2,13 @@
 *.class
 *.lock
 *.log
+*.iml
 *.pyc
 *.swp
 .buildlog/
 .history
+.idea/
+.metadata
 
 
 
@@ -45,6 +48,10 @@ flutter_*.png
 linked_*.ds
 unlinked.ds
 unlinked_spec.ds
+
+# Generated Flutter scaffolds not used by this app
+web/
+test/widget_test.dart
 
 # Android related
 **/android/**/gradle-wrapper.jar
