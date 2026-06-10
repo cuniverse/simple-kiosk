@@ -1,5 +1,6 @@
 import 'menu_item.dart';
 import 'layout_config.dart';
+import 'idle_config.dart';
 
 /// `menu.json` 전체를 표현하는 설정.
 ///
@@ -9,7 +10,8 @@ import 'layout_config.dart';
 /// ```json
 /// {
 ///   "layout": { "navPosition": "left", "sideWidth": 240 },
-///   "items": [ { "id": "home", ... } ]
+///   "idle":   { "enabled": true, "mode": "slideshow", ... },
+///   "items":  [ { "id": "home", ... } ]
 /// }
 /// ```
 ///
@@ -17,10 +19,15 @@ import 'layout_config.dart';
 /// ```json
 /// [ { "id": "home", ... } ]
 /// ```
-/// 이 경우 [layout]은 모두 기본값([LayoutConfig.defaults])이 된다.
+/// 이 경우 [layout], [idle] 모두 기본값이 된다.
 class MenuConfig {
   final LayoutConfig layout;
+  final IdleConfig idle;
   final List<MenuItem> items;
 
-  const MenuConfig({required this.layout, required this.items});
+  const MenuConfig({
+    required this.layout,
+    required this.idle,
+    required this.items,
+  });
 }

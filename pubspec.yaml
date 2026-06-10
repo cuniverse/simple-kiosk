@@ -22,3 +22,4 @@ flutter:
   assets:
     - assets/config/menu.json
     - assets/icons/
+    - assets/idle/

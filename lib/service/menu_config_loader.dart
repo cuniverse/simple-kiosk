@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../model/idle_config.dart';
 import '../model/layout_config.dart';
 import '../model/menu_config.dart';
 import '../model/menu_item.dart';
@@ -29,6 +30,7 @@ class MenuConfigLoader {
 
     final List rawItems;
     final LayoutConfig layout;
+    IdleConfig idle = IdleConfig.defaults;
 
     if (decoded is List) {
       // 구버전: 배열 = items만 정의된 형식.
@@ -53,6 +55,17 @@ class MenuConfigLoader {
           'menu.json: "layout"은 객체여야 함',
         );
       }
+
+      final idleValue = decoded['idle'];
+      if (idleValue == null) {
+        idle = IdleConfig.defaults;
+      } else if (idleValue is Map<String, dynamic>) {
+        idle = IdleConfig.fromJson(idleValue);
+      } else {
+        throw const FormatException(
+          'menu.json: "idle"은 객체여야 함',
+        );
+      }
     } else {
       throw const FormatException(
         'menu.json: 최상위 구조는 객체 또는 배열이어야 함',
@@ -71,6 +84,6 @@ class MenuConfigLoader {
     if (items.isEmpty) {
       throw const FormatException('menu.json: 메뉴가 비어있음');
     }
-    return MenuConfig(layout: layout, items: items);
+    return MenuConfig(layout: layout, idle: idle, items: items);
   }
 }

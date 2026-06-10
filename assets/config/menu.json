@@ -9,6 +9,25 @@
     "buttonGap": 8,
     "buttonAlignment": "stretch"
   },
+  "idle": {
+    "enabled": true,
+    "timeoutSec": 60,
+    "startOnLaunch": true,
+    "mode": "slideshow",
+    "image": "assets/idle/welcome.jpg",
+    "slideshow": {
+      "intervalSec": 6,
+      "transition": "fade",
+      "images": [
+        "assets/idle/slide1.jpg",
+        "assets/idle/slide2.jpg",
+        "assets/idle/slide3.jpg"
+      ]
+    },
+    "url": "https://example.com",
+    "showHint": true,
+    "hintText": "화면을 터치해 주세요"
+  },
   "items": [
     {
       "id": "home",

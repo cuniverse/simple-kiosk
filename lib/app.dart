@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'model/idle_config.dart';
 import 'model/layout_config.dart';
 import 'model/menu_config.dart';
 import 'model/menu_item.dart';
 import 'service/menu_config_loader.dart';
+import 'widget/idle_gate.dart';
 import 'widget/kiosk_webview.dart';
 import 'widget/navigation_menu.dart';
 
@@ -95,6 +97,7 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
         return _KioskHome(
           items: snapshot.data!.items,
           layout: snapshot.data!.layout,
+          idle: snapshot.data!.idle,
         );
       },
     );
@@ -113,7 +116,12 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
 class _KioskHome extends StatefulWidget {
   final List<MenuItem> items;
   final LayoutConfig layout;
-  const _KioskHome({required this.items, required this.layout});
+  final IdleConfig idle;
+  const _KioskHome({
+    required this.items,
+    required this.layout,
+    required this.idle,
+  });
 
   @override
   State<_KioskHome> createState() => _KioskHomeState();
@@ -128,6 +136,16 @@ class _KioskHomeState extends State<_KioskHome> {
     setState(() => _selectedIndex = index);
     final url = widget.items[index].url;
     _webController?.loadUrl(url);
+  }
+
+  /// 대기화면 진입/해제 시 메뉴를 홈(첫 항목)으로 되돌린다.
+  /// 이전 사용자가 머물러둔 페이지가 그대로 노출되는 것을 방지한다.
+  void _resetToHome() {
+    if (widget.items.isEmpty) return;
+    if (_selectedIndex != 0) {
+      setState(() => _selectedIndex = 0);
+    }
+    _webController?.loadUrl(widget.items.first.url);
   }
 
   Future<bool> _onWillPop() async {
@@ -169,8 +187,13 @@ class _KioskHomeState extends State<_KioskHome> {
       },
       child: Scaffold(
         body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
+          child: IdleGate(
+            config: widget.idle,
+            // 대기화면 진입 시 메뉴를 홈으로 돌려두면 다음 깨워질 때 깨끗하게 시작.
+            onEnterIdle: _resetToHome,
+            onWake: _resetToHome,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
               final position = _effectivePosition(constraints.maxWidth);
               final webView = KioskWebView(
                 // WebView는 한 번만 생성되며, 이후 URL 변경은 컨트롤러로 수행.
@@ -232,6 +255,7 @@ class _KioskHomeState extends State<_KioskHome> {
                   );
               }
             },
+          ),
           ),
         ),
       ),
