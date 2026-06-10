@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../model/layout_config.dart';
 import '../model/menu_item.dart';
 import 'material_icon_registry.dart';
 
