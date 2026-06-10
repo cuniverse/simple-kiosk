@@ -1,5 +1,5 @@
 /// 대기화면(attract / idle screen)에서 표시할 콘텐츠 종류.
-enum IdleMode { none, image, slideshow, url }
+enum IdleMode { none, image, slideshow, url, folder }
 
 IdleMode _parseIdleMode(Object? raw) {
   if (raw == null) return IdleMode.none;
@@ -15,6 +15,8 @@ IdleMode _parseIdleMode(Object? raw) {
       return IdleMode.slideshow;
     case 'url':
       return IdleMode.url;
+    case 'folder':
+      return IdleMode.folder;
     default:
       throw FormatException('menu.json: 알 수 없는 idle.mode 값 "$raw"');
   }
@@ -96,6 +98,82 @@ class SlideshowConfig {
   }
 }
 
+/// 폴더 순회 모드 설정.
+///
+/// `path`가 `assets/...` 로 시작하면 Flutter 에셋 폴더를 자동 스캔하고,
+/// 그 외의 절대 경로이면 파일시스템을 스캔한다. 웹에서는 에셋 모드만 지원.
+class FolderConfig {
+  /// 폴더 경로.
+  final String path;
+
+  /// 이미지 장당 표시 시간(초). 동영상은 구간 종료까지 재생 후 다음.
+  final int intervalSec;
+
+  /// 순서 섬플.
+  final bool shuffle;
+
+  /// 이미지 파일 포함 여부.
+  final bool includeImages;
+
+  /// 동영상 파일 포함 여부.
+  final bool includeVideos;
+
+  /// 이미지 간 전환 효과.
+  final SlideshowTransition transition;
+
+  const FolderConfig({
+    this.path = '',
+    this.intervalSec = 8,
+    this.shuffle = false,
+    this.includeImages = true,
+    this.includeVideos = true,
+    this.transition = SlideshowTransition.fade,
+  });
+
+  static const FolderConfig defaults = FolderConfig();
+
+  bool get isUsable =>
+      path.isNotEmpty && (includeImages || includeVideos);
+
+  factory FolderConfig.fromJson(Map<String, dynamic> json) {
+    String parseStringRequired(String key) {
+      final v = json[key];
+      if (v == null || (v is String && v.isEmpty)) {
+        throw FormatException('menu.json idle.folder.$key: 분 이었음 불가');
+      }
+      if (v is! String) {
+        throw FormatException('menu.json idle.folder.$key: 문자열 필요');
+      }
+      return v;
+    }
+
+    int parseInt(String key, int fallback) {
+      final v = json[key];
+      if (v == null) return fallback;
+      if (v is! num || v <= 0) {
+        throw FormatException('menu.json idle.folder.$key: 양수 필요');
+      }
+      return v.toInt();
+    }
+
+    bool parseBool(String key, bool fallback) {
+      final v = json[key];
+      if (v == null) return fallback;
+      if (v is bool) return v;
+      throw FormatException('menu.json idle.folder.$key: bool 필요');
+    }
+
+    return FolderConfig(
+      path: parseStringRequired('path'),
+      intervalSec: parseInt('intervalSec', defaults.intervalSec),
+      shuffle: parseBool('shuffle', defaults.shuffle),
+      includeImages: parseBool('includeImages', defaults.includeImages),
+      includeVideos: parseBool('includeVideos', defaults.includeVideos),
+      transition: _parseTransition(json['transition']),
+    );
+  }
+}
+
 /// 대기화면 설정.
 ///
 /// `menu.json`의 선택적 `idle` 섹션에서 로드된다.
@@ -122,6 +200,9 @@ class IdleConfig {
   /// [mode]가 [IdleMode.url]일 때 표시할 URL.
   final String? url;
 
+  /// [mode]가 [IdleMode.folder]일 때 사용할 설정.
+  final FolderConfig folder;
+
   /// "터치하여 시작" 같은 안내 표시 여부.
   final bool showHint;
 
@@ -136,6 +217,7 @@ class IdleConfig {
     this.image,
     this.slideshow = SlideshowConfig.defaults,
     this.url,
+    this.folder = FolderConfig.defaults,
     this.showHint = true,
     this.hintText = '화면을 터치해 주세요',
   });
@@ -155,6 +237,8 @@ class IdleConfig {
         return slideshow.images.isNotEmpty;
       case IdleMode.url:
         return url != null && url!.isNotEmpty;
+      case IdleMode.folder:
+        return folder.isUsable;
     }
   }
 
@@ -188,6 +272,14 @@ class IdleConfig {
       throw const FormatException('menu.json idle.slideshow: 객체여야 함');
     }
 
+    FolderConfig folder = FolderConfig.defaults;
+    final folderRaw = json['folder'];
+    if (folderRaw is Map<String, dynamic>) {
+      folder = FolderConfig.fromJson(folderRaw);
+    } else if (folderRaw != null) {
+      throw const FormatException('menu.json idle.folder: 객체여야 함');
+    }
+
     final hintText = parseString('hintText') ?? defaults.hintText;
 
     return IdleConfig(
@@ -198,6 +290,7 @@ class IdleConfig {
       image: parseString('image'),
       slideshow: slideshow,
       url: parseString('url'),
+      folder: folder,
       showHint: parseBool('showHint', defaults.showHint),
       hintText: hintText,
     );

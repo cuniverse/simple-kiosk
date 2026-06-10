@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../model/layout_config.dart';
 import '../model/menu_item.dart';
+import 'kiosk_webview.dart';
 import 'material_icon_registry.dart';
 
 /// 네비게이션 영역의 표시 방향.
@@ -43,6 +44,16 @@ class NavigationMenu extends StatelessWidget {
   /// 버튼 정렬 방식.
   final NavAlignment buttonAlignment;
 
+  /// 네비게이션 시작(좌/상) 위치에 WebView 뒤로/앞으로 캨트롤을 표시할지.
+  ///
+  /// `true`이고 [historyController]가 주어지면 네비 시작에 [←] [→] 버튼 두 개를
+  /// 만들어 표시한다.
+  final bool showHistoryButtons;
+
+  /// 뒤로/앞으로 이동을 수행할 WebView 컨트롤러.
+  /// [showHistoryButtons]가 `true`일 때만 사용된다.
+  final KioskWebViewController? historyController;
+
   const NavigationMenu({
     super.key,
     required this.items,
@@ -55,6 +66,8 @@ class NavigationMenu extends StatelessWidget {
     this.buttonWidth = 0,
     this.buttonGap = 8,
     this.buttonAlignment = NavAlignment.stretch,
+    this.showHistoryButtons = false,
+    this.historyController,
   });
 
   @override
@@ -78,6 +91,15 @@ class NavigationMenu extends StatelessWidget {
     final useSeparator = !_isSpaceAlignment(align);
 
     final children = <Widget>[];
+    if (showHistoryButtons && historyController != null) {
+      children.add(_HistoryControls(
+        controller: historyController!,
+        orientation: NavigationOrientation.side,
+      ));
+      if (items.isNotEmpty) {
+        children.add(SizedBox(height: buttonGap + 4));
+      }
+    }
     for (var i = 0; i < items.length; i++) {
       if (useSeparator && i > 0) {
         children.add(SizedBox(height: buttonGap));
@@ -141,6 +163,21 @@ class NavigationMenu extends StatelessWidget {
         );
 
     final children = <Widget>[];
+
+    // 하단 모드 공통: 좌측에 뒤/앞 버튼 삽입.
+    if (showHistoryButtons && historyController != null) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: _HistoryControls(
+            controller: historyController!,
+            orientation: NavigationOrientation.bottom,
+          ),
+        ),
+      );
+      children.add(SizedBox(width: buttonGap));
+    }
+
     if (useStretch) {
       // 기존 동작: 모든 버튼이 균등하게 공간을 차지.
       for (var i = 0; i < items.length; i++) {
@@ -234,6 +271,92 @@ bool _isSpaceAlignment(NavAlignment a) =>
     a == NavAlignment.spaceBetween ||
     a == NavAlignment.spaceAround ||
     a == NavAlignment.spaceEvenly;
+
+/// WebView 뒤로/앞으로 이동 컨트롤.
+///
+/// [KioskWebViewController.navState] 를 구독해 활성/비활성 상태를 자동 갱신.
+class _HistoryControls extends StatelessWidget {
+  final KioskWebViewController controller;
+  final NavigationOrientation orientation;
+
+  const _HistoryControls({
+    required this.controller,
+    required this.orientation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<WebNavState>(
+      valueListenable: controller.navState,
+      builder: (context, state, _) {
+        final back = _HistoryButton(
+          icon: Icons.arrow_back,
+          tooltip: '뒤로',
+          enabled: state.canGoBack,
+          onPressed: () => controller.goBack(),
+        );
+        final forward = _HistoryButton(
+          icon: Icons.arrow_forward,
+          tooltip: '앞으로',
+          enabled: state.canGoForward,
+          onPressed: () => controller.goForward(),
+        );
+        // 사이드/하단 모두 가로로 두 버튼을 나란히 배치.
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            back,
+            const SizedBox(width: 8),
+            forward,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HistoryButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _HistoryButton({
+    required this.icon,
+    required this.tooltip,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Tooltip(
+        message: tooltip,
+        child: ElevatedButton(
+          onPressed: enabled ? onPressed : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: scheme.surface,
+            foregroundColor: scheme.onSurface,
+            disabledBackgroundColor: scheme.surface.withValues(alpha: 0.5),
+            disabledForegroundColor:
+                scheme.onSurface.withValues(alpha: 0.35),
+            elevation: enabled ? 1 : 0,
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Icon(icon, size: 28),
+        ),
+      ),
+    );
+  }
+}
 
 /// 사이드/하단 양쪽에서 공용으로 사용하는 큰 터치 버튼.
 class _NavButton extends StatelessWidget {

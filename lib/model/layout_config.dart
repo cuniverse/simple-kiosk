@@ -111,6 +111,9 @@ class LayoutConfig {
   /// 우선한다. `stretch`는 하단/상단 모드에서만 의미가 있다.
   final NavAlignment buttonAlignment;
 
+  /// 네비게이션 바 시작점(좌/상)에 WebView 뒤로/앞으로 컨트롤을 표시할지.
+  final bool showHistoryButtons;
+
   const LayoutConfig({
     this.navPosition = NavPosition.auto,
     this.sideWidth = 220,
@@ -120,6 +123,7 @@ class LayoutConfig {
     this.buttonWidth = 0,
     this.buttonGap = 8,
     this.buttonAlignment = NavAlignment.stretch,
+    this.showHistoryButtons = false,
   });
 
   /// 모든 기본값을 가진 설정.
@@ -162,6 +166,14 @@ class LayoutConfig {
       buttonGap: parseNonNegative('buttonGap', defaults.buttonGap),
       buttonAlignment:
           _parseAlignment(json['buttonAlignment'], defaults.buttonAlignment),
+      showHistoryButtons: () {
+        final v = json['showHistoryButtons'];
+        if (v == null) return defaults.showHistoryButtons;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.showHistoryButtons: bool 필요',
+        );
+      }(),
     );
   }
 }

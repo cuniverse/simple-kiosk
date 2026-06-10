@@ -30,10 +30,35 @@ class KioskWebView extends StatefulWidget {
   State<KioskWebView> createState() => _KioskWebViewState();
 }
 
+/// WebView 네비게이션 상태(뒤/앞 버튼 활성화용).
+class WebNavState {
+  final bool canGoBack;
+  final bool canGoForward;
+
+  const WebNavState({
+    required this.canGoBack,
+    required this.canGoForward,
+  });
+
+  static const empty = WebNavState(canGoBack: false, canGoForward: false);
+
+  @override
+  bool operator ==(Object other) =>
+      other is WebNavState &&
+      other.canGoBack == canGoBack &&
+      other.canGoForward == canGoForward;
+
+  @override
+  int get hashCode => Object.hash(canGoBack, canGoForward);
+}
+
 /// 외부에서 WebView를 제어하기 위한 컨트롤러.
 class KioskWebViewController {
   final InAppWebViewController _controller;
-  KioskWebViewController._(this._controller);
+  final ValueNotifier<WebNavState> navState;
+
+  KioskWebViewController._(this._controller)
+      : navState = ValueNotifier(WebNavState.empty);
 
   /// 지정한 URL을 로드한다.
   Future<void> loadUrl(String url) {
@@ -45,15 +70,34 @@ class KioskWebViewController {
   /// 뒤로 갈 수 있는지 여부.
   Future<bool> canGoBack() => _controller.canGoBack();
 
+  /// 앞으로 갈 수 있는지 여부.
+  Future<bool> canGoForward() => _controller.canGoForward();
+
   /// 뒤로 이동한다.
   Future<void> goBack() => _controller.goBack();
 
+  /// 앞으로 이동한다.
+  Future<void> goForward() => _controller.goForward();
+
   /// 현재 페이지를 다시 로드한다.
   Future<void> reload() => _controller.reload();
+
+  /// 내부에서 [_KioskWebViewState] 가 네비게이션 상태를 갱신한다.
+  Future<void> _refreshNavState() async {
+    try {
+      final back = await _controller.canGoBack();
+      final forward = await _controller.canGoForward();
+      navState.value =
+          WebNavState(canGoBack: back, canGoForward: forward);
+    } catch (_) {
+      // 컨트롤러가 이미 해제되었거나 일시적 오류 — 무시.
+    }
+  }
 }
 
 class _KioskWebViewState extends State<KioskWebView> {
   InAppWebViewController? _webController;
+  KioskWebViewController? _kioskController;
 
   bool _isLoading = true;
   String? _errorMessage;
@@ -115,7 +159,9 @@ class _KioskWebViewState extends State<KioskWebView> {
             initialSettings: _settings,
             onWebViewCreated: (controller) {
               _webController = controller;
-              widget.onReady?.call(KioskWebViewController._(controller));
+              final kc = KioskWebViewController._(controller);
+              _kioskController = kc;
+              widget.onReady?.call(kc);
             },
             onLoadStart: (controller, url) {
               if (!mounted) return;
@@ -125,6 +171,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                 _currentUrl = url?.toString();
               });
               _scheduleLoadingFallback();
+              _kioskController?._refreshNavState();
             },
             onLoadStop: (controller, url) {
               if (!mounted) return;
@@ -132,11 +179,13 @@ class _KioskWebViewState extends State<KioskWebView> {
                 _currentUrl = url?.toString();
               });
               _finishLoading();
+              _kioskController?._refreshNavState();
             },
             onProgressChanged: (controller, progress) {
               if (!mounted) return;
               if (progress >= 100) {
                 _finishLoading();
+                _kioskController?._refreshNavState();
               }
             },
             // 네비게이션 요청 가로채기:

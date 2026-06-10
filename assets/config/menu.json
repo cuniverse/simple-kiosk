@@ -7,7 +7,8 @@
     "buttonHeight": 0,
     "buttonWidth": 0,
     "buttonGap": 8,
-    "buttonAlignment": "stretch"
+    "buttonAlignment": "stretch",
+    "showHistoryButtons": true
   },
   "idle": {
     "enabled": true,
@@ -23,6 +24,14 @@
         "assets/idle/slide2.jpg",
         "assets/idle/slide3.jpg"
       ]
+    },
+    "folder": {
+      "path": "assets/idle/",
+      "intervalSec": 8,
+      "shuffle": false,
+      "includeImages": true,
+      "includeVideos": true,
+      "transition": "fade"
     },
     "url": "https://example.com",
     "showHint": true,

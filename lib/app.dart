@@ -199,7 +199,11 @@ class _KioskHomeState extends State<_KioskHome> {
                 // WebView는 한 번만 생성되며, 이후 URL 변경은 컨트롤러로 수행.
                 key: const ValueKey('kiosk-webview'),
                 initialUrl: initialUrl,
-                onReady: (c) => _webController = c,
+                onReady: (c) {
+                  _webController = c;
+                  // NavigationMenu의 history 컨트롤이 녹아 컨트롤러를 받을 수 있도록 리빌드.
+                  if (mounted) setState(() {});
+                },
               );
 
               final isSide =
@@ -217,6 +221,8 @@ class _KioskHomeState extends State<_KioskHome> {
                 buttonWidth: widget.layout.buttonWidth,
                 buttonGap: widget.layout.buttonGap,
                 buttonAlignment: widget.layout.buttonAlignment,
+                showHistoryButtons: widget.layout.showHistoryButtons,
+                historyController: _webController,
               );
 
               switch (position) {
