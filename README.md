@@ -84,10 +84,29 @@ HTTP URL을 사용해야 하는 경우, `AndroidManifest.xml`의 `<application>`
 
 ## Windows에서 실행 시 주의사항
 
+- **새 Windows 환경에서 처음 빌드한다면 [docs/WINDOWS_SETUP.md](docs/WINDOWS_SETUP.md) 를 먼저 따라가세요.**
+  개발자 모드 활성화, NuGet CLI 설치, WebView2 Runtime 설치를 한 번에 처리합니다.
+- 자동 셋업 스크립트:
+  ```powershell
+  ./scripts/setup-windows-dev.ps1        # 점검 + 설치
+  ./scripts/setup-windows-dev.ps1 -Run   # 셋업 후 바로 flutter run -d windows
+  ```
 - **WebView2 Runtime이 필요할 수 있습니다.**
   Windows 11에는 기본 포함되어 있지만, 일부 Windows 10 환경에서는 설치되어 있지 않을 수 있습니다.
   설치되지 않은 경우 Microsoft 공식 페이지에서 "Microsoft Edge WebView2 Runtime"을 다운로드해 설치하세요.
 - `flutter_inappwebview` Windows 구현은 WebView2를 기반으로 동작합니다.
+
+### 키오스크 전체화면 모드
+
+- 데스크톱(Windows / macOS / Linux) 빌드는 시작 시 자동으로 **borderless fullscreen** 으로 표시됩니다.
+  ([lib/main.dart](lib/main.dart), [`window_manager`](https://pub.dev/packages/window_manager) 사용)
+- Android는 `immersiveSticky` 모드로 시스템 UI(상태바/네비게이션 바)를 자동 숨김 처리합니다.
+- 종료: `flutter run` 콘솔에서 `q`, 또는 `Alt + F4`.
+- 개발 중 일반 창으로 띄우고 싶다면 환경변수 `SIMPLE_KIOSK_WINDOWED=1` 설정 후 실행:
+  ```powershell
+  $env:SIMPLE_KIOSK_WINDOWED = '1'
+  flutter run -d windows
+  ```
 
 ## macOS에서 실행 시 주의사항
 
