@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'model/idle_config.dart';
@@ -40,16 +43,55 @@ class _MenuBootstrap extends StatefulWidget {
 class _MenuBootstrapState extends State<_MenuBootstrap> {
   late Future<MenuConfig> _future;
 
+  /// 로드 실패 시 자동 재시도 타이머. 무인 운영 환경에서 외부 개입 없이
+  /// 회복되도록 한다.
+  Timer? _autoRetryTimer;
+  int _autoRetrySecondsLeft = 0;
+  static const Duration _autoRetryDelay = Duration(seconds: 5);
+
   @override
   void initState() {
     super.initState();
+    _startLoad();
+  }
+
+  void _startLoad() {
     _future = const MenuConfigLoader().load();
+    // 별도 리스너로 실패를 감지해 자동 재시도를 예약한다.
+    // FutureBuilder 는 원본 _future 의 에러를 그대로 받아 에러 UI 를 표시한다.
+    _future.then<void>((_) {}, onError: (Object _) {
+      if (mounted) _scheduleAutoRetry();
+    });
+  }
+
+  void _scheduleAutoRetry() {
+    _autoRetryTimer?.cancel();
+    _autoRetrySecondsLeft = _autoRetryDelay.inSeconds;
+    _autoRetryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _autoRetrySecondsLeft -= 1;
+      });
+      if (_autoRetrySecondsLeft <= 0) {
+        timer.cancel();
+        _retry();
+      }
+    });
   }
 
   void _retry() {
-    setState(() {
-      _future = const MenuConfigLoader().load();
-    });
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = null;
+    setState(_startLoad);
+  }
+
+  @override
+  void dispose() {
+    _autoRetryTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -78,6 +120,18 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 18),
                     ),
+                    if (_autoRetryTimer != null &&
+                        _autoRetrySecondsLeft > 0) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        '$_autoRetrySecondsLeft초 후 자동으로 다시 시도합니다…',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 64,
@@ -129,28 +183,114 @@ class _KioskHome extends StatefulWidget {
 
 class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
-  KioskWebViewController? _webController;
+
+  /// 메뉴 인덱스별 컨트롤러. 한 번이라도 mount 된 항목에 대해서만 채워진다.
+  final Map<int, KioskWebViewController> _controllers = {};
+
+  /// 한 번이라도 방문한(=WebView 가 mount 된) 메뉴 인덱스 집합.
+  ///
+  /// IndexedStack 의 자식 중 mount 안 된 항목은 [SizedBox.shrink] 로 두어
+  /// 메모리(WebView2 인스턴스) 를 절약한다. 첫 항목은 앱 시작 시 자동 mount.
+  final Set<int> _mountedIndices = {0};
+
+  /// 더블 탭 감지를 위한 마지막 탭 시점/대상 메뉴.
+  ///
+  /// `keepStateOnTap` 옵션이 켜진 경우, 같은 메뉴를 짧은 시간(300ms) 내에 두
+  /// 번 누르면 강제 reload 하도록 한다.
+  DateTime? _lastTapAt;
+  int? _lastTapIndex;
+  static const Duration _doubleTapWindow = Duration(milliseconds: 300);
+
+  KioskWebViewController? get _currentController => _controllers[_selectedIndex];
 
   void _onSelect(int index) {
     if (index < 0 || index >= widget.items.length) return;
-    setState(() => _selectedIndex = index);
-    final url = widget.items[index].url;
-    _webController?.loadUrl(url);
+    final item = widget.items[index];
+    final url = item.url;
+    final now = DateTime.now();
+
+    // 더블 탭 판정: 같은 메뉴를 윈도우 내에 다시 누른 경우.
+    final isDoubleTap = _lastTapIndex == index &&
+        _lastTapAt != null &&
+        now.difference(_lastTapAt!) <= _doubleTapWindow;
+    _lastTapAt = now;
+    _lastTapIndex = index;
+
+    // 항목별 설정이 있으면 우선, 없으면 layout 기본값.
+    final keepState = item.keepStateOnTap ?? widget.layout.keepStateOnTap;
+
+    if (kDebugMode) {
+      debugPrint(
+        '[KioskHome] _onSelect '
+        'index=$index id="${item.id}" '
+        'currentSelected=$_selectedIndex '
+        'keepState=$keepState (item=${item.keepStateOnTap}, layout=${widget.layout.keepStateOnTap}) '
+        'isDoubleTap=$isDoubleTap '
+        'mounted=${_mountedIndices.contains(index)}',
+      );
+    }
+
+    final wasMounted = _mountedIndices.contains(index);
+
+    setState(() {
+      _selectedIndex = index;
+      _mountedIndices.add(index);
+    });
+
+    if (!wasMounted) {
+      // 첫 mount 인 항목은 KioskWebView 의 initialUrl 로 자동 로드된다.
+      // 별도 loadUrl 호출 불필요.
+      return;
+    }
+
+    // 이미 mount 되어 있는 항목.
+    if (isDoubleTap || !keepState) {
+      // 강제 재로드: keepState=false 이거나 더블 탭.
+      _controllers[index]?.loadUrl(url);
+    }
+    // keepState=true & 단일 탭 & 이미 mount 됨 → 아무 것도 안 함(상태 유지).
   }
 
-  /// 대기화면 진입/해제 시 메뉴를 홈(첫 항목)으로 되돌린다.
-  /// 이전 사용자가 머물러둔 페이지가 그대로 노출되는 것을 방지한다.
-  void _resetToHome() {
+  /// 대기화면 진입 시 호출.
+  ///
+  /// 메모리 절약을 위해 모든 WebView 를 언mount 해서 WebView2 인스턴스를
+  /// 해제한다. 다음 사용자가 깨운 뒤 메뉴를 누르면 그 항목만 새로 mount 된다.
+  /// (첫 항목 = 홈은 항상 mount 상태로 둔다 — 깨운 직후 즉시 표시되어야 하므로.)
+  void _onEnterIdle() {
+    if (widget.items.isEmpty) return;
+    if (kDebugMode) {
+      debugPrint(
+        '[KioskHome] 대기화면 진입 → WebView 정리 '
+        '(mounted=${_mountedIndices.toList()..sort()})',
+      );
+    }
+    setState(() {
+      _selectedIndex = 0;
+      // 홈만 남기고 모두 언mount.
+      _mountedIndices
+        ..clear()
+        ..add(0);
+      // 언mount 되는 항목의 컨트롤러 참조도 정리(위젯이 dispose 되면 무효).
+      _controllers.removeWhere((index, _) => index != 0);
+    });
+    // 홈은 살려두되, 다음 사용자에게 깨끗한 첫 화면을 보여주기 위해 초기 URL 로
+    // 리셋한다.
+    _controllers[0]?.loadUrl(widget.items.first.url);
+  }
+
+  /// 대기화면에서 깨어날 때 호출.
+  ///
+  /// 이미 [_onEnterIdle] 에서 정리되었으므로 여기서는 인덱스만 홈으로 보장한다.
+  void _onWake() {
     if (widget.items.isEmpty) return;
     if (_selectedIndex != 0) {
       setState(() => _selectedIndex = 0);
     }
-    _webController?.loadUrl(widget.items.first.url);
   }
 
   Future<bool> _onWillPop() async {
     // WebView 뒤로가기 우선.
-    final controller = _webController;
+    final controller = _currentController;
     if (controller != null && await controller.canGoBack()) {
       await controller.goBack();
       return false;
@@ -175,10 +315,6 @@ class _KioskHomeState extends State<_KioskHome> {
 
   @override
   Widget build(BuildContext context) {
-    // WebView는 한 번만 생성되므로 초기 URL은 항상 첫 번째 메뉴(홈) URL을 사용.
-    // 이후 메뉴 전환은 _webController.loadUrl()로 처리한다.
-    final initialUrl = widget.items.first.url;
-
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
@@ -189,21 +325,32 @@ class _KioskHomeState extends State<_KioskHome> {
         body: SafeArea(
           child: IdleGate(
             config: widget.idle,
-            // 대기화면 진입 시 메뉴를 홈으로 돌려두면 다음 깨워질 때 깨끗하게 시작.
-            onEnterIdle: _resetToHome,
-            onWake: _resetToHome,
+            // 대기화면 진입 시 메모리 정리, 깨어날 때 첫 화면으로.
+            onEnterIdle: _onEnterIdle,
+            onWake: _onWake,
             child: LayoutBuilder(
               builder: (context, constraints) {
               final position = _effectivePosition(constraints.maxWidth);
-              final webView = KioskWebView(
-                // WebView는 한 번만 생성되며, 이후 URL 변경은 컨트롤러로 수행.
-                key: const ValueKey('kiosk-webview'),
-                initialUrl: initialUrl,
-                onReady: (c) {
-                  _webController = c;
-                  // NavigationMenu의 history 컨트롤이 녹아 컨트롤러를 받을 수 있도록 리빌드.
-                  if (mounted) setState(() {});
-                },
+
+              // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
+              // 한 번이라도 방문한 항목만 실제 KioskWebView 로 mount 된다.
+              final webViewStack = IndexedStack(
+                index: _selectedIndex,
+                children: List<Widget>.generate(widget.items.length, (i) {
+                  if (!_mountedIndices.contains(i)) {
+                    return const SizedBox.shrink();
+                  }
+                  final item = widget.items[i];
+                  return KioskWebView(
+                    key: ValueKey('kiosk-webview-${item.id}'),
+                    initialUrl: item.url,
+                    onReady: (c) {
+                      _controllers[i] = c;
+                      // history 컨트롤이 새 컨트롤러를 받도록 리빌드.
+                      if (mounted) setState(() {});
+                    },
+                  );
+                }),
               );
 
               final isSide =
@@ -222,7 +369,7 @@ class _KioskHomeState extends State<_KioskHome> {
                 buttonGap: widget.layout.buttonGap,
                 buttonAlignment: widget.layout.buttonAlignment,
                 showHistoryButtons: widget.layout.showHistoryButtons,
-                historyController: _webController,
+                historyController: _currentController,
                 barColor: widget.layout.barColor,
                 buttonColor: widget.layout.buttonColor,
                 buttonForegroundColor: widget.layout.buttonForegroundColor,
@@ -237,13 +384,13 @@ class _KioskHomeState extends State<_KioskHome> {
                     children: [
                       nav,
                       const VerticalDivider(width: 1),
-                      Expanded(child: webView),
+                      Expanded(child: webViewStack),
                     ],
                   );
                 case NavPosition.right:
                   return Row(
                     children: [
-                      Expanded(child: webView),
+                      Expanded(child: webViewStack),
                       const VerticalDivider(width: 1),
                       nav,
                     ],
@@ -253,14 +400,14 @@ class _KioskHomeState extends State<_KioskHome> {
                     children: [
                       nav,
                       const Divider(height: 1),
-                      Expanded(child: webView),
+                      Expanded(child: webViewStack),
                     ],
                   );
                 case NavPosition.bottom:
                 case NavPosition.auto: // 이론상 도달 불가 — 안전망.
                   return Column(
                     children: [
-                      Expanded(child: webView),
+                      Expanded(child: webViewStack),
                       const Divider(height: 1),
                       nav,
                     ],

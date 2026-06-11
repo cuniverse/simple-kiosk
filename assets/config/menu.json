@@ -13,7 +13,8 @@
     "buttonColor": "#374151",
     "buttonForegroundColor": "#ffffff",
     "selectedButtonColor": "#2563eb",
-    "selectedButtonForegroundColor": "#ffffff"
+    "selectedButtonForegroundColor": "#ffffff",
+    "keepStateOnTap": false
   },
   "idle": {
     "enabled": true,
@@ -65,7 +66,8 @@
       "id": "ycatholic",
       "title": "여의도성당 홈페이지",
       "url": "http://ycatholic.or.kr/",
-      "icon": "icon:church"
+      "icon": "icon:church",
+      "keepStateOnTap": true
     },
     {
       "id": "jubo",

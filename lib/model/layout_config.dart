@@ -116,6 +116,15 @@ class LayoutConfig {
   /// 네비게이션 바 시작점(좌/상)에 WebView 뒤로/앞으로 컨트롤을 표시할지.
   final bool showHistoryButtons;
 
+  /// 메뉴 버튼을 한 번 누를 때 설정된 URL 로 강제 초기화하지 않고, 현재
+  /// 페이지 상태(스크롤/내부 네비 등)를 유지할지 여부.
+  ///
+  /// - `false` (기본): 모든 클릭이 설정된 URL 로 이동(현재 동작).
+  /// - `true`: 다른 메뉴를 누르면 그 항목으로 전환만 하고, **이미 선택된**
+  ///   메뉴를 단일 클릭하면 아무 동작도 하지 않는다. 같은 메뉴를 빠르게
+  ///   더블 탭하면 설정된 URL 로 새로 로드한다.
+  final bool keepStateOnTap;
+
   /// 네비게이션 바 배경색. `null`이면 테마 기본값.
   final Color? barColor;
 
@@ -141,6 +150,7 @@ class LayoutConfig {
     this.buttonGap = 8,
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
+    this.keepStateOnTap = false,
     this.barColor,
     this.buttonColor,
     this.buttonForegroundColor,
@@ -194,6 +204,14 @@ class LayoutConfig {
         if (v is bool) return v;
         throw const FormatException(
           'menu.json layout.showHistoryButtons: bool 필요',
+        );
+      }(),
+      keepStateOnTap: () {
+        final v = json['keepStateOnTap'];
+        if (v == null) return defaults.keepStateOnTap;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.keepStateOnTap: bool 필요',
         );
       }(),
       barColor: _parseColor(json['barColor'], 'barColor'),

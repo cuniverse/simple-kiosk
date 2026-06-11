@@ -69,6 +69,12 @@ class KioskWebViewController {
   // goBack/goForward 로 이동 중일 때 onLoadStart 의 자동 푸시를 막기 위한 플래그.
   bool _navigatingHistory = false;
 
+  /// 사용자가 [loadUrl] 을 호출한 시점에 [_KioskWebViewState] 가 응답 감시
+  /// 타이머를 걸 수 있도록 하는 훅. WebView 가 죽은 상태에서도 [loadUrl] 호출
+  /// 자체는 throw 하지 않을 수 있어, 호출 직후 [onLoadStart]/[onLoadStop] 이
+  /// 일정 시간 내 도착했는지를 별도로 감시할 필요가 있다.
+  void Function(String url)? _onLoadRequested;
+
   KioskWebViewController._(this._controller)
       : navState = ValueNotifier(WebNavState.empty);
 
@@ -101,6 +107,8 @@ class KioskWebViewController {
   /// 뒤/앞 버튼의 대상이 된다.
   Future<void> loadUrl(String url) async {
     _resetHistory(url);
+    // state 에 사용자 로드 요청을 알린다(응답 감시 타이머 시작용).
+    _onLoadRequested?.call(url);
     await _controller.loadUrl(
       urlRequest: URLRequest(url: WebUri(url)),
     );
@@ -177,11 +185,56 @@ class _KioskWebViewState extends State<KioskWebView> {
   String? _errorMessage;
   String? _currentUrl;
 
+  /// 마지막으로 정상 로드된 URL. 재생성 후 복귀 대상.
+  String? _lastGoodUrl;
+
   /// `onLoadStop`/`onProgressChanged` 이벤트가 도착하지 않을 경우(특히
   /// 웹 타겟의 cross-origin iframe) 로딩 표시가 영원히 남는 것을 방지하는
   /// 안전망 타이머.
   Timer? _loadingFallback;
   static const Duration _loadingTimeout = Duration(seconds: 8);
+
+  /// 에러 화면에서 자동 재시도까지 남은 시간 카운트다운 타이머.
+  Timer? _autoRetryTimer;
+  int _autoRetrySecondsLeft = 0;
+  static const Duration _autoRetryDelay = Duration(seconds: 5);
+
+  /// 연속 실패 누적 횟수. 정상 로드되면 0 으로 리셋.
+  int _consecutiveErrors = 0;
+
+  /// 누적 실패가 이 임계값을 넘으면 단순 재시도 대신 WebView 자체를 재생성한다.
+  static const int _maxRetriesBeforeRecreate = 3;
+
+  /// InAppWebView 위젯을 강제로 다시 만들기 위한 세대 카운터.
+  /// 값이 바뀌면 [ValueKey]가 달라져 Flutter 가 위젯을 새로 빌드한다.
+  int _webviewGeneration = 0;
+
+  /// 컨트롤러 헬스체크용 watchdog 타이머.
+  ///
+  /// Windows 빌드에서는 WebView2 가 별도 자식 HWND 로 존재하기 때문에
+  /// Alt+F4 등으로 자식 창만 닫혀 부모(Flutter) 윈도우는 살아있는 상태가
+  /// 발생할 수 있다. 이 경우 콜백(예: onRenderProcessGone)이 호출되지
+  /// 않으므로, 페이지에서 1초 간격으로 보내는 heartbeat 가 일정 시간 도달하지
+  /// 않으면 위젯을 재생성한다.
+  Timer? _healthCheck;
+  static const Duration _healthCheckInterval = Duration(seconds: 1);
+
+  /// heartbeat 가 이 시간 동안 들어오지 않으면 WebView 가 죽은 것으로 본다.
+  static const Duration _heartbeatTimeout = Duration(seconds: 4);
+
+  /// 마지막으로 heartbeat 가 도달한 시각. null 이면 아직 한 번도 받지 못함.
+  DateTime? _lastHeartbeat;
+
+  /// 컨트롤러가 준비되었는지(=heartbeat 검사가 의미 있는지) 표시.
+  bool _heartbeatArmed = false;
+
+  /// 사용자가 메뉴를 눌러 [KioskWebViewController.loadUrl] 을 호출한 후,
+  /// 응답(onLoadStart/onLoadStop)이 도달하기를 기다리는 감시 타이머.
+  ///
+  /// 정해진 시간 내 응답이 없으면 WebView 가 죽은 것으로 보고 재생성한다.
+  Timer? _loadResponseWatchdog;
+  String? _pendingLoadUrl;
+  static const Duration _loadResponseTimeout = Duration(seconds: 3);
 
   void _scheduleLoadingFallback() {
     _loadingFallback?.cancel();
@@ -200,9 +253,182 @@ class _KioskWebViewState extends State<KioskWebView> {
     }
   }
 
+  /// watchdog 시작. 이미 실행 중이면 재시작한다.
+  void _startHealthCheck() {
+    _healthCheck?.cancel();
+    _heartbeatArmed = false;
+    _lastHeartbeat = null;
+    _healthCheck =
+        Timer.periodic(_healthCheckInterval, (_) => _checkHeartbeat());
+  }
+
+  void _stopHealthCheck() {
+    _healthCheck?.cancel();
+    _healthCheck = null;
+    _heartbeatArmed = false;
+    _lastHeartbeat = null;
+  }
+
+  /// 페이지에서 보낸 heartbeat 가 아직 살아있는지 검사한다.
+  ///
+  /// 첫 heartbeat 가 한 번이라도 도착해 [_heartbeatArmed] 가 true 가 된 이후
+  /// [_heartbeatTimeout] 동안 추가 heartbeat 가 없으면 WebView 가 죽은 것으로
+  /// 판단하고 [_recreateWebView] 를 호출한다.
+  void _checkHeartbeat() {
+    if (!mounted) return;
+    if (!_heartbeatArmed) return;
+    final last = _lastHeartbeat;
+    if (last == null) return;
+    if (DateTime.now().difference(last) > _heartbeatTimeout) {
+      if (kDebugMode) {
+        debugPrint(
+          '[KioskWebView] heartbeat 끊김 → WebView 재생성',
+        );
+      }
+      _recreateWebView();
+    }
+  }
+
+  /// 페이지에 1초 간격 heartbeat 스크립트를 주입한다. `onLoadStop` 마다 다시
+  /// 주입해 페이지 이동 후에도 동작이 유지되게 한다.
+  Future<void> _injectHeartbeatScript() async {
+    final controller = _webController;
+    if (controller == null) return;
+    try {
+      await controller.evaluateJavascript(source: r'''
+        (function () {
+          if (window.__kioskHeartbeatStarted) return;
+          window.__kioskHeartbeatStarted = true;
+          var send = function () {
+            try {
+              window.flutter_inappwebview.callHandler('kioskHeartbeat');
+            } catch (e) { /* 무시 */ }
+          };
+          send();
+          setInterval(send, 1000);
+        })();
+      ''');
+    } catch (_) {
+      // 주입 실패는 무시. 다음 onLoadStop 에서 다시 시도.
+    }
+  }
+
+  /// 사용자가 메뉴를 눌렀을 때 응답 감시 타이머를 시작한다.
+  /// 일정 시간 내 [onLoadStart]/[onLoadStop] 이 도달하지 않으면 WebView 를
+  /// 재생성한다.
+  void _startLoadResponseWatchdog(String url) {
+    _loadResponseWatchdog?.cancel();
+    _pendingLoadUrl = url;
+    _loadResponseWatchdog = Timer(_loadResponseTimeout, () {
+      if (!mounted) return;
+      if (_pendingLoadUrl == null) return;
+      if (kDebugMode) {
+        debugPrint(
+          '[KioskWebView] 메뉴 클릭 응답 없음 → WebView 재생성',
+        );
+      }
+      _recreateWebView();
+    });
+  }
+
+  void _cancelLoadResponseWatchdog() {
+    _loadResponseWatchdog?.cancel();
+    _loadResponseWatchdog = null;
+    _pendingLoadUrl = null;
+  }
+
+  /// 에러 발생 시 5초 카운트다운 후 자동 재시도. 3회 연속 실패하면 WebView 를
+  /// 통째로 재생성한다(키오스크가 외부 개입 없이 회복되도록).
+  void _scheduleAutoRetry() {
+    _autoRetryTimer?.cancel();
+    _autoRetrySecondsLeft = _autoRetryDelay.inSeconds;
+    _autoRetryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _autoRetrySecondsLeft -= 1;
+      });
+      if (_autoRetrySecondsLeft <= 0) {
+        timer.cancel();
+        _performAutoRetry();
+      }
+    });
+  }
+
+  void _cancelAutoRetry() {
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = null;
+    _autoRetrySecondsLeft = 0;
+  }
+
+  void _performAutoRetry() {
+    if (!mounted) return;
+    _consecutiveErrors += 1;
+    if (kDebugMode) {
+      debugPrint(
+        '[KioskWebView] 자동 재시도 #$_consecutiveErrors',
+      );
+    }
+    if (_consecutiveErrors >= _maxRetriesBeforeRecreate) {
+      _recreateWebView(resetToHome: true);
+      return;
+    }
+    final target = _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+    });
+    _scheduleLoadingFallback();
+    _webController?.loadUrl(
+      urlRequest: URLRequest(url: WebUri(target)),
+    );
+  }
+
+  /// WebView 위젯을 통째로 새로 만든다.
+  ///
+  /// 사용 시점:
+  /// - 렌더러 프로세스가 종료된 경우(`onRenderProcessGone`,
+  ///   `onWebContentProcessDidTerminate`)
+  /// - 렌더러가 응답하지 않는 경우(`onRenderProcessUnresponsive`)
+  /// - 인라인 자동 재시도가 [_maxRetriesBeforeRecreate] 회 연속 실패한 경우
+  /// - watchdog 헬스체크가 [_maxHealthFailures] 회 연속 실패한 경우
+  ///   (Windows 에서 Alt+F4 로 WebView2 자식 창만 닫힌 상황 등)
+  void _recreateWebView({bool resetToHome = false}) {
+    _cancelAutoRetry();
+    _loadingFallback?.cancel();
+    _stopHealthCheck();
+    // 메뉴 클릭으로 인한 재생성이라면 사용자가 가려던 URL 을 복귀 대상으로 쓴다.
+    final pending = _pendingLoadUrl;
+    _cancelLoadResponseWatchdog();
+    if (kDebugMode) {
+      debugPrint(
+        '[KioskWebView] WebView 재생성 (resetToHome=$resetToHome)',
+      );
+    }
+    final target = resetToHome
+        ? widget.initialUrl
+        : (pending ?? _lastGoodUrl ?? widget.initialUrl);
+    _webController = null;
+    _kioskController = null;
+    _consecutiveErrors = 0;
+    if (!mounted) return;
+    setState(() {
+      _webviewGeneration += 1;
+      _errorMessage = null;
+      _isLoading = true;
+      _currentUrl = target;
+      _lastGoodUrl = target;
+    });
+  }
+
   @override
   void dispose() {
     _loadingFallback?.cancel();
+    _autoRetryTimer?.cancel();
+    _healthCheck?.cancel();
+    _loadResponseWatchdog?.cancel();
     super.dispose();
   }
 
@@ -229,15 +455,33 @@ class _KioskWebViewState extends State<KioskWebView> {
       children: [
         Positioned.fill(
           child: InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(widget.initialUrl)),
+            // 세대 카운터를 키에 포함하면 [_recreateWebView] 호출 시
+            // Flutter 가 InAppWebView 를 폐기하고 새로 빌드한다.
+            key: ValueKey('kiosk-inappwebview-$_webviewGeneration'),
+            initialUrlRequest: URLRequest(
+              url: WebUri(_lastGoodUrl ?? widget.initialUrl),
+            ),
             initialSettings: _settings,
             onWebViewCreated: (controller) {
               _webController = controller;
               final kc = KioskWebViewController._(controller);
               _kioskController = kc;
+              // 메뉴 클릭(loadUrl) 시 응답 감시 타이머를 건다.
+              kc._onLoadRequested = _startLoadResponseWatchdog;
               // 초기 URL을 히스토리 첫 항목으로 등록(메뉴 첫 항목과 동일).
-              kc._resetHistory(widget.initialUrl);
+              kc._resetHistory(_lastGoodUrl ?? widget.initialUrl);
               widget.onReady?.call(kc);
+              // 페이지에서 보낼 heartbeat 수신용 핸들러 등록.
+              controller.addJavaScriptHandler(
+                handlerName: 'kioskHeartbeat',
+                callback: (_) {
+                  _lastHeartbeat = DateTime.now();
+                  _heartbeatArmed = true;
+                  return null;
+                },
+              );
+              // 컨트롤러가 준비된 시점부터 watchdog 가동.
+              _startHealthCheck();
             },
             onLoadStart: (controller, url) {
               if (!mounted) return;
@@ -247,6 +491,8 @@ class _KioskWebViewState extends State<KioskWebView> {
                 _currentUrl = url?.toString();
               });
               _scheduleLoadingFallback();
+              // 응답이 도착했으므로 메뉴 클릭 watchdog 해제.
+              _cancelLoadResponseWatchdog();
               _kioskController?._noteNavigationStart(url?.toString());
             },
             onLoadStop: (controller, url) {
@@ -255,6 +501,14 @@ class _KioskWebViewState extends State<KioskWebView> {
                 _currentUrl = url?.toString();
               });
               _finishLoading();
+              // 정상 로드 완료 → 자동 재시도 카운터/타이머 초기화.
+              _consecutiveErrors = 0;
+              _cancelAutoRetry();
+              if (url != null && url.toString() != 'about:blank') {
+                _lastGoodUrl = url.toString();
+              }
+              // 페이지가 바뀔 때마다 heartbeat 스크립트를 다시 주입.
+              _injectHeartbeatScript();
               // 일부 사이트는 onLoadStart 없이 리다이렉트만 되는 경우도 있으므로 공식
               // 종료 시점의 url 도 히스토리에 안전하게 포함시킨다(중복은 자체 필터됨).
               _kioskController?._noteNavigationStart(url?.toString());
@@ -303,6 +557,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                   _isLoading = false;
                   _errorMessage = '페이지를 불러올 수 없습니다.\n(${error.description})';
                 });
+                _scheduleAutoRetry();
               }
             },
             onReceivedHttpError: (controller, request, errorResponse) {
@@ -315,7 +570,34 @@ class _KioskWebViewState extends State<KioskWebView> {
                       '페이지 오류 (HTTP ${errorResponse.statusCode}): '
                       '${errorResponse.reasonPhrase ?? ''}';
                 });
+                _scheduleAutoRetry();
               }
+            },
+            // Android: 렌더러 프로세스가 죽었을 때(OOM 포함). 컨트롤러는 무효
+            // 상태이므로 위젯을 통째로 새로 만든다.
+            onRenderProcessGone: (controller, detail) {
+              if (kDebugMode) {
+                debugPrint(
+                  '[KioskWebView] onRenderProcessGone '
+                  '(didCrash=${detail.didCrash})',
+                );
+              }
+              _recreateWebView();
+            },
+            // Android: 렌더러가 응답하지 않음. TERMINATE 를 돌려주면
+            // onRenderProcessGone 이 이어서 발생해 위 핸들러로 회복된다.
+            onRenderProcessUnresponsive: (controller, url) async {
+              if (kDebugMode) {
+                debugPrint('[KioskWebView] onRenderProcessUnresponsive: $url');
+              }
+              return WebViewRenderProcessAction.TERMINATE;
+            },
+            // iOS / macOS: WebContent 프로세스(즉, 렌더러)가 종료된 경우.
+            onWebContentProcessDidTerminate: (controller) {
+              if (kDebugMode) {
+                debugPrint('[KioskWebView] onWebContentProcessDidTerminate');
+              }
+              _recreateWebView();
             },
           ),
         ),
@@ -338,12 +620,18 @@ class _KioskWebViewState extends State<KioskWebView> {
           Positioned.fill(
             child: _ErrorView(
               message: _errorMessage!,
+              autoRetrySecondsLeft: _autoRetryTimer != null
+                  ? _autoRetrySecondsLeft
+                  : null,
               onRetry: () {
-                final target = _currentUrl ?? widget.initialUrl;
+                _cancelAutoRetry();
+                final target =
+                    _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
                 setState(() {
                   _errorMessage = null;
                   _isLoading = true;
                 });
+                _scheduleLoadingFallback();
                 _webController?.loadUrl(
                   urlRequest: URLRequest(url: WebUri(target)),
                 );
@@ -359,7 +647,14 @@ class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
 
-  const _ErrorView({required this.message, required this.onRetry});
+  /// 자동 재시도까지 남은 시간(초). null 이면 카운트다운을 표시하지 않는다.
+  final int? autoRetrySecondsLeft;
+
+  const _ErrorView({
+    required this.message,
+    required this.onRetry,
+    this.autoRetrySecondsLeft,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -377,6 +672,16 @@ class _ErrorView extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 18),
           ),
+          if (autoRetrySecondsLeft != null && autoRetrySecondsLeft! > 0) ...[
+            const SizedBox(height: 12),
+            Text(
+              '$autoRetrySecondsLeft초 후 자동으로 다시 시도합니다…',
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             height: 64,

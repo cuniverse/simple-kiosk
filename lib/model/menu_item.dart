@@ -38,12 +38,20 @@ class MenuItem {
   /// 이 값과 상관없이 텍스트가 표시된다(빈 버튼 방지).
   final bool showTitle;
 
+  /// 이 항목을 단일 클릭했을 때 현재 페이지 상태(스크롤/내부 네비)를 유지할지
+  /// 여부. `null` 이면 [LayoutConfig.keepStateOnTap] 의 값을 사용한다.
+  ///
+  /// `true` 이면 같은 메뉴를 단일 클릭해도 아무 동작 없이 상태를 유지하고,
+  /// 더블 탭(300ms 이내) 시에만 설정된 URL 로 강제 재로드한다.
+  final bool? keepStateOnTap;
+
   const MenuItem({
     required this.id,
     required this.title,
     required this.url,
     this.icon,
     this.showTitle = true,
+    this.keepStateOnTap,
   });
 
   /// JSON 한 항목을 모델로 변환한다.
@@ -56,6 +64,7 @@ class MenuItem {
     final url = json['url'];
     final icon = json['icon'];
     final showTitle = json['showTitle'];
+    final keepState = json['keepStateOnTap'];
 
     if (id is! String || id.isEmpty) {
       throw const FormatException('menu item: "id" 누락 또는 형식 오류');
@@ -72,12 +81,23 @@ class MenuItem {
       iconPath = icon;
     }
 
+    bool? keepStateOnTap;
+    if (keepState != null) {
+      if (keepState is! bool) {
+        throw const FormatException(
+          'menu item: "keepStateOnTap" 은 bool 이어야 함',
+        );
+      }
+      keepStateOnTap = keepState;
+    }
+
     return MenuItem(
       id: id,
       title: title,
       url: url,
       icon: iconPath,
       showTitle: showTitle is bool ? showTitle : true,
+      keepStateOnTap: keepStateOnTap,
     );
   }
 }
