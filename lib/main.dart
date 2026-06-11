@@ -1,8 +1,9 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
@@ -48,6 +49,17 @@ Future<void> main() async {
         await windowManager.focus();
       }
     });
+  }
+
+  // 매 시작마다 이전 세션의 쿠키(=로그인 상태)를 폐기한다. 키오스크 운영에서
+  // 이전 사용자의 세션이 다음 부팅에 이어지지 않게 하기 위함.
+  // 캐시는 유지되므로 다음 로딩 성능 손해는 없다.
+  try {
+    await CookieManager.instance().deleteAllCookies();
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('[main] 쿠키 삭제 실패: $e');
+    }
   }
 
   runApp(const KioskApp());

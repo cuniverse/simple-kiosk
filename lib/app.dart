@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'model/idle_config.dart';
 import 'model/layout_config.dart';
@@ -256,6 +257,9 @@ class _KioskHomeState extends State<_KioskHome> {
   /// 메모리 절약을 위해 모든 WebView 를 언mount 해서 WebView2 인스턴스를
   /// 해제한다. 다음 사용자가 깨운 뒤 메뉴를 누르면 그 항목만 새로 mount 된다.
   /// (첫 항목 = 홈은 항상 mount 상태로 둔다 — 깨운 직후 즉시 표시되어야 하므로.)
+  ///
+  /// 이전 사용자의 로그인 세션이 다음 사용자에게 노출되지 않도록 **모든 쿠키를
+  /// 삭제**한다. 캐시(이미지/JS/CSS) 는 유지해 다음 로딩 성능 손해는 없다.
   void _onEnterIdle() {
     if (widget.items.isEmpty) return;
     if (kDebugMode) {
@@ -273,9 +277,18 @@ class _KioskHomeState extends State<_KioskHome> {
       // 언mount 되는 항목의 컨트롤러 참조도 정리(위젯이 dispose 되면 무효).
       _controllers.removeWhere((index, _) => index != 0);
     });
-    // 홈은 살려두되, 다음 사용자에게 깨끗한 첫 화면을 보여주기 위해 초기 URL 로
-    // 리셋한다.
-    _controllers[0]?.loadUrl(widget.items.first.url);
+    // 쿠키 삭제 후 홈을 초기 URL 로 리셋. 순서 보장을 위해 await.
+    () async {
+      try {
+        await CookieManager.instance().deleteAllCookies();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[KioskHome] 쿠키 삭제 실패: $e');
+        }
+      }
+      if (!mounted) return;
+      _controllers[0]?.loadUrl(widget.items.first.url);
+    }();
   }
 
   /// 대기화면에서 깨어날 때 호출.
