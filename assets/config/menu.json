@@ -9,6 +9,7 @@
     "buttonGap": 8,
     "buttonAlignment": "stretch",
     "showHistoryButtons": true,
+    "showKeyboardToggle": true,
     "barColor": "#1f2937",
     "buttonColor": "#374151",
     "buttonForegroundColor": "#ffffff",
@@ -47,7 +48,7 @@
     {
       "id": "home",
       "title": "홈",
-      "url": "https://example.com",
+      "url": "https://www.google.com/",
       "icon": "icon:home"
     },
     {

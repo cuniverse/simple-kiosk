@@ -116,6 +116,10 @@ class LayoutConfig {
   /// 네비게이션 바 시작점(좌/상)에 WebView 뒤로/앞으로 컨트롤을 표시할지.
   final bool showHistoryButtons;
 
+  /// 네비게이션 바 끝점(우/하)에 OS 가상 키보드 호출/닫기 토글 버튼을
+  /// 표시할지 여부. 운영자가 수동으로 키보드를 띄울 수 있게 해준다.
+  final bool showKeyboardToggle;
+
   /// 메뉴 버튼을 한 번 누를 때 설정된 URL 로 강제 초기화하지 않고, 현재
   /// 페이지 상태(스크롤/내부 네비 등)를 유지할지 여부.
   ///
@@ -150,6 +154,7 @@ class LayoutConfig {
     this.buttonGap = 8,
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
+    this.showKeyboardToggle = false,
     this.keepStateOnTap = false,
     this.barColor,
     this.buttonColor,
@@ -204,6 +209,14 @@ class LayoutConfig {
         if (v is bool) return v;
         throw const FormatException(
           'menu.json layout.showHistoryButtons: bool 필요',
+        );
+      }(),
+      showKeyboardToggle: () {
+        final v = json['showKeyboardToggle'];
+        if (v == null) return defaults.showKeyboardToggle;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.showKeyboardToggle: bool 필요',
         );
       }(),
       keepStateOnTap: () {

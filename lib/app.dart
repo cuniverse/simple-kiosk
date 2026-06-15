@@ -12,6 +12,9 @@ import 'service/menu_config_loader.dart';
 import 'widget/idle_gate.dart';
 import 'widget/kiosk_webview.dart';
 import 'widget/navigation_menu.dart';
+import 'widget/virtual_keyboard.dart';
+import 'service/keyboard_controller.dart';
+import 'service/system_keyboard.dart';
 
 /// 앱 진입 위젯.
 ///
@@ -28,6 +31,22 @@ class KioskApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: Colors.indigo,
       ),
+      // 모든 화면 위에 가상 키보드 오버레이를 띄울 수 있도록 builder 로 감싼다.
+      // KeyboardController.visible 가 true 일 때만 키보드 위젯이 표시된다.
+      builder: (context, child) {
+        return Stack(
+          children: [
+            if (child != null) child,
+            ValueListenableBuilder<bool>(
+              valueListenable: KeyboardController.instance.visible,
+              builder: (context, visible, _) {
+                if (!visible) return const SizedBox.shrink();
+                return const VirtualKeyboardOverlay();
+              },
+            ),
+          ],
+        );
+      },
       home: const _MenuBootstrap(),
     );
   }
@@ -128,8 +147,7 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
                         '$_autoRetrySecondsLeft초 후 자동으로 다시 시도합니다…',
                         style: TextStyle(
                           fontSize: 14,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -139,8 +157,8 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
                       child: ElevatedButton.icon(
                         onPressed: _retry,
                         icon: const Icon(Icons.refresh),
-                        label: const Text('다시 시도',
-                            style: TextStyle(fontSize: 18)),
+                        label:
+                            const Text('다시 시도', style: TextStyle(fontSize: 18)),
                       ),
                     ),
                   ],
@@ -202,7 +220,8 @@ class _KioskHomeState extends State<_KioskHome> {
   int? _lastTapIndex;
   static const Duration _doubleTapWindow = Duration(milliseconds: 300);
 
-  KioskWebViewController? get _currentController => _controllers[_selectedIndex];
+  KioskWebViewController? get _currentController =>
+      _controllers[_selectedIndex];
 
   void _onSelect(int index) {
     if (index < 0 || index >= widget.items.length) return;
@@ -279,6 +298,8 @@ class _KioskHomeState extends State<_KioskHome> {
     });
     // 쿠키 삭제 후 홈을 초기 URL 로 리셋. 순서 보장을 위해 await.
     () async {
+      // idle 진입 시 떠 있던 OS 가상 키보드도 함께 닫는다.
+      await SystemKeyboard.hide();
       try {
         await CookieManager.instance().deleteAllCookies();
       } catch (e) {
@@ -330,7 +351,7 @@ class _KioskHomeState extends State<_KioskHome> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         await _onWillPop();
       },
@@ -343,91 +364,93 @@ class _KioskHomeState extends State<_KioskHome> {
             onWake: _onWake,
             child: LayoutBuilder(
               builder: (context, constraints) {
-              final position = _effectivePosition(constraints.maxWidth);
+                final position = _effectivePosition(constraints.maxWidth);
 
-              // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
-              // 한 번이라도 방문한 항목만 실제 KioskWebView 로 mount 된다.
-              final webViewStack = IndexedStack(
-                index: _selectedIndex,
-                children: List<Widget>.generate(widget.items.length, (i) {
-                  if (!_mountedIndices.contains(i)) {
-                    return const SizedBox.shrink();
-                  }
-                  final item = widget.items[i];
-                  return KioskWebView(
-                    key: ValueKey('kiosk-webview-${item.id}'),
-                    initialUrl: item.url,
-                    onReady: (c) {
-                      _controllers[i] = c;
-                      // history 컨트롤이 새 컨트롤러를 받도록 리빌드.
-                      if (mounted) setState(() {});
-                    },
-                  );
-                }),
-              );
+                // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
+                // 한 번이라도 방문한 항목만 실제 KioskWebView 로 mount 된다.
+                final webViewStack = IndexedStack(
+                  index: _selectedIndex,
+                  children: List<Widget>.generate(widget.items.length, (i) {
+                    if (!_mountedIndices.contains(i)) {
+                      return const SizedBox.shrink();
+                    }
+                    final item = widget.items[i];
+                    return KioskWebView(
+                      key: ValueKey('kiosk-webview-${item.id}'),
+                      initialUrl: item.url,
+                      active: i == _selectedIndex,
+                      onReady: (c) {
+                        _controllers[i] = c;
+                        // history 컨트롤이 새 컨트롤러를 받도록 리빌드.
+                        if (mounted) setState(() {});
+                      },
+                    );
+                  }),
+                );
 
-              final isSide =
-                  position == NavPosition.left || position == NavPosition.right;
-              final nav = NavigationMenu(
-                items: widget.items,
-                selectedIndex: _selectedIndex,
-                onSelected: _onSelect,
-                orientation: isSide
-                    ? NavigationOrientation.side
-                    : NavigationOrientation.bottom,
-                sideWidth: widget.layout.sideWidth,
-                barHeight: widget.layout.barHeight,
-                buttonHeight: widget.layout.buttonHeight,
-                buttonWidth: widget.layout.buttonWidth,
-                buttonGap: widget.layout.buttonGap,
-                buttonAlignment: widget.layout.buttonAlignment,
-                showHistoryButtons: widget.layout.showHistoryButtons,
-                historyController: _currentController,
-                barColor: widget.layout.barColor,
-                buttonColor: widget.layout.buttonColor,
-                buttonForegroundColor: widget.layout.buttonForegroundColor,
-                selectedButtonColor: widget.layout.selectedButtonColor,
-                selectedButtonForegroundColor:
-                    widget.layout.selectedButtonForegroundColor,
-              );
+                final isSide = position == NavPosition.left ||
+                    position == NavPosition.right;
+                final nav = NavigationMenu(
+                  items: widget.items,
+                  selectedIndex: _selectedIndex,
+                  onSelected: _onSelect,
+                  orientation: isSide
+                      ? NavigationOrientation.side
+                      : NavigationOrientation.bottom,
+                  sideWidth: widget.layout.sideWidth,
+                  barHeight: widget.layout.barHeight,
+                  buttonHeight: widget.layout.buttonHeight,
+                  buttonWidth: widget.layout.buttonWidth,
+                  buttonGap: widget.layout.buttonGap,
+                  buttonAlignment: widget.layout.buttonAlignment,
+                  showHistoryButtons: widget.layout.showHistoryButtons,
+                  historyController: _currentController,
+                  showKeyboardToggle: widget.layout.showKeyboardToggle,
+                  barColor: widget.layout.barColor,
+                  buttonColor: widget.layout.buttonColor,
+                  buttonForegroundColor: widget.layout.buttonForegroundColor,
+                  selectedButtonColor: widget.layout.selectedButtonColor,
+                  selectedButtonForegroundColor:
+                      widget.layout.selectedButtonForegroundColor,
+                );
 
-              switch (position) {
-                case NavPosition.left:
-                  return Row(
-                    children: [
-                      nav,
-                      const VerticalDivider(width: 1),
-                      Expanded(child: webViewStack),
-                    ],
-                  );
-                case NavPosition.right:
-                  return Row(
-                    children: [
-                      Expanded(child: webViewStack),
-                      const VerticalDivider(width: 1),
-                      nav,
-                    ],
-                  );
-                case NavPosition.top:
-                  return Column(
-                    children: [
-                      nav,
-                      const Divider(height: 1),
-                      Expanded(child: webViewStack),
-                    ],
-                  );
-                case NavPosition.bottom:
-                case NavPosition.auto: // 이론상 도달 불가 — 안전망.
-                  return Column(
-                    children: [
-                      Expanded(child: webViewStack),
-                      const Divider(height: 1),
-                      nav,
-                    ],
-                  );
-              }
-            },
-          ),
+                switch (position) {
+                  case NavPosition.left:
+                    return Row(
+                      children: [
+                        nav,
+                        const VerticalDivider(width: 1),
+                        Expanded(child: webViewStack),
+                      ],
+                    );
+                  case NavPosition.right:
+                    return Row(
+                      children: [
+                        Expanded(child: webViewStack),
+                        const VerticalDivider(width: 1),
+                        nav,
+                      ],
+                    );
+                  case NavPosition.top:
+                    return Column(
+                      children: [
+                        nav,
+                        const Divider(height: 1),
+                        Expanded(child: webViewStack),
+                      ],
+                    );
+                  case NavPosition.bottom:
+                  case NavPosition.auto: // 이론상 도달 불가 — 안전망.
+                    return Column(
+                      children: [
+                        Expanded(child: webViewStack),
+                        const Divider(height: 1),
+                        nav,
+                      ],
+                    );
+                }
+              },
+            ),
           ),
         ),
       ),

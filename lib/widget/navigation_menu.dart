@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../model/layout_config.dart';
 import '../model/menu_item.dart';
+import '../service/keyboard_controller.dart';
+import '../service/system_keyboard.dart';
 import 'kiosk_webview.dart';
 import 'material_icon_registry.dart';
 
@@ -54,6 +56,10 @@ class NavigationMenu extends StatelessWidget {
   /// [showHistoryButtons]가 `true`일 때만 사용된다.
   final KioskWebViewController? historyController;
 
+  /// 네비게이션 끝(우/하) 위치에 OS 가상 키보드 호출/닫기 토글 버튼을
+  /// 표시할지 여부.
+  final bool showKeyboardToggle;
+
   /// 네비 바 배경색. `null`이면 테마 기본값.
   final Color? barColor;
 
@@ -83,6 +89,7 @@ class NavigationMenu extends StatelessWidget {
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
     this.historyController,
+    this.showKeyboardToggle = false,
     this.barColor,
     this.buttonColor,
     this.buttonForegroundColor,
@@ -147,22 +154,38 @@ class NavigationMenu extends StatelessWidget {
         right: false,
         child: SizedBox(
           width: sideWidth,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            child: ConstrainedBox(
-              // 항목 수가 적으면 정렬이 동작하도록 최소 높이 확보.
-              // 항목이 많아 넘치면 자연스럽게 스크롤 가능.
-              constraints: BoxConstraints(
-                minHeight: MediaQuery.of(context).size.height -
-                    MediaQuery.of(context).padding.vertical -
-                    24, // 상하 padding 근사치
+          // 키보드 토글이 활성화되면 항상 맨 아래 고정으로 두기 위해
+          // 메뉴 영역(스크롤) + 하단 푸터(고정) 구조로 나눈다.
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  child: ConstrainedBox(
+                    // 항목 수가 적으면 정렬이 동작하도록 최소 높이 확보.
+                    // 항목이 많아 넘치면 자연스럽게 스크롤 가능.
+                    constraints: BoxConstraints(
+                      minHeight: MediaQuery.of(context).size.height -
+                          MediaQuery.of(context).padding.vertical -
+                          24, // 상하 padding 근사치
+                    ),
+                    child: Column(
+                      mainAxisAlignment: mainAxisAlign,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: children,
+                    ),
+                  ),
+                ),
               ),
-              child: Column(
-                mainAxisAlignment: mainAxisAlign,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children,
-              ),
-            ),
+              if (showKeyboardToggle)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(8, 4, 8, 12),
+                  child: _KeyboardToggle(
+                    orientation: NavigationOrientation.side,
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -173,8 +196,7 @@ class NavigationMenu extends StatelessWidget {
     final theme = Theme.of(context);
     // 하단 모드 기본은 stretch(Expanded로 균등 분배).
     final align = buttonAlignment;
-    final useStretch =
-        align == NavAlignment.stretch && buttonWidth <= 0;
+    final useStretch = align == NavAlignment.stretch && buttonWidth <= 0;
 
     Widget buildButton(int i) => _NavButton(
           title: items[i].title,
@@ -221,6 +243,17 @@ class NavigationMenu extends StatelessWidget {
           ),
         );
       }
+      if (showKeyboardToggle) {
+        children.add(SizedBox(width: buttonGap));
+        children.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: _KeyboardToggle(
+              orientation: NavigationOrientation.bottom,
+            ),
+          ),
+        );
+      }
       return Material(
         color: barColor ?? theme.colorScheme.surfaceContainerHighest,
         child: SafeArea(
@@ -251,6 +284,19 @@ class NavigationMenu extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: buildButton(i),
+          ),
+        ),
+      );
+    }
+    if (showKeyboardToggle) {
+      // 고정폭/space 정렬 모드 모두에서 토글을 오른쪽 끝에 고정시키기 위해
+      // 가변 공간(Spacer)을 끼우고 마지막에 배치.
+      children.add(const Spacer());
+      children.add(
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: _KeyboardToggle(
+            orientation: NavigationOrientation.bottom,
           ),
         ),
       );
@@ -371,8 +417,7 @@ class _HistoryButton extends StatelessWidget {
             backgroundColor: scheme.surface,
             foregroundColor: scheme.onSurface,
             disabledBackgroundColor: scheme.surface.withValues(alpha: 0.5),
-            disabledForegroundColor:
-                scheme.onSurface.withValues(alpha: 0.35),
+            disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.35),
             elevation: enabled ? 1 : 0,
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
@@ -381,6 +426,60 @@ class _HistoryButton extends StatelessWidget {
           ),
           child: Icon(icon, size: 28),
         ),
+      ),
+    );
+  }
+}
+
+/// OS 가상 키보드 호출/닫기 토글 버튼.
+///
+/// 키보드의 실제 표시 상태를 OS 로부터 알 수 없으므로 내부적으로 토글 상태를
+/// 추적한다. 사용자가 직접 키보드를 닫더라도 다시 누르면 다시 호출된다.
+class _KeyboardToggle extends StatefulWidget {
+  final NavigationOrientation orientation;
+
+  const _KeyboardToggle({required this.orientation});
+
+  @override
+  State<_KeyboardToggle> createState() => _KeyboardToggleState();
+}
+
+class _KeyboardToggleState extends State<_KeyboardToggle> {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: KeyboardController.instance.visible,
+        builder: (context, shown, _) {
+          return Tooltip(
+            message: shown ? '키보드 닫기' : '키보드 열기',
+            child: ElevatedButton(
+              onPressed: () {
+                if (shown) {
+                  SystemKeyboard.hide();
+                } else {
+                  SystemKeyboard.show();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: shown ? scheme.primary : scheme.surface,
+                foregroundColor: shown ? scheme.onPrimary : scheme.onSurface,
+                elevation: 1,
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Icon(
+                shown ? Icons.keyboard_hide : Icons.keyboard,
+                size: 28,
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -437,8 +536,7 @@ class _NavButton extends StatelessWidget {
     final iconOnly = hasIcon && !showLabel;
 
     // 외부 고정 높이가 있으면 그 값 사용, 아니면 자동.
-    final height = fixedHeight ??
-        (iconOnly ? 80.0 : (hasIcon ? 88.0 : 72.0));
+    final height = fixedHeight ?? (iconOnly ? 80.0 : (hasIcon ? 88.0 : 72.0));
 
     final button = SizedBox(
       // 터치 사이니지를 위한 큰 버튼 (최소 64dp 이상).
@@ -539,8 +637,7 @@ class _IconImage extends StatelessWidget {
     }
 
     // 2) 네트워크 이미지.
-    final isNetwork =
-        path.startsWith('http://') || path.startsWith('https://');
+    final isNetwork = path.startsWith('http://') || path.startsWith('https://');
     final fallback = Icon(Icons.broken_image, color: color, size: 32);
 
     if (isNetwork) {

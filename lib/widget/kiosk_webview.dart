@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert' show jsonEncode;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+
+import '../service/keyboard_controller.dart';
+import '../service/system_keyboard.dart';
 
 /// 키오스크용 WebView 위젯.
 ///
@@ -20,10 +24,14 @@ class KioskWebView extends StatefulWidget {
   /// 컨트롤러를 외부에 노출하기 위한 콜백.
   final ValueChanged<KioskWebViewController>? onReady;
 
+  /// 현재 선택되어 가상 키보드 입력을 받아야 하는 WebView 여부.
+  final bool active;
+
   const KioskWebView({
     super.key,
     required this.initialUrl,
     this.onReady,
+    this.active = true,
   });
 
   @override
@@ -236,6 +244,146 @@ class _KioskWebViewState extends State<KioskWebView> {
   String? _pendingLoadUrl;
   static const Duration _loadResponseTimeout = Duration(seconds: 3);
 
+  /// OS 가상 키보드 hide debounce. 한 input 에서 다른 input 으로 포커스가
+  /// 옮겨질 때 focusout → focusin 이 연속으로 호출되며, 그 사이에 키보드를
+  /// 닫았다가 다시 띄우면 깜빡이므로 짧게 지연시킨다.
+  Timer? _keyboardHideDebounce;
+  static const Duration _keyboardHideDelay = Duration(milliseconds: 200);
+
+  void _requestShowSystemKeyboard() {
+    KeyboardController.instance.attach(_handleKeyEvent);
+    _keyboardHideDebounce?.cancel();
+    _keyboardHideDebounce = null;
+    SystemKeyboard.show();
+  }
+
+  void _requestHideSystemKeyboard() {
+    _keyboardHideDebounce?.cancel();
+    _keyboardHideDebounce = Timer(_keyboardHideDelay, () {
+      SystemKeyboard.hide();
+    });
+  }
+
+  /// 가상 키보드가 보낸 입력을 WebView 의 활성 요소(active element) 로 주입.
+  ///
+  /// `KeyboardController.instance` 가 발행하는 [KeyboardEvent] 시퀀스를 받아
+  /// JS 에서 활성 요소에 직접 값/이벤트를 디스패치한다.
+  void _handleKeyEvent(KeyboardEvent event) {
+    final controller = _webController;
+    if (controller == null) return;
+    final String type;
+    final String payload;
+    switch (event) {
+      case InsertText(:final text):
+        type = 'insert';
+        payload = text;
+      case ReplaceLast(:final text):
+        type = 'replaceLast';
+        payload = text;
+      case BackspaceEvent():
+        type = 'backspace';
+        payload = '';
+      case EnterEvent():
+        type = 'enter';
+        payload = '';
+    }
+    final js = '''
+      (function (type, text) {
+        var el = document.activeElement;
+        if (!el || el === document.body) return;
+        var isEditable = el.isContentEditable ||
+            el.tagName === 'TEXTAREA' ||
+            (el.tagName === 'INPUT');
+        if (!isEditable) return;
+        function fireInput() {
+          try { el.dispatchEvent(new Event('input', {bubbles: true})); } catch (_) {}
+        }
+        function fireChange() {
+          try { el.dispatchEvent(new Event('change', {bubbles: true})); } catch (_) {}
+        }
+        if (type === 'insert' || type === 'replaceLast') {
+          if (el.isContentEditable) {
+            if (type === 'replaceLast') {
+              try { document.execCommand('delete', false); } catch (_) {}
+            }
+            try { document.execCommand('insertText', false, text); } catch (_) {}
+            fireInput();
+            return;
+          }
+          if (typeof el.selectionStart === 'number') {
+            var s = el.selectionStart, e = el.selectionEnd;
+            var v = el.value || '';
+            if (type === 'replaceLast') {
+              if (s === e && s > 0) { s = s - 1; }
+            }
+            el.value = v.slice(0, s) + text + v.slice(e);
+            var pos = s + text.length;
+            try { el.selectionStart = el.selectionEnd = pos; } catch (_) {}
+            fireInput();
+            return;
+          }
+          el.value = (el.value || '') + text;
+          fireInput();
+          return;
+        }
+        if (type === 'backspace') {
+          if (el.isContentEditable) {
+            try { document.execCommand('delete', false); } catch (_) {}
+            fireInput();
+            return;
+          }
+          if (typeof el.selectionStart === 'number') {
+            var ss = el.selectionStart, ee = el.selectionEnd;
+            var vv = el.value || '';
+            if (ss !== ee) {
+              el.value = vv.slice(0, ss) + vv.slice(ee);
+              try { el.selectionStart = el.selectionEnd = ss; } catch (_) {}
+            } else if (ss > 0) {
+              el.value = vv.slice(0, ss - 1) + vv.slice(ss);
+              try { el.selectionStart = el.selectionEnd = ss - 1; } catch (_) {}
+            }
+            fireInput();
+          }
+          return;
+        }
+        if (type === 'enter') {
+          if (el.form && typeof el.form.requestSubmit === 'function') {
+            try { el.form.requestSubmit(); return; } catch (_) {}
+          }
+          try {
+            el.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true,
+            }));
+            el.dispatchEvent(new KeyboardEvent('keyup', {
+              key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true,
+            }));
+          } catch (_) {}
+          fireChange();
+          return;
+        }
+      })(${jsonEncode(type)}, ${jsonEncode(payload)});
+    ''';
+    controller.evaluateJavascript(source: js);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.active) {
+      KeyboardController.instance.attach(_handleKeyEvent);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant KioskWebView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) {
+      KeyboardController.instance.attach(_handleKeyEvent);
+    } else if (!widget.active && oldWidget.active) {
+      KeyboardController.instance.detach(_handleKeyEvent);
+    }
+  }
+
   void _scheduleLoadingFallback() {
     _loadingFallback?.cancel();
     _loadingFallback = Timer(_loadingTimeout, () {
@@ -306,6 +454,59 @@ class _KioskWebViewState extends State<KioskWebView> {
           };
           send();
           setInterval(send, 1000);
+        })();
+      ''');
+    } catch (_) {
+      // 주입 실패는 무시. 다음 onLoadStop 에서 다시 시도.
+    }
+  }
+
+  /// 페이지의 모든 편집 가능한 요소(input/textarea/contenteditable) 에 포커스
+  /// 이벤트 리스너를 부착해 OS 가상 키보드 표시/숨김을 요청한다.
+  ///
+  /// `focusin`/`focusout` 은 캡처링 단계에서 처리해 동적으로 추가되는 요소까지
+  /// 한 번의 리스너로 잡는다.
+  Future<void> _injectKeyboardFocusScript() async {
+    final controller = _webController;
+    if (controller == null) return;
+    try {
+      await controller.evaluateJavascript(source: r'''
+        (function () {
+          if (window.__kioskKbHookStarted) return;
+          window.__kioskKbHookStarted = true;
+
+          var NON_EDIT_INPUT_TYPES = {
+            button: 1, submit: 1, reset: 1, checkbox: 1, radio: 1,
+            range: 1, color: 1, file: 1, hidden: 1, image: 1
+          };
+
+          function isEditable(el) {
+            if (!el) return false;
+            if (el.isContentEditable) return true;
+            var tag = el.tagName;
+            if (tag === 'TEXTAREA') return true;
+            if (tag === 'INPUT') {
+              var t = (el.type || 'text').toLowerCase();
+              return !NON_EDIT_INPUT_TYPES[t];
+            }
+            return false;
+          }
+
+          document.addEventListener('focusin', function (e) {
+            if (isEditable(e.target)) {
+              try {
+                window.flutter_inappwebview.callHandler('kioskKeyboardShow');
+              } catch (_) { /* 무시 */ }
+            }
+          }, true);
+
+          document.addEventListener('focusout', function (e) {
+            if (isEditable(e.target)) {
+              try {
+                window.flutter_inappwebview.callHandler('kioskKeyboardHide');
+              } catch (_) { /* 무시 */ }
+            }
+          }, true);
         })();
       ''');
     } catch (_) {
@@ -425,10 +626,14 @@ class _KioskWebViewState extends State<KioskWebView> {
 
   @override
   void dispose() {
+    KeyboardController.instance.detach(_handleKeyEvent);
     _loadingFallback?.cancel();
     _autoRetryTimer?.cancel();
     _healthCheck?.cancel();
     _loadResponseWatchdog?.cancel();
+    _keyboardHideDebounce?.cancel();
+    // 위젯이 사라질 때 시스템 키보드도 함께 닫는다.
+    SystemKeyboard.hide();
     super.dispose();
   }
 
@@ -480,6 +685,21 @@ class _KioskWebViewState extends State<KioskWebView> {
                   return null;
                 },
               );
+              // OS 가상 키보드 표시/숨김 요청 수신.
+              controller.addJavaScriptHandler(
+                handlerName: 'kioskKeyboardShow',
+                callback: (_) {
+                  _requestShowSystemKeyboard();
+                  return null;
+                },
+              );
+              controller.addJavaScriptHandler(
+                handlerName: 'kioskKeyboardHide',
+                callback: (_) {
+                  _requestHideSystemKeyboard();
+                  return null;
+                },
+              );
               // 컨트롤러가 준비된 시점부터 watchdog 가동.
               _startHealthCheck();
             },
@@ -509,6 +729,8 @@ class _KioskWebViewState extends State<KioskWebView> {
               }
               // 페이지가 바뀔 때마다 heartbeat 스크립트를 다시 주입.
               _injectHeartbeatScript();
+              // OS 가상 키보드 트리거용 input 포커스 리스너도 함께 주입.
+              _injectKeyboardFocusScript();
               // 일부 사이트는 onLoadStart 없이 리다이렉트만 되는 경우도 있으므로 공식
               // 종료 시점의 url 도 히스토리에 안전하게 포함시킨다(중복은 자체 필터됨).
               _kioskController?._noteNavigationStart(url?.toString());
@@ -566,8 +788,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                   (errorResponse.statusCode ?? 0) >= 400) {
                 setState(() {
                   _isLoading = false;
-                  _errorMessage =
-                      '페이지 오류 (HTTP ${errorResponse.statusCode}): '
+                  _errorMessage = '페이지 오류 (HTTP ${errorResponse.statusCode}): '
                       '${errorResponse.reasonPhrase ?? ''}';
                 });
                 _scheduleAutoRetry();
@@ -620,13 +841,11 @@ class _KioskWebViewState extends State<KioskWebView> {
           Positioned.fill(
             child: _ErrorView(
               message: _errorMessage!,
-              autoRetrySecondsLeft: _autoRetryTimer != null
-                  ? _autoRetrySecondsLeft
-                  : null,
+              autoRetrySecondsLeft:
+                  _autoRetryTimer != null ? _autoRetrySecondsLeft : null,
               onRetry: () {
                 _cancelAutoRetry();
-                final target =
-                    _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
+                final target = _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
                 setState(() {
                   _errorMessage = null;
                   _isLoading = true;

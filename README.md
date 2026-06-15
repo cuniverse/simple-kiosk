@@ -18,10 +18,27 @@
 - 49인치 가로형 터치 사이니지에 적합한 큰 버튼 (최소 높이 72dp)
 - 현재 선택된 메뉴 시각적 강조 표시
 - WebView 로딩 인디케이터 및 에러 화면(재시도 버튼)
+- **메뉴별 독립 WebView (IndexedStack)** — 다른 메뉴로 갔다가 돌아와도 스크롤/내부 페이지 상태 유지 (`keepStateOnTap` 옵션)
+- 같은 메뉴 더블 탭 시 강제 초기 URL 재로드
 - 새 창 / 팝업 / 외부 스킴 (tel:, mailto:, intent: 등) 차단
 - 다운로드 차단
 - HTML5 video 인라인 재생 허용, JavaScript 허용
 - Android Back 버튼: WebView 뒤로갈 수 있으면 뒤로, 아니면 홈 메뉴로 이동(앱 종료 방지)
+- **자동 복구 루틴 (무인 운영)**:
+  - 페이지 로드 에러 시 5초 후 자동 재시도, 3회 실패 시 WebView 통째로 재생성
+  - 렌더러 프로세스 종료/응답없음 감지 → 자동 재생성
+  - JS heartbeat 검사 (4초) — Alt+F4 등으로 WebView2 자식 창만 닫혀도 자동 복구
+  - 메뉴 클릭 후 3초 내 응답 없으면 WebView 재생성
+  - 메뉴 JSON 로드 실패 시 5초 후 자동 재시도
+- **세션/메모리 위생**:
+  - 앱 시작 시 모든 쿠키 삭제 → 이전 사용자의 로그인 세션 단절
+  - 대기화면 진입 시 쿠키 삭제 + 홈 외 모든 WebView 언mount (메모리 회수)
+- **자체 가상 키보드 (멀티 OS)**:
+  - 한글(두벌식 자모 조합) / 영문(QWERTY) / 숫자·특수문자 모드
+  - 드래그 가능한 플로팅 윈도우
+  - WebView input 포커스 시 자동 호출 + 네비게이션 바 토글로 수동 호출 가능
+  - 모든 OS (Windows / macOS / Linux / Android / iOS) 에서 동일 디자인/동작
+- **대기화면(Idle)**: 일정 시간 무조작 시 슬라이드쇼/단일 이미지/URL/폴더 모드로 전환
 
 ## 실행 방법
 
@@ -52,27 +69,87 @@ flutter pub get
 
 ## 메뉴 설정 변경 방법
 
-`assets/config/menu.json` 파일을 수정합니다. 각 항목은 다음 필드를 가집니다.
+`assets/config/menu.json` 파일을 수정합니다. 최상위 구조는 `layout`, `idle`, `items` 세 섹션을 가집니다.
+
+### 최소 예시
 
 ```json
-[
-  {
-    "id": "home",
-    "title": "홈",
-    "url": "https://example.com"
-  },
-  {
-    "id": "notice",
-    "title": "공지",
-    "url": "https://example.com/notice"
-  }
-]
+{
+  "items": [
+    { "id": "home",   "title": "홈",   "url": "https://example.com" },
+    { "id": "notice", "title": "공지", "url": "https://example.com/notice" }
+  ]
+}
 ```
 
-- `id`: 메뉴 식별자 (문자열, 중복 불가 권장)
-- `title`: 버튼에 표시될 텍스트
-- `url`: WebView에 로드할 URL
-  - **운영 환경에서는 HTTPS 사용을 권장합니다.** HTTP도 동작하지만, 보안과 신뢰성 측면에서 HTTPS를 권장합니다.
+### items[] — 메뉴 항목 필드
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `id` | string | (필수) | 메뉴 식별자 (중복 불가 권장) |
+| `title` | string | (필수) | 버튼에 표시될 텍스트 / 접근성 라벨 |
+| `url` | string | (필수) | WebView에 로드할 URL. **운영 환경에서는 HTTPS 권장** |
+| `icon` | string | `null` | 아이콘 경로. `assets/...`, `http(s)://...`, 또는 `icon:이름` (내장 머터리얼 아이콘) |
+| `showTitle` | bool | `true` | 아이콘 있을 때 텍스트 동시 표시 여부. 아이콘 없으면 무시(텍스트 강제 표시) |
+| `keepStateOnTap` | bool | `null` (=layout 값 상속) | 단일 클릭 시 이 항목의 현재 페이지 상태 유지 여부. 항목별 오버라이드 |
+
+### layout — 네비게이션/외관 설정
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `navPosition` | `auto`/`left`/`right`/`top`/`bottom` | `auto` | 네비게이션 위치. `auto` 는 폭 `breakpoint` 기준 자동 전환 |
+| `breakpoint` | number(dp) | `720` | `auto` 모드에서 사이드/하단을 가르는 폭 |
+| `sideWidth` | number(dp) | `220` | 사이드 모드 폭 |
+| `barHeight` | number(dp) | `96` | 상/하단 모드 높이 |
+| `buttonHeight` | number(dp) | `0`(자동) | 각 버튼 높이 |
+| `buttonWidth` | number(dp) | `0`(균등) | 하단 모드에서 버튼 폭. `0` 이고 `stretch` 이면 균등 분배 |
+| `buttonGap` | number(dp) | `8` | 버튼 간 간격 |
+| `buttonAlignment` | `start`/`center`/`end`/`spaceBetween`/`spaceAround`/`spaceEvenly`/`stretch` | `stretch` | 정렬 방식 |
+| `showHistoryButtons` | bool | `false` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
+| `showKeyboardToggle` | bool | `false` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
+| `keepStateOnTap` | bool | `false` | **기본 동작**: 같은 메뉴 단일 탭 시 상태 유지(아무 동작 없음), 더블 탭(300ms 이내) 시 강제 재로드. 항목별 `items[].keepStateOnTap` 으로 오버라이드 가능 |
+| `barColor` | color | 테마 | 네비 바 배경색 |
+| `buttonColor` / `buttonForegroundColor` | color | 테마 | 비선택 버튼 색 |
+| `selectedButtonColor` / `selectedButtonForegroundColor` | color | 테마 (primary) | 선택 버튼 색 |
+
+색상은 `#RGB`, `#RRGGBB`, `#AARRGGBB` 또는 `transparent` 형식.
+
+### idle — 대기화면 설정
+
+자세한 옵션은 [docs/MANUAL.md](docs/MANUAL.md) 참고. 모드(`mode`)는 `slideshow` / `image` / `url` / `folder` 중 선택.
+
+### 전체 예시 (이 저장소의 기본 설정)
+
+```json
+{
+  "layout": {
+    "navPosition": "bottom",
+    "buttonAlignment": "stretch",
+    "showHistoryButtons": true,
+    "showKeyboardToggle": true,
+    "keepStateOnTap": false,
+    "barColor": "#1f2937",
+    "buttonColor": "#374151",
+    "buttonForegroundColor": "#ffffff",
+    "selectedButtonColor": "#2563eb",
+    "selectedButtonForegroundColor": "#ffffff"
+  },
+  "idle": {
+    "enabled": true,
+    "timeoutSec": 60,
+    "mode": "slideshow",
+    "slideshow": {
+      "intervalSec": 6,
+      "transition": "fade",
+      "images": ["assets/idle/slide1.jpg", "assets/idle/slide2.jpg"]
+    }
+  },
+  "items": [
+    { "id": "home",   "title": "홈",   "url": "https://example.com",         "icon": "icon:home" },
+    { "id": "notice", "title": "공지", "url": "https://example.com/notice",  "icon": "icon:notice", "keepStateOnTap": true }
+  ]
+}
+```
 
 수정 후에는 앱을 다시 실행하면 변경사항이 반영됩니다.
 
@@ -81,6 +158,25 @@ flutter pub get
 Android 9(API 28) 이상에서는 기본적으로 평문 HTTP 트래픽이 차단됩니다.
 HTTP URL을 사용해야 하는 경우, `AndroidManifest.xml`의 `<application>`에
 `android:usesCleartextTraffic="true"` 또는 `networkSecurityConfig`를 설정해야 합니다.
+
+## 가상 키보드
+
+OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 모든 OS 에서
+동일한 디자인/동작을 제공합니다.
+
+- 한글(두벌식 자모 조합) / 영문(QWERTY) / 숫자·특수문자 모드 토글
+- Shift 단일/잠금
+- 화면 어디든 드래그 가능한 **플로팅 윈도우** 형태
+- 자동 호출: WebView 내 `<input>` / `<textarea>` / `[contenteditable]` 포커스 시
+- 수동 호출: 네비게이션 바의 키보드 토글 버튼(`showKeyboardToggle: true`)
+- 한글 조합 결과를 `input` / `change` 이벤트 디스패치로 페이지에 정상 전달
+
+| OS | 동작 |
+|---|---|
+| Windows / macOS / Linux | Flutter 가상 키보드 사용 |
+| Android / iOS | Flutter 가상 키보드 사용 (시스템 IME 대신) |
+
+> 향후 추가 언어 레이아웃은 [lib/widget/virtual_keyboard.dart](lib/widget/virtual_keyboard.dart) 의 `_KbMode` 와 `_rows` 에 추가하면 됩니다.
 
 ## Windows에서 실행 시 주의사항
 
@@ -127,13 +223,31 @@ HTTP URL을 사용해야 하는 경우, `AndroidManifest.xml`의 `<application>`
 
 ```text
 lib/
-  main.dart                       # 앱 진입점, 화면 방향 설정
-  app.dart                        # MaterialApp, 메뉴 로딩, 홈 레이아웃, Back 버튼 정책
-  model/menu_item.dart            # 메뉴 항목 모델
-  service/menu_config_loader.dart # menu.json 로더
-  widget/navigation_menu.dart     # 사이드 / 하단 공용 네비게이션
-  widget/kiosk_webview.dart       # WebView 위젯 (로딩/에러/차단 정책)
+  main.dart                          # 앱 진입점, 전체화면 설정, 시작 시 쿠키 삭제
+  app.dart                           # MaterialApp, 메뉴 로딩, IndexedStack 기반 메뉴별 WebView,
+                                     #   대기화면 라이프사이클, Back 버튼 정책
+  model/
+    menu_item.dart                   # 메뉴 항목 모델 (keepStateOnTap 포함)
+    layout_config.dart               # 네비게이션 레이아웃/색상 설정
+    idle_config.dart                 # 대기화면 설정
+    menu_config.dart                 # 위 셋을 묶은 최상위 설정
+  service/
+    menu_config_loader.dart          # menu.json 로더
+    keyboard_controller.dart         # 가상 키보드 표시 상태/입력 이벤트 라우터
+    system_keyboard.dart             # SystemKeyboard.show/hide (KeyboardController 래퍼)
+    hangul_composer.dart             # 두벌식 한글 자모 조합기
+    media_scanner.dart               # 대기화면 폴더 모드용 미디어 스캐너
+    video_controller_factory.dart    # 대기화면 비디오 컨트롤러 팩토리
+  widget/
+    navigation_menu.dart             # 사이드/하단 공용 네비, 히스토리/키보드 토글
+    kiosk_webview.dart               # WebView 위젯 (로딩/에러/차단/자동 복구/heartbeat/키보드 입력 주입)
+    virtual_keyboard.dart            # 플로팅 가상 키보드 위젯
+    idle_gate.dart                   # 대기화면 표시 게이트
+    idle_overlay.dart                # 대기화면 오버레이
+    material_icon_registry.dart      # icon:이름 → IconData 매핑
 
 assets/
-  config/menu.json                # 메뉴 설정
+  config/menu.json                   # 메뉴/레이아웃/대기화면 설정
+  icons/                             # 메뉴 아이콘 이미지
+  idle/                              # 대기화면용 미디어
 ```
