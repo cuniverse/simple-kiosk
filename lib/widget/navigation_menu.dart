@@ -352,6 +352,60 @@ class NavigationMenu extends StatelessWidget {
   }
 }
 
+/// WebView의 위젯 트리 위치를 유지하면서 하단 툴바와 플로팅 컨트롤만 전환한다.
+///
+/// [hidden]이 바뀌어도 [webView]는 항상 첫 번째 `Positioned`의 자식으로 남으므로
+/// 네이티브 WebView가 dispose/recreate되지 않는다.
+class BottomToolbarHost extends StatelessWidget {
+  final bool hidden;
+  final double toolbarHeight;
+  final Widget webView;
+  final Widget toolbar;
+  final Widget overlay;
+
+  const BottomToolbarHost({
+    super.key,
+    required this.hidden,
+    required this.toolbarHeight,
+    required this.webView,
+    required this.toolbar,
+    required this.overlay,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          bottom: hidden ? 0 : toolbarHeight + 1,
+          child: webView,
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Offstage(
+            offstage: hidden,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Divider(height: 1),
+                toolbar,
+              ],
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Offstage(
+            offstage: !hidden,
+            child: overlay,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// 하단 툴바가 접힌 동안 WebView 위에 남는 최소 플로팅 컨트롤.
 ///
 /// 메뉴 버튼은 숨기되 탐색, 툴바 복원, 가상 키보드 제어는 언제든 가능하다.

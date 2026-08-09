@@ -449,27 +449,20 @@ class _KioskHomeState extends State<_KioskHome> {
                     );
                   case NavPosition.bottom:
                   case NavPosition.auto: // 이론상 도달 불가 — 안전망.
-                    if (_bottomToolbarHidden) {
-                      return Stack(
-                        children: [
-                          Positioned.fill(child: webViewStack),
-                          Positioned.fill(
-                            child: CollapsedToolbarOverlay(
-                              historyController: _currentController,
-                              onShowToolbar: () => setState(
-                                () => _bottomToolbarHidden = false,
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                    return Column(
-                      children: [
-                        Expanded(child: webViewStack),
-                        const Divider(height: 1),
-                        nav,
-                      ],
+                    // 툴바 표시 여부와 관계없이 WebView는 항상 Stack의 첫 번째
+                    // 자식에 고정한다. 부모 구조가 바뀌면 네이티브 WebView가
+                    // dispose/recreate되어 페이지 상태가 사라질 수 있기 때문이다.
+                    return BottomToolbarHost(
+                      hidden: _bottomToolbarHidden,
+                      toolbarHeight: widget.layout.barHeight,
+                      webView: webViewStack,
+                      toolbar: nav,
+                      overlay: CollapsedToolbarOverlay(
+                        historyController: _currentController,
+                        onShowToolbar: () => setState(
+                          () => _bottomToolbarHidden = false,
+                        ),
+                      ),
                     );
                 }
               },

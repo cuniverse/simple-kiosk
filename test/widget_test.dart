@@ -90,4 +90,52 @@ void main() {
     expect(moved.dx, lessThan(400));
     expect(moved.dy, lessThan(300));
   });
+
+  testWidgets('툴바 표시 상태가 바뀌어도 WebView 자식을 재생성하지 않는다', (tester) async {
+    final probeKey = GlobalKey<_LifecycleProbeState>();
+
+    Widget buildHost(bool hidden) => MaterialApp(
+          home: Scaffold(
+            body: BottomToolbarHost(
+              hidden: hidden,
+              toolbarHeight: 96,
+              webView: _LifecycleProbe(key: probeKey),
+              toolbar: const SizedBox(height: 96),
+              overlay: const SizedBox.shrink(),
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(buildHost(false));
+    final originalState = probeKey.currentState;
+    expect(originalState, isNotNull);
+
+    await tester.pumpWidget(buildHost(true));
+    expect(probeKey.currentState, same(originalState));
+    expect(originalState!.disposeCount, 0);
+
+    await tester.pumpWidget(buildHost(false));
+    expect(probeKey.currentState, same(originalState));
+    expect(originalState.disposeCount, 0);
+  });
+}
+
+class _LifecycleProbe extends StatefulWidget {
+  const _LifecycleProbe({super.key});
+
+  @override
+  State<_LifecycleProbe> createState() => _LifecycleProbeState();
+}
+
+class _LifecycleProbeState extends State<_LifecycleProbe> {
+  int disposeCount = 0;
+
+  @override
+  void dispose() {
+    disposeCount += 1;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(color: Colors.white);
 }
