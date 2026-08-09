@@ -1,0 +1,41 @@
+# Simple Kiosk 릴리즈 노트
+
+## 1.1.0+2 (2026-08-09)
+
+하단 툴바의 키오스크 운용성과 Windows 배포 절차를 개선한 기능 릴리즈입니다.
+
+### 새로운 기능
+
+- 하단 툴바를 숨기고 최소 오버레이 컨트롤로 복원할 수 있습니다.
+- 숨김 오버레이를 화면 안에서 드래그하고 가까운 모서리에 배치할 수 있습니다.
+- `layout.toolbarInitiallyHidden`으로 시작 시 툴바 숨김 여부를 설정할 수 있습니다.
+- `layout.toolbarAutoHideSec`으로 펼친 툴바의 자동 숨김 시간을 설정할 수 있습니다. `0`은 자동 숨김 비활성화입니다.
+- Windows, Android, macOS용 릴리즈 패키징 스크립트와 GitHub Actions 워크플로를 추가했습니다.
+- 배포 패키지에 플랫폼별 설치 가이드와 메뉴 설정 가이드를 포함합니다.
+
+### 개선 사항
+
+- 툴바를 숨기거나 다시 표시해도 WebView 위젯과 현재 페이지 상태가 유지됩니다.
+- 오버레이에서 뒤로, 앞으로, 툴바 복원, 가상 키보드 제어를 계속 사용할 수 있습니다.
+- Windows 최초 설치, WebView2 Runtime, 무결성 확인 및 업데이트 절차를 문서화했습니다.
+- 툴바 숨김·복원, 드래그, 자동 숨김 및 상태 유지 동작에 대한 위젯 테스트를 보강했습니다.
+
+### 설정 및 업그레이드 참고
+
+- 기본 설정은 `toolbarInitiallyHidden: true`, `toolbarAutoHideSec: 10`입니다.
+- 기존처럼 툴바를 항상 펼쳐 두려면 `assets/config/menu.json`의 `layout`에 다음 값을 지정하세요.
+
+```json
+{
+  "toolbarInitiallyHidden": false,
+  "toolbarAutoHideSec": 0
+}
+```
+
+- 기존 설치 폴더에 일부 파일만 덮어쓰지 말고 새 ZIP을 별도 폴더에 완전히 압축 해제하세요.
+- 운영 중 수정한 `menu.json`과 사용자 이미지는 백업 후 새 배포본으로 옮기세요.
+
+## 1.0.0+1
+
+- Flutter 기반 Windows/Android/macOS 키오스크 앱 최초 릴리즈.
+- JSON 메뉴 설정, 다중 WebView 상태 유지, 대기화면, 자동 복구 및 가상 키보드 기능 제공.

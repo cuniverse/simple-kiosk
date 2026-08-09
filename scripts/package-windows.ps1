@@ -33,9 +33,13 @@ try {
     }
 
     New-Item -ItemType Directory -Force -Path $stage, $distDir | Out-Null
-    Copy-Item -Path (Join-Path $releaseDir '*') -Destination $stage -Recurse -Force
+    # 실행 테스트가 만든 WebView2 사용자 프로필(쿠키/캐시/세션)은 배포하지 않는다.
+    Get-ChildItem -Path $releaseDir -File |
+        Copy-Item -Destination $stage -Force
+    Copy-Item (Join-Path $releaseDir 'data') $stage -Recurse -Force
     Copy-Item 'release\guides\WINDOWS_INSTALL_GUIDE.md' (Join-Path $stage 'INSTALL_GUIDE.md')
     Copy-Item 'release\guides\MENU_CONFIGURATION_GUIDE.md' (Join-Path $stage 'MENU_CONFIG_GUIDE.md')
+    Copy-Item 'RELEASE_NOTES.md' (Join-Path $stage 'RELEASE_NOTES.md')
 
     $exe = Join-Path $stage 'simple_kiosk.exe'
     if (-not (Test-Path $exe)) { throw 'simple_kiosk.exe를 찾을 수 없습니다.' }
