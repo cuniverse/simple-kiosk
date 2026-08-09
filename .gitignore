@@ -51,7 +51,6 @@ unlinked_spec.ds
 
 # Generated Flutter scaffolds not used by this app
 web/
-test/widget_test.dart
 
 # Android related
 **/android/**/gradle-wrapper.jar

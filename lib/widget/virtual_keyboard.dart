@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../service/hangul_composer.dart';
@@ -177,12 +179,18 @@ class _VirtualKeyboardOverlayState extends State<VirtualKeyboardOverlay> {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final keyboardWidth =
+        math.min(_kbWidth, math.max(0.0, media.size.width - 16));
+    final keyboardHeight =
+        math.min(_kbHeight, math.max(0.0, media.size.height - 16));
+    final maxX = math.max(8.0, media.size.width - keyboardWidth - 8);
+    final maxY = math.max(8.0, media.size.height - keyboardHeight - 8);
     // 첫 표시 시 화면 우하단에 가깝게 배치.
     if (!_placed) {
       final size = media.size;
       _offset = Offset(
-        ((size.width - _kbWidth) / 2).clamp(8.0, size.width - _kbWidth - 8),
-        (size.height - _kbHeight - 24).clamp(8.0, size.height - _kbHeight - 8),
+        ((size.width - keyboardWidth) / 2).clamp(8.0, maxX),
+        (size.height - keyboardHeight - 24).clamp(8.0, maxY),
       );
       _placed = true;
     }
@@ -190,8 +198,8 @@ class _VirtualKeyboardOverlayState extends State<VirtualKeyboardOverlay> {
     return Positioned(
       left: _offset.dx,
       top: _offset.dy,
-      width: _kbWidth,
-      height: _kbHeight,
+      width: keyboardWidth,
+      height: keyboardHeight,
       child: Material(
         elevation: 16,
         borderRadius: BorderRadius.circular(16),
@@ -213,12 +221,16 @@ class _VirtualKeyboardOverlayState extends State<VirtualKeyboardOverlay> {
       behavior: HitTestBehavior.opaque,
       onPanUpdate: (d) {
         final media = MediaQuery.of(context);
+        final keyboardWidth =
+            math.min(_kbWidth, math.max(0.0, media.size.width - 16));
+        final keyboardHeight =
+            math.min(_kbHeight, math.max(0.0, media.size.height - 16));
+        final maxX = math.max(8.0, media.size.width - keyboardWidth - 8);
+        final maxY = math.max(8.0, media.size.height - keyboardHeight - 8);
         setState(() {
           _offset = Offset(
-            (_offset.dx + d.delta.dx)
-                .clamp(8.0, media.size.width - _kbWidth - 8),
-            (_offset.dy + d.delta.dy)
-                .clamp(8.0, media.size.height - _kbHeight - 8),
+            (_offset.dx + d.delta.dx).clamp(8.0, maxX),
+            (_offset.dy + d.delta.dy).clamp(8.0, maxY),
           );
         });
       },
@@ -236,10 +248,13 @@ class _VirtualKeyboardOverlayState extends State<VirtualKeyboardOverlay> {
               ),
             ),
             const Spacer(),
-            IconButton(
-              tooltip: '닫기',
-              onPressed: _onClose,
-              icon: const Icon(Icons.close),
+            Semantics(
+              label: '가상 키보드 닫기',
+              button: true,
+              child: IconButton(
+                onPressed: _onClose,
+                icon: const Icon(Icons.close),
+              ),
             ),
           ],
         ),

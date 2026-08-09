@@ -69,6 +69,7 @@ class WebNavState {
 class KioskWebViewController {
   final InAppWebViewController _controller;
   final ValueNotifier<WebNavState> navState;
+  bool _disposed = false;
 
   // 히스토리 스택과 현재 인덱스(0..length-1). 비어있으면 빈 상태.
   final List<String> _history = [];
@@ -114,12 +115,19 @@ class KioskWebViewController {
   /// 새 URL을 첫 항목으로 둔다. 사용자가 그 페이지에서 링크를 따라간 이동만이
   /// 뒤/앞 버튼의 대상이 된다.
   Future<void> loadUrl(String url) async {
+    if (_disposed) return;
     _resetHistory(url);
     // state 에 사용자 로드 요청을 알린다(응답 감시 타이머 시작용).
     _onLoadRequested?.call(url);
-    await _controller.loadUrl(
-      urlRequest: URLRequest(url: WebUri(url)),
-    );
+    try {
+      await _controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(url)),
+      );
+    } catch (_) {
+      // WebView 재생성과 동시에 들어온 지연 호출은 이전 컨트롤러를 가리킬 수 있다.
+      // 해당 세대는 이미 폐기되었으므로 새 WebView의 initialUrl 로드를 기다린다.
+      if (!_disposed) rethrow;
+    }
   }
 
   /// 히스토리를 초기화하고 주어진 URL을 첫 항목으로 만든다.
@@ -173,7 +181,19 @@ class KioskWebViewController {
   }
 
   /// 현재 페이지를 다시 로드한다.
-  Future<void> reload() => _controller.reload();
+  Future<void> reload() async {
+    if (_disposed) return;
+    try {
+      await _controller.reload();
+    } catch (_) {
+      if (!_disposed) rethrow;
+    }
+  }
+
+  void _dispose() {
+    _disposed = true;
+    _onLoadRequested = null;
+  }
 
   /// WebView 내부에서 발생한 네비게이션(페이지 내 링크 클릭 등)을 히스토리에
   /// 반영한다. 호출자는 [_KioskWebViewState] 의 `onLoadStart`.
@@ -379,8 +399,12 @@ class _KioskWebViewState extends State<KioskWebView> {
     super.didUpdateWidget(oldWidget);
     if (widget.active && !oldWidget.active) {
       KeyboardController.instance.attach(_handleKeyEvent);
+      _startHealthCheck();
     } else if (!widget.active && oldWidget.active) {
       KeyboardController.instance.detach(_handleKeyEvent);
+      // IndexedStack 뒤에 숨은 WebView의 JavaScript 타이머는 OS가 늦출 수 있다.
+      // 비활성 메뉴를 heartbeat 실패로 오판하지 않도록 감시를 중지한다.
+      _stopHealthCheck();
     }
   }
 
@@ -424,6 +448,7 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// 판단하고 [_recreateWebView] 를 호출한다.
   void _checkHeartbeat() {
     if (!mounted) return;
+    if (!widget.active) return;
     if (!_heartbeatArmed) return;
     final last = _lastHeartbeat;
     if (last == null) return;
@@ -596,7 +621,13 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// - 인라인 자동 재시도가 [_maxRetriesBeforeRecreate] 회 연속 실패한 경우
   /// - watchdog 헬스체크가 [_maxHealthFailures] 회 연속 실패한 경우
   ///   (Windows 에서 Alt+F4 로 WebView2 자식 창만 닫힌 상황 등)
-  void _recreateWebView({bool resetToHome = false}) {
+  void _recreateWebView({
+    bool resetToHome = false,
+    InAppWebViewController? source,
+  }) {
+    // 이전 세대 WebView가 dispose되면서 늦게 보낸 종료 콜백은 현재 WebView까지
+    // 다시 폐기시키면 안 된다.
+    if (source != null && !identical(source, _webController)) return;
     _cancelAutoRetry();
     _loadingFallback?.cancel();
     _stopHealthCheck();
@@ -611,6 +642,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     final target = resetToHome
         ? widget.initialUrl
         : (pending ?? _lastGoodUrl ?? widget.initialUrl);
+    _kioskController?._dispose();
     _webController = null;
     _kioskController = null;
     _consecutiveErrors = 0;
@@ -632,6 +664,9 @@ class _KioskWebViewState extends State<KioskWebView> {
     _healthCheck?.cancel();
     _loadResponseWatchdog?.cancel();
     _keyboardHideDebounce?.cancel();
+    _kioskController?._dispose();
+    _webController = null;
+    _kioskController = null;
     // 위젯이 사라질 때 시스템 키보드도 함께 닫는다.
     SystemKeyboard.hide();
     super.dispose();
@@ -668,6 +703,7 @@ class _KioskWebViewState extends State<KioskWebView> {
             ),
             initialSettings: _settings,
             onWebViewCreated: (controller) {
+              if (!mounted) return;
               _webController = controller;
               final kc = KioskWebViewController._(controller);
               _kioskController = kc;
@@ -700,8 +736,9 @@ class _KioskWebViewState extends State<KioskWebView> {
                   return null;
                 },
               );
-              // 컨트롤러가 준비된 시점부터 watchdog 가동.
-              _startHealthCheck();
+              // 화면에 보이는 WebView만 watchdog을 가동한다. IndexedStack 뒤의
+              // WebView는 플랫폼이 JS 타이머를 throttle할 수 있다.
+              if (widget.active) _startHealthCheck();
             },
             onLoadStart: (controller, url) {
               if (!mounted) return;
@@ -803,7 +840,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                   '(didCrash=${detail.didCrash})',
                 );
               }
-              _recreateWebView();
+              _recreateWebView(source: controller);
             },
             // Android: 렌더러가 응답하지 않음. TERMINATE 를 돌려주면
             // onRenderProcessGone 이 이어서 발생해 위 핸들러로 회복된다.
@@ -818,7 +855,7 @@ class _KioskWebViewState extends State<KioskWebView> {
               if (kDebugMode) {
                 debugPrint('[KioskWebView] onWebContentProcessDidTerminate');
               }
-              _recreateWebView();
+              _recreateWebView(source: controller);
             },
           ),
         ),

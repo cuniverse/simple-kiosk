@@ -149,12 +149,41 @@ class _IdleImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isNetwork =
-        path.startsWith('http://') || path.startsWith('https://');
+    final isNetwork = path.startsWith('http://') || path.startsWith('https://');
     final image = isNetwork
-        ? Image.network(path, fit: BoxFit.cover)
-        : Image.asset(path, fit: BoxFit.cover);
+        ? Image.network(
+            path,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+          )
+        : Image.asset(
+            path,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+          );
     return SizedBox.expand(child: image);
+  }
+}
+
+/// 설정된 대기 이미지가 없거나 네트워크에서 읽히지 않을 때 표시하는 안전 화면.
+///
+/// 운영 중 콘텐츠 파일 하나가 빠져도 이미지 디코딩 오류가 화면 전체를 깨뜨리지
+/// 않도록 한다. 하단의 터치 안내는 [IdleOverlay]가 그대로 겹쳐 표시한다.
+class _IdleMediaFallback extends StatelessWidget {
+  const _IdleMediaFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFF111827),
+      child: Center(
+        child: Icon(
+          Icons.church_outlined,
+          size: 120,
+          color: Color(0xFFD1D5DB),
+        ),
+      ),
+    );
   }
 }
 
@@ -197,18 +226,19 @@ class _IdleSlideshowState extends State<_IdleSlideshow> {
   @override
   Widget build(BuildContext context) {
     final path = widget.config.images[_index];
-    final isNetwork =
-        path.startsWith('http://') || path.startsWith('https://');
+    final isNetwork = path.startsWith('http://') || path.startsWith('https://');
     final image = isNetwork
         ? Image.network(
             path,
             key: ValueKey(path),
             fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
           )
         : Image.asset(
             path,
             key: ValueKey(path),
             fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
           );
 
     if (widget.config.transition == SlideshowTransition.none) {

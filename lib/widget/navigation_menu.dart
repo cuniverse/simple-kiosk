@@ -75,6 +75,9 @@ class NavigationMenu extends StatelessWidget {
   /// 선택 버튼 전경색.
   final Color? selectedButtonForegroundColor;
 
+  /// 하단 툴바를 접는 콜백. `null`이면 숨김 버튼을 표시하지 않는다.
+  final VoidCallback? onHide;
+
   const NavigationMenu({
     super.key,
     required this.items,
@@ -95,6 +98,7 @@ class NavigationMenu extends StatelessWidget {
     this.buttonForegroundColor,
     this.selectedButtonColor,
     this.selectedButtonForegroundColor,
+    this.onHide,
   });
 
   @override
@@ -254,6 +258,19 @@ class NavigationMenu extends StatelessWidget {
           ),
         );
       }
+      if (onHide != null) {
+        children.add(SizedBox(width: buttonGap));
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: _ToolbarVisibilityButton(
+              icon: Icons.keyboard_arrow_down,
+              tooltip: '툴바 감추기',
+              onPressed: onHide!,
+            ),
+          ),
+        );
+      }
       return Material(
         color: barColor ?? theme.colorScheme.surfaceContainerHighest,
         child: SafeArea(
@@ -301,6 +318,20 @@ class NavigationMenu extends StatelessWidget {
         ),
       );
     }
+    if (onHide != null) {
+      if (!showKeyboardToggle) children.add(const Spacer());
+      children.add(SizedBox(width: buttonGap));
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: _ToolbarVisibilityButton(
+            icon: Icons.keyboard_arrow_down,
+            tooltip: '툴바 감추기',
+            onPressed: onHide!,
+          ),
+        ),
+      );
+    }
 
     return Material(
       color: barColor ?? theme.colorScheme.surfaceContainerHighest,
@@ -315,6 +346,107 @@ class NavigationMenu extends StatelessWidget {
               children: children,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 하단 툴바가 접힌 동안 WebView 위에 남는 최소 플로팅 컨트롤.
+///
+/// 메뉴 버튼은 숨기되 탐색, 툴바 복원, 가상 키보드 제어는 언제든 가능하다.
+class CollapsedToolbarOverlay extends StatelessWidget {
+  final KioskWebViewController? historyController;
+  final VoidCallback onShowToolbar;
+
+  const CollapsedToolbarOverlay({
+    super.key,
+    required this.historyController,
+    required this.onShowToolbar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget buildControls(WebNavState state) {
+      return Material(
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.94),
+        elevation: 10,
+        shadowColor: Colors.black54,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _HistoryButton(
+                icon: Icons.arrow_back,
+                tooltip: '뒤로',
+                enabled: state.canGoBack,
+                onPressed: () => historyController?.goBack(),
+              ),
+              const SizedBox(width: 8),
+              _HistoryButton(
+                icon: Icons.arrow_forward,
+                tooltip: '앞으로',
+                enabled: state.canGoForward,
+                onPressed: () => historyController?.goForward(),
+              ),
+              const SizedBox(width: 8),
+              _ToolbarVisibilityButton(
+                icon: Icons.keyboard_arrow_up,
+                tooltip: '툴바 보이기',
+                onPressed: onShowToolbar,
+              ),
+              const SizedBox(width: 8),
+              const _KeyboardToggle(
+                orientation: NavigationOrientation.bottom,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final controller = historyController;
+    if (controller == null) return buildControls(WebNavState.empty);
+    return ValueListenableBuilder<WebNavState>(
+      valueListenable: controller.navState,
+      builder: (context, state, _) => buildControls(state),
+    );
+  }
+}
+
+class _ToolbarVisibilityButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  const _ToolbarVisibilityButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Tooltip(
+        message: tooltip,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: scheme.surface,
+            foregroundColor: scheme.onSurface,
+            elevation: 1,
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Icon(icon, size: 30),
         ),
       ),
     );

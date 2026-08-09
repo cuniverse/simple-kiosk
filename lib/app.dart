@@ -203,6 +203,11 @@ class _KioskHome extends StatefulWidget {
 class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
 
+  /// 하단 네비게이션 바를 접었는지 여부.
+  ///
+  /// 접힌 동안에는 WebView 위에 최소 조작 버튼만 플로팅으로 남긴다.
+  bool _bottomToolbarHidden = false;
+
   /// 메뉴 인덱스별 컨트롤러. 한 번이라도 mount 된 항목에 대해서만 채워진다.
   final Map<int, KioskWebViewController> _controllers = {};
 
@@ -412,6 +417,9 @@ class _KioskHomeState extends State<_KioskHome> {
                   selectedButtonColor: widget.layout.selectedButtonColor,
                   selectedButtonForegroundColor:
                       widget.layout.selectedButtonForegroundColor,
+                  onHide: position == NavPosition.bottom
+                      ? () => setState(() => _bottomToolbarHidden = true)
+                      : null,
                 );
 
                 switch (position) {
@@ -441,6 +449,23 @@ class _KioskHomeState extends State<_KioskHome> {
                     );
                   case NavPosition.bottom:
                   case NavPosition.auto: // 이론상 도달 불가 — 안전망.
+                    if (_bottomToolbarHidden) {
+                      return Stack(
+                        children: [
+                          Positioned.fill(child: webViewStack),
+                          Positioned(
+                            right: 16,
+                            bottom: 16,
+                            child: CollapsedToolbarOverlay(
+                              historyController: _currentController,
+                              onShowToolbar: () => setState(
+                                () => _bottomToolbarHidden = false,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
                     return Column(
                       children: [
                         Expanded(child: webViewStack),
