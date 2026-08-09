@@ -75,8 +75,9 @@ bash scripts/package-macos.sh
 ```
 
 macOS에서는 Windows 네이티브 앱을 직접 빌드할 수 없습니다. GitHub 저장소의
-`Build release packages` Actions 워크플로를 수동 실행하거나 `v*` 태그를 푸시하면
-Android, Windows, macOS 러너가 각 ZIP을 생성해 Actions Artifact로 제공합니다.
+`Build Windows release` Actions 워크플로를 수동 실행하거나 `v*` 태그를 푸시하면
+Windows 러너가 ZIP을 생성합니다. 완성된 ZIP은 Actions Artifact와 GitHub Releases에
+동시에 게시됩니다. Android와 macOS 패키지는 위의 로컬 스크립트로 생성합니다.
 
 > Android는 현재 `android/app/build.gradle.kts` 설정에 따라 디버그 키로 서명됩니다.
 > 외부 배포 전에는 조직의 정식 키스토어와 CI 비밀값을 구성해야 합니다. macOS 외부
