@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_kiosk/model/idle_config.dart';
+import 'package:simple_kiosk/model/layout_config.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 
 void main() {
@@ -32,6 +33,18 @@ void main() {
     });
 
     expect(config.isUsable, isFalse);
+  });
+
+  test('툴바는 기본적으로 숨김이며 자동 숨김 시간을 파싱한다', () {
+    expect(LayoutConfig.defaults.toolbarInitiallyHidden, isTrue);
+    expect(LayoutConfig.defaults.toolbarAutoHideSec, 10);
+
+    final config = LayoutConfig.fromJson({
+      'toolbarInitiallyHidden': false,
+      'toolbarAutoHideSec': 25,
+    });
+    expect(config.toolbarInitiallyHidden, isFalse);
+    expect(config.toolbarAutoHideSec, 25);
   });
 
   testWidgets('접힌 툴바 오버레이에 필수 컨트롤을 표시한다', (tester) async {
@@ -117,6 +130,35 @@ void main() {
     await tester.pumpWidget(buildHost(false));
     expect(probeKey.currentState, same(originalState));
     expect(originalState.disposeCount, 0);
+  });
+
+  testWidgets('표시된 툴바는 입력이 없으면 자동 숨김을 요청한다', (tester) async {
+    var hideCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BottomToolbarHost(
+            hidden: false,
+            toolbarHeight: 96,
+            autoHideDuration: const Duration(seconds: 2),
+            onAutoHide: () => hideCount += 1,
+            webView: const ColoredBox(color: Colors.white),
+            toolbar: const SizedBox(height: 96),
+            overlay: const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(hideCount, 0);
+
+    await tester.tapAt(const Offset(100, 100));
+    await tester.pump(const Duration(milliseconds: 1500));
+    expect(hideCount, 0);
+
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(hideCount, 1);
   });
 }
 

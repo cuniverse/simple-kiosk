@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../model/layout_config.dart';
@@ -356,9 +358,11 @@ class NavigationMenu extends StatelessWidget {
 ///
 /// [hidden]이 바뀌어도 [webView]는 항상 첫 번째 `Positioned`의 자식으로 남으므로
 /// 네이티브 WebView가 dispose/recreate되지 않는다.
-class BottomToolbarHost extends StatelessWidget {
+class BottomToolbarHost extends StatefulWidget {
   final bool hidden;
   final double toolbarHeight;
+  final Duration autoHideDuration;
+  final VoidCallback? onAutoHide;
   final Widget webView;
   final Widget toolbar;
   final Widget overlay;
@@ -367,41 +371,96 @@ class BottomToolbarHost extends StatelessWidget {
     super.key,
     required this.hidden,
     required this.toolbarHeight,
+    this.autoHideDuration = Duration.zero,
+    this.onAutoHide,
     required this.webView,
     required this.toolbar,
     required this.overlay,
   });
 
   @override
+  State<BottomToolbarHost> createState() => _BottomToolbarHostState();
+}
+
+class _BottomToolbarHostState extends State<BottomToolbarHost> {
+  Timer? _autoHideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetAutoHideTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant BottomToolbarHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hidden != widget.hidden ||
+        oldWidget.autoHideDuration != widget.autoHideDuration ||
+        oldWidget.onAutoHide != widget.onAutoHide) {
+      _resetAutoHideTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoHideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _resetAutoHideTimer() {
+    _autoHideTimer?.cancel();
+    _autoHideTimer = null;
+    if (widget.hidden ||
+        widget.autoHideDuration <= Duration.zero ||
+        widget.onAutoHide == null) {
+      return;
+    }
+    _autoHideTimer = Timer(widget.autoHideDuration, () {
+      if (!mounted || widget.hidden) return;
+      widget.onAutoHide?.call();
+    });
+  }
+
+  void _onUserActivity() {
+    if (!widget.hidden) _resetAutoHideTimer();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          bottom: hidden ? 0 : toolbarHeight + 1,
-          child: webView,
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Offstage(
-            offstage: hidden,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Divider(height: 1),
-                toolbar,
-              ],
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _onUserActivity(),
+      onPointerMove: (_) => _onUserActivity(),
+      onPointerSignal: (_) => _onUserActivity(),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            bottom: widget.hidden ? 0 : widget.toolbarHeight + 1,
+            child: widget.webView,
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Offstage(
+              offstage: widget.hidden,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Divider(height: 1),
+                  widget.toolbar,
+                ],
+              ),
             ),
           ),
-        ),
-        Positioned.fill(
-          child: Offstage(
-            offstage: !hidden,
-            child: overlay,
+          Positioned.fill(
+            child: Offstage(
+              offstage: !widget.hidden,
+              child: widget.overlay,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

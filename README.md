@@ -56,6 +56,32 @@ flutter run -d windows
 flutter run -d macos
 ```
 
+## 플랫폼별 릴리스 패키지
+
+각 스크립트는 `dist/`에 버전이 포함된 ZIP을 만들며, ZIP 내부에는 플랫폼 실행 파일,
+한국어 `INSTALL_GUIDE.md`, 상세 메뉴 설정 문서 `MENU_CONFIG_GUIDE.md`가 포함됩니다.
+
+```bash
+# Android (macOS/Linux)
+bash scripts/package-android.sh
+
+# macOS
+bash scripts/package-macos.sh
+```
+
+```powershell
+# Windows PowerShell
+.\scripts\package-windows.ps1
+```
+
+macOS에서는 Windows 네이티브 앱을 직접 빌드할 수 없습니다. GitHub 저장소의
+`Build release packages` Actions 워크플로를 수동 실행하거나 `v*` 태그를 푸시하면
+Android, Windows, macOS 러너가 각 ZIP을 생성해 Actions Artifact로 제공합니다.
+
+> Android는 현재 `android/app/build.gradle.kts` 설정에 따라 디버그 키로 서명됩니다.
+> 외부 배포 전에는 조직의 정식 키스토어와 CI 비밀값을 구성해야 합니다. macOS 외부
+> 배포 역시 Developer ID 서명 및 Apple 공증이 필요합니다.
+
 ### 플랫폼 폴더가 없는 경우
 
 이 저장소는 Dart 소스/에셋/설정 위주로 관리됩니다.
@@ -109,6 +135,8 @@ flutter pub get
 | `showHistoryButtons` | bool | `false` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `false` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
 | `keepStateOnTap` | bool | `false` | **기본 동작**: 같은 메뉴 단일 탭 시 상태 유지(아무 동작 없음), 더블 탭(300ms 이내) 시 강제 재로드. 항목별 `items[].keepStateOnTap` 으로 오버라이드 가능 |
+| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 하단 툴바를 숨긴 상태로 표시 |
+| `toolbarAutoHideSec` | number | `10` | 툴바 복원 후 입력이 없을 때 다시 숨길 시간(초). `0`이면 자동 숨김 해제 |
 | `barColor` | color | 테마 | 네비 바 배경색 |
 | `buttonColor` / `buttonForegroundColor` | color | 테마 | 비선택 버튼 색 |
 | `selectedButtonColor` / `selectedButtonForegroundColor` | color | 테마 (primary) | 선택 버튼 색 |
@@ -129,6 +157,8 @@ flutter pub get
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
     "keepStateOnTap": false,
+    "toolbarInitiallyHidden": true,
+    "toolbarAutoHideSec": 10,
     "barColor": "#1f2937",
     "buttonColor": "#374151",
     "buttonForegroundColor": "#ffffff",

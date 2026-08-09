@@ -206,7 +206,7 @@ class _KioskHomeState extends State<_KioskHome> {
   /// 하단 네비게이션 바를 접었는지 여부.
   ///
   /// 접힌 동안에는 WebView 위에 최소 조작 버튼만 플로팅으로 남긴다.
-  bool _bottomToolbarHidden = false;
+  late bool _bottomToolbarHidden;
 
   /// 메뉴 인덱스별 컨트롤러. 한 번이라도 mount 된 항목에 대해서만 채워진다.
   final Map<int, KioskWebViewController> _controllers = {};
@@ -224,6 +224,31 @@ class _KioskHomeState extends State<_KioskHome> {
   DateTime? _lastTapAt;
   int? _lastTapIndex;
   static const Duration _doubleTapWindow = Duration(milliseconds: 300);
+
+  @override
+  void initState() {
+    super.initState();
+    _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
+  }
+
+  @override
+  void didUpdateWidget(covariant _KioskHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.layout.toolbarInitiallyHidden !=
+        widget.layout.toolbarInitiallyHidden) {
+      _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
+    }
+  }
+
+  void _hideBottomToolbar() {
+    if (_bottomToolbarHidden) return;
+    setState(() => _bottomToolbarHidden = true);
+  }
+
+  void _showBottomToolbar() {
+    if (!_bottomToolbarHidden) return;
+    setState(() => _bottomToolbarHidden = false);
+  }
 
   KioskWebViewController? get _currentController =>
       _controllers[_selectedIndex];
@@ -293,6 +318,7 @@ class _KioskHomeState extends State<_KioskHome> {
       );
     }
     setState(() {
+      _bottomToolbarHidden = true;
       _selectedIndex = 0;
       // 홈만 남기고 모두 언mount.
       _mountedIndices
@@ -418,7 +444,7 @@ class _KioskHomeState extends State<_KioskHome> {
                   selectedButtonForegroundColor:
                       widget.layout.selectedButtonForegroundColor,
                   onHide: position == NavPosition.bottom
-                      ? () => setState(() => _bottomToolbarHidden = true)
+                      ? _hideBottomToolbar
                       : null,
                 );
 
@@ -455,13 +481,15 @@ class _KioskHomeState extends State<_KioskHome> {
                     return BottomToolbarHost(
                       hidden: _bottomToolbarHidden,
                       toolbarHeight: widget.layout.barHeight,
+                      autoHideDuration: Duration(
+                        seconds: widget.layout.toolbarAutoHideSec,
+                      ),
+                      onAutoHide: _hideBottomToolbar,
                       webView: webViewStack,
                       toolbar: nav,
                       overlay: CollapsedToolbarOverlay(
                         historyController: _currentController,
-                        onShowToolbar: () => setState(
-                          () => _bottomToolbarHidden = false,
-                        ),
+                        onShowToolbar: _showBottomToolbar,
                       ),
                     );
                 }

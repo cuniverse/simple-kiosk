@@ -144,7 +144,9 @@ android:usesCleartextTraffic="true"
   "buttonAlignment": "stretch",
   "showHistoryButtons": true,
   "showKeyboardToggle": true,
-  "keepStateOnTap": false
+  "keepStateOnTap": false,
+  "toolbarInitiallyHidden": true,
+  "toolbarAutoHideSec": 10
 }
 ```
 
@@ -163,6 +165,8 @@ android:usesCleartextTraffic="true"
 | `showHistoryButtons` | bool | `false` | 네비 **시작점** 에 ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `false` | 네비 **끝점** 에 OS 가상 키보드 토글 버튼 표시 ([§9](#9-가상-키보드) 참고) |
 | `keepStateOnTap` | bool | `false` | 같은 메뉴 단일 탭 시 페이지 상태 유지 (아래 [keepStateOnTap](#keepstateontap--메뉴-상태-유지-동작) 참고) |
+| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 하단 툴바를 숨김 상태로 표시 |
+| `toolbarAutoHideSec` | 숫자 ≥ 0 | `10` | 복원한 툴바를 입력 없이 표시할 시간(초). `0`이면 자동 숨김 해제 |
 | `barColor` | 색상 문자열 | (테마) | 네비 바 배경색 |
 | `buttonColor` | 색상 문자열 | (테마) | 비선택 버튼 배경색 |
 | `buttonForegroundColor` | 색상 문자열 | (테마) | 비선택 버튼 텍스트/아이콘 색 |

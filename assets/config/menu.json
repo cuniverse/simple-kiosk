@@ -10,6 +10,8 @@
     "buttonAlignment": "stretch",
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
+    "toolbarInitiallyHidden": true,
+    "toolbarAutoHideSec": 10,
     "barColor": "#1f2937",
     "buttonColor": "#374151",
     "buttonForegroundColor": "#ffffff",
