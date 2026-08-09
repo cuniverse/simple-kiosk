@@ -453,9 +453,7 @@ class _KioskHomeState extends State<_KioskHome> {
                       return Stack(
                         children: [
                           Positioned.fill(child: webViewStack),
-                          Positioned(
-                            right: 16,
-                            bottom: 16,
+                          Positioned.fill(
                             child: CollapsedToolbarOverlay(
                               historyController: _currentController,
                               onShowToolbar: () => setState(

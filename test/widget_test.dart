@@ -55,4 +55,39 @@ void main() {
     expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
     expect(find.byIcon(Icons.keyboard), findsOneWidget);
   });
+
+  testWidgets('접힌 툴바를 드래그하면 가까운 모서리에 정렬한다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 600,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CollapsedToolbarOverlay(
+                    historyController: null,
+                    onShowToolbar: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final restoreIcon = find.byIcon(Icons.keyboard_arrow_up);
+    final initial = tester.getCenter(restoreIcon);
+    expect(initial.dx, greaterThan(400));
+    expect(initial.dy, greaterThan(300));
+
+    await tester.drag(restoreIcon, const Offset(-500, -400));
+    await tester.pumpAndSettle();
+
+    final moved = tester.getCenter(restoreIcon);
+    expect(moved.dx, lessThan(400));
+    expect(moved.dy, lessThan(300));
+  });
 }

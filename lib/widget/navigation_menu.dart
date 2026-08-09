@@ -355,7 +355,7 @@ class NavigationMenu extends StatelessWidget {
 /// 하단 툴바가 접힌 동안 WebView 위에 남는 최소 플로팅 컨트롤.
 ///
 /// 메뉴 버튼은 숨기되 탐색, 툴바 복원, 가상 키보드 제어는 언제든 가능하다.
-class CollapsedToolbarOverlay extends StatelessWidget {
+class CollapsedToolbarOverlay extends StatefulWidget {
   final KioskWebViewController? historyController;
   final VoidCallback onShowToolbar;
 
@@ -364,6 +364,73 @@ class CollapsedToolbarOverlay extends StatelessWidget {
     required this.historyController,
     required this.onShowToolbar,
   });
+
+  @override
+  State<CollapsedToolbarOverlay> createState() =>
+      _CollapsedToolbarOverlayState();
+}
+
+enum _OverlayCorner { topLeft, topRight, bottomLeft, bottomRight }
+
+class _CollapsedToolbarOverlayState extends State<CollapsedToolbarOverlay> {
+  static const double _margin = 16;
+  static const double _controlWidth = 264;
+  static const double _controlHeight = 72;
+
+  _OverlayCorner _corner = _OverlayCorner.bottomRight;
+  Offset? _dragPosition;
+
+  Offset _cornerPosition(_OverlayCorner corner, Size size) {
+    final right = (size.width - _controlWidth - _margin).clamp(
+      _margin,
+      double.infinity,
+    );
+    final bottom = (size.height - _controlHeight - _margin).clamp(
+      _margin,
+      double.infinity,
+    );
+    return switch (corner) {
+      _OverlayCorner.topLeft => const Offset(_margin, _margin),
+      _OverlayCorner.topRight => Offset(right, _margin),
+      _OverlayCorner.bottomLeft => Offset(_margin, bottom),
+      _OverlayCorner.bottomRight => Offset(right, bottom),
+    };
+  }
+
+  Offset _clampPosition(Offset position, Size size) {
+    final maxX = (size.width - _controlWidth - _margin).clamp(
+      _margin,
+      double.infinity,
+    );
+    final maxY = (size.height - _controlHeight - _margin).clamp(
+      _margin,
+      double.infinity,
+    );
+    return Offset(
+      position.dx.clamp(_margin, maxX),
+      position.dy.clamp(_margin, maxY),
+    );
+  }
+
+  void _finishDrag(Size size) {
+    final position = _dragPosition ?? _cornerPosition(_corner, size);
+    final center = position +
+        const Offset(
+          _controlWidth / 2,
+          _controlHeight / 2,
+        );
+    final horizontalLeft = center.dx < size.width / 2;
+    final verticalTop = center.dy < size.height / 2;
+    setState(() {
+      _corner = switch ((horizontalLeft, verticalTop)) {
+        (true, true) => _OverlayCorner.topLeft,
+        (false, true) => _OverlayCorner.topRight,
+        (true, false) => _OverlayCorner.bottomLeft,
+        (false, false) => _OverlayCorner.bottomRight,
+      };
+      _dragPosition = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -382,20 +449,20 @@ class CollapsedToolbarOverlay extends StatelessWidget {
                 icon: Icons.arrow_back,
                 tooltip: '뒤로',
                 enabled: state.canGoBack,
-                onPressed: () => historyController?.goBack(),
+                onPressed: () => widget.historyController?.goBack(),
               ),
               const SizedBox(width: 8),
               _HistoryButton(
                 icon: Icons.arrow_forward,
                 tooltip: '앞으로',
                 enabled: state.canGoForward,
-                onPressed: () => historyController?.goForward(),
+                onPressed: () => widget.historyController?.goForward(),
               ),
               const SizedBox(width: 8),
               _ToolbarVisibilityButton(
                 icon: Icons.keyboard_arrow_up,
                 tooltip: '툴바 보이기',
-                onPressed: onShowToolbar,
+                onPressed: widget.onShowToolbar,
               ),
               const SizedBox(width: 8),
               const _KeyboardToggle(
@@ -407,11 +474,53 @@ class CollapsedToolbarOverlay extends StatelessWidget {
       );
     }
 
-    final controller = historyController;
-    if (controller == null) return buildControls(WebNavState.empty);
-    return ValueListenableBuilder<WebNavState>(
-      valueListenable: controller.navState,
-      builder: (context, state, _) => buildControls(state),
+    final controller = widget.historyController;
+    final controls = controller == null
+        ? buildControls(WebNavState.empty)
+        : ValueListenableBuilder<WebNavState>(
+            valueListenable: controller.navState,
+            builder: (context, state, _) => buildControls(state),
+          );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        final position = _clampPosition(
+          _dragPosition ?? _cornerPosition(_corner, size),
+          size,
+        );
+        return Stack(
+          children: [
+            AnimatedPositioned(
+              duration: _dragPosition == null
+                  ? const Duration(milliseconds: 180)
+                  : Duration.zero,
+              curve: Curves.easeOut,
+              left: position.dx,
+              top: position.dy,
+              width: _controlWidth,
+              height: _controlHeight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanStart: (_) {
+                  setState(() => _dragPosition = position);
+                },
+                onPanUpdate: (details) {
+                  setState(() {
+                    _dragPosition = _clampPosition(
+                      (_dragPosition ?? position) + details.delta,
+                      size,
+                    );
+                  });
+                },
+                onPanEnd: (_) => _finishDrag(size),
+                onPanCancel: () => _finishDrag(size),
+                child: controls,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
