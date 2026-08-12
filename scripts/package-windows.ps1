@@ -1,22 +1,37 @@
 [CmdletBinding()]
-param()
+param(
+    # CI에서는 GitHub Release 태그에서 추출한 버전을 전달한다.
+    # 생략하면 기존처럼 pubspec.yaml의 version을 사용한다.
+    [string]$PackageVersion
+)
 
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
 Set-Location $projectDir
 
-$versionLine = Select-String -Path 'pubspec.yaml' -Pattern '^version:\s*(.+)$'
-if (-not $versionLine) {
-    throw 'pubspec.yaml에서 version을 찾을 수 없습니다.'
+if ([string]::IsNullOrWhiteSpace($PackageVersion)) {
+    $versionLine = Select-String -Path 'pubspec.yaml' -Pattern '^version:\s*(.+)$'
+    if (-not $versionLine) {
+        throw 'pubspec.yaml에서 version을 찾을 수 없습니다.'
+    }
+    $PackageVersion = $versionLine.Matches[0].Groups[1].Value.Trim()
 }
-$version = $versionLine.Matches[0].Groups[1].Value.Trim().Replace('+', '-')
-$packageName = "simple-kiosk-windows-$version"
+
+$PackageVersion = $PackageVersion.Trim() -replace '^v', ''
+if ($PackageVersion -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
+    throw "패키지 버전 형식이 올바르지 않습니다: $PackageVersion"
+}
+
+# '+'는 ZIP 파일명에서 빌드 메타데이터 구분 대신 '-'로 표현한다.
+$archiveVersion = $PackageVersion.Replace('+', '-')
+$packageName = "simple-kiosk-windows-$archiveVersion"
 $distDir = Join-Path $projectDir 'dist'
 $archive = Join-Path $distDir "$packageName.zip"
 $stageRoot = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
 $stage = Join-Path $stageRoot $packageName
 
 try {
+    Write-Host "Package version: $PackageVersion"
     flutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'flutter pub get 실패' }
 

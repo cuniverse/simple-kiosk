@@ -72,7 +72,14 @@ bash scripts/package-macos.sh
 ```powershell
 # Windows PowerShell
 .\scripts\package-windows.ps1
+
+# 패키지 파일명에 사용할 버전을 직접 지정
+.\scripts\package-windows.ps1 -PackageVersion 1.2.0
 ```
+
+GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
+`v1.2.0` 태그는 `simple-kiosk-windows-1.2.0.zip`을 생성합니다. 로컬에서
+`-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.
 
 macOS에서는 Windows 네이티브 앱을 직접 빌드할 수 없습니다. GitHub 저장소의
 `Build Windows release` Actions 워크플로를 수동 실행하거나 `v*` 태그를 푸시하면
