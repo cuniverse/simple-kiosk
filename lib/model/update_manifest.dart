@@ -41,38 +41,81 @@ class SemanticVersion implements Comparable<SemanticVersion> {
 }
 
 class UpdateManifest {
+  final int schemaVersion;
   final String version;
   final String channel;
+  final String minimumUpdaterVersion;
+  final int configSchemaVersion;
   final String packageFile;
   final String sha256;
+  final bool authenticodeRequired;
+  final String? signerThumbprint;
 
   const UpdateManifest({
+    this.schemaVersion = 1,
     required this.version,
     required this.channel,
+    this.minimumUpdaterVersion = '1.0.0',
+    this.configSchemaVersion = 1,
     required this.packageFile,
     required this.sha256,
+    this.authenticodeRequired = false,
+    this.signerThumbprint,
   });
 
   factory UpdateManifest.fromJson(Map<String, dynamic> json) {
     final version = json['version'];
     final channel = json['channel'];
     final package = json['package'];
+    final schemaVersion = json['schemaVersion'];
+    final minimumUpdaterVersion = json['minimumUpdaterVersion'];
+    final configSchemaVersion = json['configSchemaVersion'];
     if (version is! String || channel is! String || package is! Map) {
       throw const FormatException('update-manifest.json 필수 필드 누락');
     }
+    if (schemaVersion != null &&
+        (schemaVersion is! num || schemaVersion.toInt() != 1)) {
+      throw FormatException('지원하지 않는 manifest schemaVersion: $schemaVersion');
+    }
+    if (minimumUpdaterVersion != null && minimumUpdaterVersion is! String) {
+      throw const FormatException('minimumUpdaterVersion: 문자열 필요');
+    }
+    if (configSchemaVersion != null &&
+        (configSchemaVersion is! num || configSchemaVersion < 1)) {
+      throw const FormatException('configSchemaVersion: 양의 정수 필요');
+    }
     SemanticVersion.parse(version);
+    SemanticVersion.parse(minimumUpdaterVersion as String? ?? '1.0.0');
     final file = package['file'];
     final sha = package['sha256'];
+    final authenticodeRequired = package['authenticodeRequired'];
+    final signerThumbprint = package['signerThumbprint'];
     if (file is! String ||
         sha is! String ||
         !RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(sha)) {
       throw const FormatException('update-manifest package 필드 오류');
     }
+    if (authenticodeRequired != null && authenticodeRequired is! bool) {
+      throw const FormatException('authenticodeRequired: bool 필요');
+    }
+    if (signerThumbprint != null &&
+        (signerThumbprint is! String ||
+            !RegExp(r'^[0-9a-fA-F]{40,64}$').hasMatch(signerThumbprint))) {
+      throw const FormatException('signerThumbprint 형식 오류');
+    }
+    if (authenticodeRequired == true && signerThumbprint == null) {
+      throw const FormatException('서명 필수 패키지에는 signerThumbprint 필요');
+    }
     return UpdateManifest(
+      schemaVersion: (schemaVersion as num?)?.toInt() ?? 1,
       version: version,
       channel: channel,
+      minimumUpdaterVersion: minimumUpdaterVersion ?? '1.0.0',
+      configSchemaVersion: (configSchemaVersion as num?)?.toInt() ?? 1,
       packageFile: file,
       sha256: sha.toLowerCase(),
+      authenticodeRequired: authenticodeRequired as bool? ?? false,
+      signerThumbprint: signerThumbprint?.toUpperCase(),
     );
   }
 }

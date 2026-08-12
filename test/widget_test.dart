@@ -10,6 +10,7 @@ import 'package:simple_kiosk/model/update_manifest.dart';
 import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
+import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 
@@ -86,6 +87,70 @@ void main() {
       'retainVersions': 4,
       'logRetentionDays': 60,
     });
+  });
+
+  test('update manifest parses compatibility and signer requirements', () {
+    final manifest = UpdateManifest.fromJson({
+      'schemaVersion': 1,
+      'version': '1.2.4',
+      'channel': 'stable',
+      'minimumUpdaterVersion': '1.1.0',
+      'configSchemaVersion': 1,
+      'package': {
+        'file': 'simple-kiosk-windows-1.2.4.zip',
+        'sha256': 'a' * 64,
+        'authenticodeRequired': true,
+        'signerThumbprint': 'b' * 40,
+      },
+    });
+
+    expect(manifest.minimumUpdaterVersion, '1.1.0');
+    expect(manifest.configSchemaVersion, 1);
+    expect(manifest.authenticodeRequired, isTrue);
+    expect(manifest.signerThumbprint, 'B' * 40);
+  });
+
+  test('signed update manifest requires a signer thumbprint', () {
+    expect(
+      () => UpdateManifest.fromJson({
+        'version': '1.2.4',
+        'channel': 'stable',
+        'package': {
+          'file': 'simple-kiosk-windows-1.2.4.zip',
+          'sha256': 'a' * 64,
+          'authenticodeRequired': true,
+        },
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('unsupported updater and config schema versions are rejected', () {
+    UpdateManifest manifest({
+      String minimumUpdaterVersion = '1.1.0',
+      int configSchemaVersion = 1,
+    }) =>
+        UpdateManifest(
+          version: '1.2.4',
+          channel: 'stable',
+          minimumUpdaterVersion: minimumUpdaterVersion,
+          configSchemaVersion: configSchemaVersion,
+          packageFile: 'package.zip',
+          sha256: 'a' * 64,
+        );
+
+    expect(
+      () => UpdateService.validateCompatibility(
+        manifest(minimumUpdaterVersion: '9.0.0'),
+      ),
+      throwsStateError,
+    );
+    expect(
+      () => UpdateService.validateCompatibility(
+        manifest(configSchemaVersion: 2),
+      ),
+      throwsStateError,
+    );
   });
 
   test('슬라이드쇼 대기화면 설정을 파싱한다', () {

@@ -14,7 +14,7 @@ PowerShell에서 압축을 푼 폴더를 현재 위치로 두고 다음을 실�
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.3
+.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.4
 ```
 
 이후 `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`를 Windows 시작 프로그램이나 작업
@@ -46,7 +46,7 @@ $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Comput
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   C:\ProgramData\SimpleKiosk\updater\recover.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  C:\ProgramData\SimpleKiosk\updater\recover.ps1 -Version 1.2.3
+  C:\ProgramData\SimpleKiosk\updater\recover.ps1 -Version 1.2.4
 ```
 
 관리자 화면의 `진단 자료 내보내기` 또는 아래 명령은 설정 정책, 상태, 로그를 ZIP으로
@@ -223,8 +223,9 @@ DLL 또는 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 
 GitHub Actions에 `WINDOWS_SIGNING_CERTIFICATE_BASE64`와
 `WINDOWS_SIGNING_CERT_PASSWORD` 비밀값이 모두 등록된 빌드는 실행 파일을 코드
-서명하고 검증합니다. 비밀값이 없는 빌드는 서명되지 않으므로 배포 출처와 SHA-256
-값을 반드시 확인하세요.
+서명하고 검증합니다. manifest에는 서명 인증서 지문이 기록되며, 키오스크 Updater는
+설치 전에 신뢰 체인과 인증서 지문을 다시 검증합니다. 비밀값이 없는 빌드는 서명되지
+않으므로 배포 출처와 SHA-256 값을 반드시 확인하세요.
 
 ## 10. 운영 참고
 

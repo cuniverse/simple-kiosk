@@ -6,7 +6,9 @@ param(
     [Parameter(Mandatory=$true)][int]$AppPid,
     [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
     [ValidateRange(2, 10)][int]$RetainVersions = 2,
-    [ValidateRange(1, 365)][int]$LogRetentionDays = 30
+    [ValidateRange(1, 365)][int]$LogRetentionDays = 30,
+    [switch]$RequireAuthenticode,
+    [string]$ExpectedSignerThumbprint
 )
 
 $ErrorActionPreference = 'Stop'
@@ -104,6 +106,18 @@ try {
     $data = Join-Path $packageRoot.FullName 'data'
     if (-not (Test-Path -LiteralPath $exe) -or -not (Test-Path -LiteralPath $data)) {
         throw 'Package is missing simple_kiosk.exe or data.'
+    }
+    if ($RequireAuthenticode) {
+        $signature = Get-AuthenticodeSignature -LiteralPath $exe
+        if ([string]$signature.Status -ne 'Valid') {
+            throw "Executable Authenticode signature is not valid: $($signature.Status)"
+        }
+        $actualThumbprint = $signature.SignerCertificate.Thumbprint.Replace(' ', '').ToUpperInvariant()
+        $expectedThumbprint = $ExpectedSignerThumbprint.Replace(' ', '').ToUpperInvariant()
+        if ([string]::IsNullOrWhiteSpace($expectedThumbprint) -or $actualThumbprint -ne $expectedThumbprint) {
+            throw "Executable signer thumbprint mismatch: $actualThumbprint"
+        }
+        Write-Log "Authenticode signature valid: $($signature.SignerCertificate.Subject)"
     }
 
     $versionRoot = Join-Path $DataRoot "versions\$Version"

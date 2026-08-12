@@ -56,6 +56,11 @@ jobs:
               [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)
             )
             $arguments.SigningCertificatePath = $certificate
+            $pfx = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+              $certificate,
+              $env:WINDOWS_SIGNING_CERT_PASSWORD
+            )
+            "WINDOWS_SIGNING_CERT_THUMBPRINT=$($pfx.Thumbprint)" >> $env:GITHUB_ENV
           }
           .\scripts\package-windows.ps1 @arguments
 
@@ -73,7 +78,9 @@ jobs:
         run: |
           .\scripts\create-update-manifest.ps1 `
             -Version $env:RELEASE_VERSION `
-            -PackagePath "dist/simple-kiosk-windows-${{ steps.release-version.outputs.archive-version }}.zip"
+            -PackagePath "dist/simple-kiosk-windows-${{ steps.release-version.outputs.archive-version }}.zip" `
+            -RequireAuthenticode:$(-not [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)) `
+            -SignerThumbprint $env:WINDOWS_SIGNING_CERT_THUMBPRINT
 
       - name: Upload Actions artifact
         uses: actions/upload-artifact@v4

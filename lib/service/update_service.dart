@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../model/update_manifest.dart';
+import 'menu_config_merger.dart';
 import 'runtime_paths.dart';
 
 class AvailableUpdate {
@@ -16,6 +17,7 @@ class AvailableUpdate {
 }
 
 class UpdateService {
+  static const updaterVersion = '1.1.0';
   static const _api =
       'https://api.github.com/repos/cuniverse/simple-kiosk/releases/latest';
   static const _headers = {
@@ -30,6 +32,23 @@ class UpdateService {
   UpdateService({http.Client? client})
       : _client = client ?? http.Client(),
         _ownsClient = client == null;
+
+  static void validateCompatibility(UpdateManifest manifest) {
+    if (SemanticVersion.parse(manifest.minimumUpdaterVersion)
+            .compareTo(SemanticVersion.parse(updaterVersion)) >
+        0) {
+      throw StateError(
+        '업데이트 실행기 ${manifest.minimumUpdaterVersion} 이상이 필요합니다. '
+        '(현재 $updaterVersion)',
+      );
+    }
+    if (manifest.configSchemaVersion > MenuConfigMerger.currentSchemaVersion) {
+      throw StateError(
+        '설정 스키마 ${manifest.configSchemaVersion}을 지원하지 않습니다. '
+        '(현재 ${MenuConfigMerger.currentSchemaVersion})',
+      );
+    }
+  }
 
   Future<AvailableUpdate?> check({String? currentVersion}) async {
     final releaseResponse = await _client
@@ -71,6 +90,7 @@ class UpdateService {
     }
     final manifest = UpdateManifest.fromJson(manifestJson);
     if (manifest.channel != 'stable') return null;
+    validateCompatibility(manifest);
     final installed =
         currentVersion ?? (await PackageInfo.fromPlatform()).version;
     if (SemanticVersion.parse(manifest.version)
@@ -196,6 +216,11 @@ class UpdateService {
         '$retainVersions',
         '-LogRetentionDays',
         '$logRetentionDays',
+        if (manifest.authenticodeRequired) '-RequireAuthenticode',
+        if (manifest.signerThumbprint != null) ...[
+          '-ExpectedSignerThumbprint',
+          manifest.signerThumbprint!,
+        ],
       ],
       mode: ProcessStartMode.detached,
     );

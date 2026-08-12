@@ -1,6 +1,6 @@
 # Simple Kiosk Git 기반 자동 업데이트 계획
 
-> 상태: Windows stable 운영 구현 완료 (v1.2.3)
+> 상태: Windows stable 운영 구현 완료, 배포 호환성 검증 보강 중 (v1.2.4)
 > 1차 대상: Windows 키오스크 배포본  
 > 업데이트 원본: GitHub Releases
 
@@ -18,6 +18,8 @@
 - 이전 버전·다운로드·로그 정리, 고정 업데이터 동기화와 ProgramData ACL 구현
 - 수동 버전 복구 및 진단 자료 ZIP 내보내기 도구 구현
 - GitHub Actions PFX 비밀값 기반 선택적 Windows 코드 서명 구현
+- manifest/설정 스키마와 최소 Updater 버전 호환성 검사 구현
+- 서명 배포본의 Authenticode 신뢰 체인 및 인증서 지문 설치 전 재검증 구현
 
 현재 구현은 공개 저장소의 Windows stable 채널을 대상으로 한다. 비공개 배포 저장소는
 장기 토큰을 단말기에 저장하지 않는 인증 중계 설계가 선행되어야 하며, Android/macOS
@@ -293,7 +295,8 @@ Manifest 초안:
 
 - HTTPS GitHub API와 GitHub Release URL만 허용한다.
 - ZIP 전체의 SHA-256을 manifest와 대조한다.
-- CI 비밀값에 PFX가 등록된 경우 Windows 실행 파일을 서명하고 검증한다.
+- CI 비밀값에 PFX가 등록된 경우 Windows 실행 파일을 서명하고, manifest에 인증서
+  지문을 기록해 설치 단말에서도 신뢰 체인과 지문을 검증한다.
 - 압축 해제 시 절대 경로, `..` 및 설치 루트 밖 경로를 거부한다.
 - 관리자 PIN은 평문으로 저장하지 않는다.
 - 업데이트 정책 및 설정 폴더는 일반 키오스크 사용자가 수정하지 못하게 ACL을 설정한다.
