@@ -1,17 +1,20 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:video_player/video_player.dart';
 
 import '../model/idle_config.dart';
+import '../service/gallery_feed_loader.dart';
 import '../service/media_scanner.dart';
 import '../service/video_controller_factory.dart';
 import 'platform_file_image.dart';
 
 /// 대기화면(attract screen) 위젯.
 ///
-/// [IdleConfig.mode] 에 따라 단일 이미지, 슬라이드쇼, 풀스크린 URL WebView를 표시한다.
+/// [IdleConfig.mode]에 따라 이미지, 슬라이드쇼, 폴더, 웹 갤러리 또는 URL을 표시한다.
 /// 화면 어디든 탭하면 [onDismiss] 가 호출된다.
 class IdleOverlay extends StatelessWidget {
   final IdleConfig config;
@@ -28,27 +31,39 @@ class IdleOverlay extends StatelessWidget {
     Widget content;
     bool absorbTaps; // url 모드는 WebView 위에서 탭을 가로채야 한다.
 
-    switch (config.mode) {
-      case IdleMode.image:
-        content = _IdleImage(path: config.image!);
-        absorbTaps = false;
-        break;
-      case IdleMode.slideshow:
-        content = _IdleSlideshow(config: config.slideshow);
-        absorbTaps = false;
-        break;
-      case IdleMode.folder:
-        content = _IdleFolderPlayer(config: config.folder);
-        absorbTaps = false;
-        break;
-      case IdleMode.url:
-        content = _IdleUrl(url: config.url!);
-        absorbTaps = true;
-        break;
-      case IdleMode.none:
-        content = const SizedBox.shrink();
-        absorbTaps = false;
-        break;
+    if (config.modes.length > 1) {
+      content = _IdleMixedPlayer(config: config, onDismiss: onDismiss);
+      absorbTaps = false;
+    } else {
+      switch (config.mode) {
+        case IdleMode.image:
+          content = _IdleImage(path: config.image!);
+          absorbTaps = false;
+          break;
+        case IdleMode.slideshow:
+          content = _IdleSlideshow(config: config.slideshow);
+          absorbTaps = false;
+          break;
+        case IdleMode.folder:
+          content = _IdleFolderPlayer(config: config.folder);
+          absorbTaps = false;
+          break;
+        case IdleMode.gallery:
+          content = _IdleGallery(
+            config: config.gallery,
+            onDismiss: onDismiss,
+          );
+          absorbTaps = false;
+          break;
+        case IdleMode.url:
+          content = _IdleUrl(url: config.url!);
+          absorbTaps = true;
+          break;
+        case IdleMode.none:
+          content = const SizedBox.shrink();
+          absorbTaps = false;
+          break;
+      }
     }
 
     final body = Container(
@@ -69,7 +84,8 @@ class IdleOverlay extends StatelessWidget {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 48,
+              // 갤러리 모드의 게시물 제목 오버레이와 겹치지 않게 위로 띄운다.
+              bottom: config.modes.contains(IdleMode.gallery) ? 150 : 48,
               child: IgnorePointer(
                 child: Center(
                   child: _HintBadge(text: config.hintText),
@@ -80,7 +96,10 @@ class IdleOverlay extends StatelessWidget {
       ),
     );
 
-    // 화면 어디든 탭하면 dismiss.
+    // 갤러리는 내부에서 탭과 스와이프를 구분하고 방향키 입력도 처리한다.
+    if (config.mode == IdleMode.gallery || config.modes.length > 1) return body;
+
+    // 나머지 모드는 화면 어디든 누르면 dismiss.
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: (_) => onDismiss(),
@@ -254,6 +273,785 @@ class _IdleSlideshowState extends State<_IdleSlideshow> {
   }
 }
 
+enum _MixedMediaKind {
+  assetImage,
+  networkImage,
+  fileImage,
+  assetVideo,
+  fileVideo
+}
+
+class _MixedMediaItem {
+  final String id;
+  final _MixedMediaKind kind;
+  final String path;
+  final String? title;
+  final int intervalSec;
+  final SlideshowTransition transition;
+  final bool galleryImage;
+
+  const _MixedMediaItem({
+    required this.id,
+    required this.kind,
+    required this.path,
+    required this.intervalSec,
+    required this.transition,
+    this.title,
+    this.galleryImage = false,
+  });
+
+  bool get isVideo =>
+      kind == _MixedMediaKind.assetVideo || kind == _MixedMediaKind.fileVideo;
+}
+
+class _MixedPlaybackSnapshot {
+  final String currentId;
+  final List<String> order;
+
+  const _MixedPlaybackSnapshot({required this.currentId, required this.order});
+}
+
+final Map<String, _MixedPlaybackSnapshot> _mixedPlaybackMemory = {};
+
+/// slideshow/folder/gallery의 콘텐츠를 하나의 탐색 가능한 재생 목록으로 합친다.
+class _IdleMixedPlayer extends StatefulWidget {
+  final IdleConfig config;
+  final VoidCallback onDismiss;
+
+  const _IdleMixedPlayer({required this.config, required this.onDismiss});
+
+  @override
+  State<_IdleMixedPlayer> createState() => _IdleMixedPlayerState();
+}
+
+class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
+  late final GalleryFeedLoader _galleryLoader;
+  List<_MixedMediaItem>? _items;
+  String? _error;
+  int _index = 0;
+  Timer? _itemTimer;
+  Timer? _refreshTimer;
+  VideoPlayerController? _videoController;
+  bool _videoListenerAttached = false;
+  bool _loading = false;
+  double _horizontalDragDistance = 0;
+
+  String get _memoryKey => [
+        widget.config.modes.map((mode) => mode.name).join(','),
+        widget.config.slideshow.images.join('|'),
+        widget.config.folder.effectivePaths.join('|'),
+        widget.config.gallery.playbackKey,
+      ].join('::');
+
+  @override
+  void initState() {
+    super.initState();
+    _galleryLoader = GalleryFeedLoader();
+    _load();
+    if (widget.config.modes.contains(IdleMode.gallery)) {
+      _refreshTimer = Timer.periodic(
+        Duration(minutes: widget.config.gallery.refreshIntervalMin),
+        (_) => _load(),
+      );
+    }
+  }
+
+  Future<void> _load() async {
+    if (_loading) return;
+    _loading = true;
+    try {
+      final byMode = <IdleMode, List<_MixedMediaItem>>{};
+
+      if (widget.config.modes.contains(IdleMode.slideshow)) {
+        byMode[IdleMode.slideshow] = widget.config.slideshow.images.map((path) {
+          final network =
+              path.startsWith('http://') || path.startsWith('https://');
+          return _MixedMediaItem(
+            id: 'slideshow:$path',
+            kind: network
+                ? _MixedMediaKind.networkImage
+                : _MixedMediaKind.assetImage,
+            path: path,
+            intervalSec: widget.config.slideshow.intervalSec,
+            transition: widget.config.slideshow.transition,
+          );
+        }).toList(growable: false);
+      }
+
+      if (widget.config.modes.contains(IdleMode.folder)) {
+        final groups = await Future.wait(
+          widget.config.folder.effectivePaths.map((path) async {
+            try {
+              return await MediaScanner.scan(
+                path: path,
+                includeImages: widget.config.folder.includeImages,
+                includeVideos: widget.config.folder.includeVideos,
+              );
+            } catch (_) {
+              return const <MediaItem>[];
+            }
+          }),
+        );
+        final seen = <String>{};
+        final media = groups
+            .expand((group) => group)
+            .where((item) => seen.add(item.path))
+            .toList();
+        if (widget.config.folder.shuffle) media.shuffle();
+        byMode[IdleMode.folder] = media.map((item) {
+          final kind = item.kind == MediaKind.video
+              ? (item.isAsset
+                  ? _MixedMediaKind.assetVideo
+                  : _MixedMediaKind.fileVideo)
+              : (item.isAsset
+                  ? _MixedMediaKind.assetImage
+                  : _MixedMediaKind.fileImage);
+          return _MixedMediaItem(
+            id: 'folder:${item.path}',
+            kind: kind,
+            path: item.path,
+            intervalSec: widget.config.folder.intervalSec,
+            transition: widget.config.folder.transition,
+          );
+        }).toList(growable: false);
+      }
+
+      if (widget.config.modes.contains(IdleMode.gallery)) {
+        List<GalleryFeedItem> galleryItems;
+        try {
+          galleryItems = await _galleryLoader.load(widget.config.gallery);
+        } catch (_) {
+          galleryItems = const [];
+        }
+        final oldGalleryOrder = (_items ?? const <_MixedMediaItem>[])
+            .where((item) => item.galleryImage)
+            .map((item) => item.path)
+            .toList(growable: false);
+        galleryItems = buildGalleryPlaybackOrder(
+          galleryItems,
+          shuffle: widget.config.gallery.shuffle,
+          previousOrder: oldGalleryOrder,
+        );
+        byMode[IdleMode.gallery] = galleryItems
+            .map(
+              (item) => _MixedMediaItem(
+                id: 'gallery:${item.imageUrl}',
+                kind: _MixedMediaKind.networkImage,
+                path: item.imageUrl,
+                title: item.title,
+                intervalSec: widget.config.gallery.intervalSec,
+                transition: widget.config.gallery.transition,
+                galleryImage: true,
+              ),
+            )
+            .toList(growable: false);
+      }
+
+      var fresh = widget.config.modes
+          .expand((mode) => byMode[mode] ?? const <_MixedMediaItem>[])
+          .toList(growable: false);
+      final oldItems = _items ?? const <_MixedMediaItem>[];
+      final remembered = _mixedPlaybackMemory[_memoryKey];
+      final previousOrder = oldItems.isNotEmpty
+          ? oldItems.map((item) => item.id).toList(growable: false)
+          : remembered?.order ?? const <String>[];
+      if (previousOrder.isNotEmpty) {
+        final byId = {for (final item in fresh) item.id: item};
+        final used = <String>{};
+        fresh = [
+          for (final id in previousOrder)
+            if (byId[id] case final item? when used.add(id)) item,
+          for (final item in fresh)
+            if (used.add(item.id)) item,
+        ];
+      }
+      if (!mounted) return;
+      if (fresh.isEmpty) {
+        if (_items == null) {
+          setState(() {
+            _items = const [];
+            _error = '복수 화면 보호기에서 표시할 미디어를 찾지 못했습니다.';
+          });
+        }
+        return;
+      }
+
+      final currentId = oldItems.isNotEmpty && _index < oldItems.length
+          ? oldItems[_index].id
+          : remembered?.currentId;
+      final nextIndex = currentId == null
+          ? 0
+          : fresh.indexWhere((item) => item.id == currentId);
+      final currentPreserved = currentId != null && nextIndex >= 0;
+      setState(() {
+        _items = fresh;
+        _index = nextIndex < 0 ? 0 : nextIndex;
+        _error = null;
+      });
+      _remember();
+      if (!currentPreserved) {
+        _itemTimer?.cancel();
+        _disposeVideo();
+        _playCurrent();
+      } else if (_itemTimer == null && _videoController == null) {
+        _playCurrent();
+      }
+    } catch (error) {
+      if (mounted && _items == null) {
+        setState(() {
+          _items = const [];
+          _error = '복수 화면 보호기 로드 실패: $error';
+        });
+      }
+    } finally {
+      _loading = false;
+    }
+  }
+
+  void _move(int offset) {
+    final items = _items;
+    if (items == null || items.length < 2) return;
+    _itemTimer?.cancel();
+    _disposeVideo();
+    setState(() => _index = (_index + offset) % items.length);
+    _remember();
+    _playCurrent();
+  }
+
+  void _playCurrent() {
+    _itemTimer?.cancel();
+    _disposeVideo();
+    final items = _items;
+    if (items == null || items.isEmpty) return;
+    final current = items[_index];
+    if (current.isVideo) {
+      _startVideo(current);
+    } else {
+      _itemTimer = Timer(Duration(seconds: current.intervalSec), () {
+        if (mounted) _move(1);
+      });
+      setState(() {});
+    }
+  }
+
+  Future<void> _startVideo(_MixedMediaItem item) async {
+    final controller = item.kind == _MixedMediaKind.assetVideo
+        ? VideoControllerFactory.asset(item.path)
+        : VideoControllerFactory.file(item.path);
+    _videoController = controller;
+    try {
+      await controller.initialize();
+      if (!mounted || _videoController != controller) {
+        await controller.dispose();
+        return;
+      }
+      controller.addListener(_onVideoTick);
+      _videoListenerAttached = true;
+      await controller.setVolume(0);
+      await controller.setLooping(false);
+      await controller.play();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) _move(1);
+    }
+  }
+
+  void _onVideoTick() {
+    final controller = _videoController;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (controller.value.duration > Duration.zero &&
+        controller.value.position >= controller.value.duration) {
+      _move(1);
+    }
+  }
+
+  void _disposeVideo() {
+    final controller = _videoController;
+    if (controller == null) return;
+    if (_videoListenerAttached) controller.removeListener(_onVideoTick);
+    _videoListenerAttached = false;
+    _videoController = null;
+    controller.dispose();
+  }
+
+  void _remember() {
+    final items = _items;
+    if (items == null || items.isEmpty || _index >= items.length) return;
+    _mixedPlaybackMemory[_memoryKey] = _MixedPlaybackSnapshot(
+      currentId: items[_index].id,
+      order: items.map((item) => item.id).toList(growable: false),
+    );
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _move(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _move(1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _withInput(Widget child) => Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onDismiss,
+          onHorizontalDragStart: (_) => _horizontalDragDistance = 0,
+          onHorizontalDragUpdate: (details) {
+            _horizontalDragDistance += details.delta.dx;
+          },
+          onHorizontalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            final distance = _horizontalDragDistance;
+            _horizontalDragDistance = 0;
+            if (distance.abs() >= 40) {
+              _move(distance < 0 ? 1 : -1);
+            } else if (velocity.abs() >= 250) {
+              _move(velocity < 0 ? 1 : -1);
+            }
+          },
+          child: child,
+        ),
+      );
+
+  @override
+  void dispose() {
+    _remember();
+    _itemTimer?.cancel();
+    _refreshTimer?.cancel();
+    _disposeVideo();
+    _galleryLoader.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) return _withInput(_FolderErrorView(message: _error!));
+    final items = _items;
+    if (items == null) {
+      return _withInput(
+        const Center(child: CircularProgressIndicator(color: Colors.white70)),
+      );
+    }
+    if (items.isEmpty) {
+      return _withInput(const _FolderErrorView(message: '표시할 미디어가 없습니다.'));
+    }
+    final current = items[_index];
+    Widget content;
+    if (current.isVideo) {
+      final controller = _videoController;
+      content = controller == null || !controller.value.isInitialized
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.white70))
+          : Center(
+              child: AspectRatio(
+                aspectRatio: controller.value.aspectRatio == 0
+                    ? 16 / 9
+                    : controller.value.aspectRatio,
+                child: VideoPlayer(controller),
+              ),
+            );
+    } else {
+      final image = switch (current.kind) {
+        _MixedMediaKind.assetImage => Image.asset(
+            current.path,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+          ),
+        _MixedMediaKind.fileImage => PlatformFileImage(
+            path: current.path,
+            fit: BoxFit.contain,
+          ),
+        _ => Image.network(
+            current.path,
+            headers: current.galleryImage
+                ? const {'User-Agent': 'SimpleKiosk/1.0 gallery-screen'}
+                : null,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+          ),
+      };
+      content = Stack(
+        key: ValueKey(current.id),
+        fit: StackFit.expand,
+        children: [
+          image,
+          if (current.title case final title? when title.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(48, 54, 48, 30),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0xE6000000)],
+                  ),
+                ),
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+      if (current.transition == SlideshowTransition.fade) {
+        content = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 650),
+          child: content,
+        );
+      }
+    }
+    return _withInput(ColoredBox(color: Colors.black, child: content));
+  }
+}
+
+/// 포토갤러리 최신 게시물의 원본 사진과 제목을 순환 표시한다.
+class _IdleGallery extends StatefulWidget {
+  final GalleryConfig config;
+  final VoidCallback onDismiss;
+
+  const _IdleGallery({required this.config, required this.onDismiss});
+
+  @override
+  State<_IdleGallery> createState() => _IdleGalleryState();
+}
+
+class _GalleryPlaybackSnapshot {
+  final String currentImageUrl;
+  final List<String> order;
+
+  const _GalleryPlaybackSnapshot({
+    required this.currentImageUrl,
+    required this.order,
+  });
+}
+
+final Map<String, _GalleryPlaybackSnapshot> _galleryPlaybackMemory = {};
+
+/// 랜덤 모드의 재생 순서를 미리 만든다. 기존 항목의 순서는 유지하고 새 항목만 섞어 넣는다.
+List<GalleryFeedItem> buildGalleryPlaybackOrder(
+  List<GalleryFeedItem> freshItems, {
+  required bool shuffle,
+  List<String> previousOrder = const [],
+  Random? random,
+}) {
+  if (!shuffle) return List<GalleryFeedItem>.of(freshItems);
+  final generator = random ?? Random();
+  final byUrl = {for (final item in freshItems) item.imageUrl: item};
+  final used = <String>{};
+  final ordered = <GalleryFeedItem>[];
+
+  for (final url in previousOrder) {
+    final item = byUrl[url];
+    if (item != null && used.add(url)) ordered.add(item);
+  }
+
+  final added = freshItems
+      .where((item) => used.add(item.imageUrl))
+      .toList(growable: false);
+  if (ordered.isEmpty) {
+    return List<GalleryFeedItem>.of(added)..shuffle(generator);
+  }
+  for (final item in added) {
+    ordered.insert(generator.nextInt(ordered.length + 1), item);
+  }
+  return ordered;
+}
+
+int galleryInitialIndex(
+  List<GalleryFeedItem> items,
+  String? rememberedImageUrl,
+) {
+  if (items.isEmpty || rememberedImageUrl == null) return 0;
+  final index = items.indexWhere(
+    (item) => item.imageUrl == rememberedImageUrl,
+  );
+  return index < 0 ? 0 : index;
+}
+
+/// 갤러리 갱신 후 현재 사진이 있으면 그 위치를, 없으면 기존 진행 위치를 유지한다.
+int galleryIndexAfterRefresh(
+  List<GalleryFeedItem> oldItems,
+  int oldIndex,
+  List<GalleryFeedItem> newItems,
+) {
+  if (newItems.isEmpty) return 0;
+  if (oldItems.isEmpty || oldIndex < 0 || oldIndex >= oldItems.length) {
+    return 0;
+  }
+  final currentUrl = oldItems[oldIndex].imageUrl;
+  final matchedIndex = newItems.indexWhere(
+    (item) => item.imageUrl == currentUrl,
+  );
+  if (matchedIndex >= 0) return matchedIndex;
+  return oldIndex < newItems.length ? oldIndex : newItems.length - 1;
+}
+
+class _IdleGalleryState extends State<_IdleGallery> {
+  late final GalleryFeedLoader _loader;
+  List<GalleryFeedItem>? _items;
+  String? _error;
+  int _index = 0;
+  Timer? _slideTimer;
+  Timer? _refreshTimer;
+  bool _loadInProgress = false;
+  double _horizontalDragDistance = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loader = GalleryFeedLoader();
+    _load();
+    _scheduleRefresh();
+  }
+
+  Future<void> _load() async {
+    if (_loadInProgress) return;
+    _loadInProgress = true;
+    try {
+      final freshItems = await _loader.load(widget.config);
+      if (!mounted) return;
+      final oldItems = _items ?? const <GalleryFeedItem>[];
+      final remembered = _galleryPlaybackMemory[widget.config.playbackKey];
+      final previousOrder = oldItems.isNotEmpty
+          ? oldItems.map((item) => item.imageUrl).toList(growable: false)
+          : remembered?.order ?? const <String>[];
+      final items = buildGalleryPlaybackOrder(
+        freshItems,
+        shuffle: widget.config.shuffle,
+        previousOrder: previousOrder,
+      );
+      final nextIndex = oldItems.isNotEmpty
+          ? galleryIndexAfterRefresh(oldItems, _index, items)
+          : galleryInitialIndex(items, remembered?.currentImageUrl);
+      setState(() {
+        _items = items;
+        _error = null;
+        _index = nextIndex;
+      });
+      _rememberCurrentPosition();
+      _precacheNext();
+      if (_slideTimer == null) _scheduleNext();
+    } catch (error) {
+      if (!mounted) return;
+      // 주기 갱신 실패 시 재생 중인 기존 목록은 유지한다.
+      if (_items == null) {
+        setState(() {
+          _items = const [];
+          _error = '포토갤러리를 불러오지 못했습니다.\n$error';
+        });
+      }
+    } finally {
+      _loadInProgress = false;
+    }
+  }
+
+  void _scheduleRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(
+      Duration(minutes: widget.config.refreshIntervalMin),
+      (_) => _load(),
+    );
+  }
+
+  void _scheduleNext() {
+    _slideTimer?.cancel();
+    final items = _items;
+    if (items == null || items.length < 2) {
+      _slideTimer = null;
+      return;
+    }
+    _slideTimer = Timer(Duration(seconds: widget.config.intervalSec), () {
+      if (!mounted) return;
+      _slideTimer = null;
+      _move(1);
+    });
+  }
+
+  void _move(int offset) {
+    final items = _items;
+    if (items == null || items.length < 2) return;
+    _slideTimer?.cancel();
+    setState(() {
+      _index = (_index + offset) % items.length;
+    });
+    _rememberCurrentPosition();
+    _precacheNext();
+    _scheduleNext();
+  }
+
+  void _rememberCurrentPosition() {
+    final items = _items;
+    if (items == null || items.isEmpty || _index >= items.length) return;
+    _galleryPlaybackMemory[widget.config.playbackKey] =
+        _GalleryPlaybackSnapshot(
+      currentImageUrl: items[_index].imageUrl,
+      order: items.map((item) => item.imageUrl).toList(growable: false),
+    );
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _move(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _move(1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _finishHorizontalDrag(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final distance = _horizontalDragDistance;
+    _horizontalDragDistance = 0;
+    if (distance.abs() >= 40) {
+      _move(distance < 0 ? 1 : -1);
+    } else if (velocity.abs() >= 250) {
+      _move(velocity < 0 ? 1 : -1);
+    }
+  }
+
+  void _precacheNext() {
+    final items = _items;
+    if (items == null || items.length < 2) return;
+    final next = items[(_index + 1) % items.length];
+    precacheImage(
+      NetworkImage(
+        next.imageUrl,
+        headers: const {'User-Agent': 'SimpleKiosk/1.0 gallery-screen'},
+      ),
+      context,
+    ).catchError((_) {});
+  }
+
+  Widget _withInput(Widget child) {
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _handleKeyEvent,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onDismiss,
+        onHorizontalDragStart: (_) => _horizontalDragDistance = 0,
+        onHorizontalDragUpdate: (details) {
+          _horizontalDragDistance += details.delta.dx;
+        },
+        onHorizontalDragEnd: _finishHorizontalDrag,
+        child: child,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _rememberCurrentPosition();
+    _slideTimer?.cancel();
+    _refreshTimer?.cancel();
+    _loader.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final error = _error;
+    if (error != null) return _withInput(_FolderErrorView(message: error));
+    final items = _items;
+    if (items == null) {
+      return _withInput(
+        const Center(
+          child: CircularProgressIndicator(color: Colors.white70),
+        ),
+      );
+    }
+    if (items.isEmpty) {
+      return _withInput(
+        const _FolderErrorView(message: '포토갤러리에 표시할 사진이 없습니다.'),
+      );
+    }
+
+    final item = items[_index];
+    final slide = Stack(
+      key: ValueKey(item.imageUrl),
+      fit: StackFit.expand,
+      children: [
+        Image.network(
+          item.imageUrl,
+          headers: const {'User-Agent': 'SimpleKiosk/1.0 gallery-screen'},
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.high,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.white70),
+            );
+          },
+          errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(48, 54, 48, 30),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Color(0xE6000000)],
+              ),
+            ),
+            child: Text(
+              item.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 30,
+                height: 1.25,
+                fontWeight: FontWeight.w700,
+                shadows: [Shadow(color: Colors.black87, blurRadius: 6)],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final content = widget.config.transition == SlideshowTransition.none
+        ? ColoredBox(color: Colors.black, child: slide)
+        : ColoredBox(
+            color: Colors.black,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 650),
+              child: slide,
+            ),
+          );
+    return _withInput(content);
+  }
+}
+
 /// 풀스크린 URL WebView.
 ///
 /// 사용자가 페이지 내부 링크를 클릭하는 것을 막기 위해 호출자에서 위에
@@ -313,11 +1111,26 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
 
   Future<void> _loadList() async {
     try {
-      var items = await MediaScanner.scan(
-        path: widget.config.path,
-        includeImages: widget.config.includeImages,
-        includeVideos: widget.config.includeVideos,
+      final groups = await Future.wait(
+        widget.config.effectivePaths.map(
+          (path) async {
+            try {
+              return await MediaScanner.scan(
+                path: path,
+                includeImages: widget.config.includeImages,
+                includeVideos: widget.config.includeVideos,
+              );
+            } catch (_) {
+              return const <MediaItem>[];
+            }
+          },
+        ),
       );
+      final seen = <String>{};
+      var items = groups
+          .expand((group) => group)
+          .where((item) => seen.add(item.path))
+          .toList(growable: false);
       if (widget.config.shuffle) {
         items = List<MediaItem>.from(items)..shuffle();
       }
@@ -325,7 +1138,8 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
       if (items.isEmpty) {
         setState(() {
           _items = const [];
-          _error = '폴더에서 표시할 미디어를 찾지 못했습니다.\n경로: ${widget.config.path}';
+          _error = '폴더에서 표시할 미디어를 찾지 못했습니다.\n'
+              '경로: ${widget.config.effectivePaths.join(', ')}';
         });
         return;
       }

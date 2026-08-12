@@ -1,5 +1,5 @@
 /// 대기화면(attract / idle screen)에서 표시할 콘텐츠 종류.
-enum IdleMode { none, image, slideshow, url, folder }
+enum IdleMode { none, image, slideshow, url, folder, gallery }
 
 IdleMode _parseIdleMode(Object? raw) {
   if (raw == null) return IdleMode.none;
@@ -17,6 +17,8 @@ IdleMode _parseIdleMode(Object? raw) {
       return IdleMode.url;
     case 'folder':
       return IdleMode.folder;
+    case 'gallery':
+      return IdleMode.gallery;
     default:
       throw FormatException('menu.json: 알 수 없는 idle.mode 값 "$raw"');
   }
@@ -106,6 +108,12 @@ class FolderConfig {
   /// 폴더 경로.
   final String path;
 
+  /// 복수 폴더 경로. 비어 있으면 기존 [path]를 사용한다.
+  final List<String> paths;
+
+  List<String> get effectivePaths =>
+      paths.isNotEmpty ? paths : (path.isEmpty ? const [] : [path]);
+
   /// 이미지 장당 표시 시간(초). 동영상은 구간 종료까지 재생 후 다음.
   final int intervalSec;
 
@@ -123,6 +131,7 @@ class FolderConfig {
 
   const FolderConfig({
     this.path = '',
+    this.paths = const [],
     this.intervalSec = 8,
     this.shuffle = false,
     this.includeImages = true,
@@ -133,7 +142,7 @@ class FolderConfig {
   static const FolderConfig defaults = FolderConfig();
 
   bool get isUsable =>
-      path.isNotEmpty && (includeImages || includeVideos);
+      effectivePaths.isNotEmpty && (includeImages || includeVideos);
 
   factory FolderConfig.fromJson(Map<String, dynamic> json) {
     String parseStringRequired(String key) {
@@ -163,8 +172,28 @@ class FolderConfig {
       throw FormatException('menu.json idle.folder.$key: bool 필요');
     }
 
+    final paths = <String>[];
+    final pathsRaw = json['paths'];
+    if (pathsRaw is List) {
+      for (var i = 0; i < pathsRaw.length; i++) {
+        final value = pathsRaw[i];
+        if (value is! String || value.trim().isEmpty) {
+          throw FormatException(
+            'menu.json idle.folder.paths[$i]: 비어있지 않은 문자열 필요',
+          );
+        }
+        if (!paths.contains(value.trim())) paths.add(value.trim());
+      }
+      if (paths.isEmpty) {
+        throw const FormatException('menu.json idle.folder.paths: 한 개 이상 필요');
+      }
+    } else if (pathsRaw != null) {
+      throw const FormatException('menu.json idle.folder.paths: 배열이어야 함');
+    }
+
     return FolderConfig(
-      path: parseStringRequired('path'),
+      path: paths.isEmpty ? parseStringRequired('path') : '',
+      paths: List.unmodifiable(paths),
       intervalSec: parseInt('intervalSec', defaults.intervalSec),
       shuffle: parseBool('shuffle', defaults.shuffle),
       includeImages: parseBool('includeImages', defaults.includeImages),
@@ -172,6 +201,146 @@ class FolderConfig {
       transition: _parseTransition(json['transition']),
     );
   }
+}
+
+/// 웹 포토갤러리 게시물의 사진을 순회하는 대기화면 설정.
+class GalleryConfig {
+  /// 포토갤러리 게시판 목록 URL.
+  final String url;
+
+  /// 복수 포토갤러리 게시판 URL. 비어 있으면 기존 [url]을 사용한다.
+  final List<String> urls;
+
+  List<String> get effectiveUrls =>
+      urls.isNotEmpty ? urls : (url.isEmpty ? const [] : [url]);
+
+  String get playbackKey => effectiveUrls.join('|');
+
+  /// 사진 한 장당 표시 시간(초).
+  final int intervalSec;
+
+  /// 목록에서 읽을 최신 게시물 수.
+  final int maxPosts;
+
+  /// 현재 시각부터 과거 며칠까지의 게시물을 우선 선택할지. 미지정 시 최신순만 사용한다.
+  final int? lookbackDays;
+
+  /// 기간 조건에 맞는 게시물이 부족할 때 최신순으로 보충할 최소 게시물 수.
+  final int minPosts;
+
+  /// 실행 중인 갤러리 목록을 다시 확인하는 주기(분).
+  final int refreshIntervalMin;
+
+  /// 사진 순서를 한 번 섞어 재생할지.
+  final bool shuffle;
+
+  /// 한 번에 표시할 최대 사진 수.
+  final int maxImages;
+
+  /// 사진 간 전환 효과.
+  final SlideshowTransition transition;
+
+  const GalleryConfig({
+    this.url = '',
+    this.urls = const [],
+    this.intervalSec = 8,
+    this.maxPosts = 4,
+    this.lookbackDays,
+    this.minPosts = 1,
+    this.refreshIntervalMin = 5,
+    this.shuffle = false,
+    this.maxImages = 40,
+    this.transition = SlideshowTransition.fade,
+  });
+
+  static const GalleryConfig defaults = GalleryConfig();
+
+  bool get isUsable {
+    return effectiveUrls.isNotEmpty && effectiveUrls.every(_isValidHttpUrl);
+  }
+
+  factory GalleryConfig.fromJson(Map<String, dynamic> json) {
+    String parseUrlValue(Object? value, String key) {
+      if (value is! String || value.trim().isEmpty) {
+        throw FormatException('menu.json idle.gallery.$key: URL 필요');
+      }
+      final uri = Uri.tryParse(value.trim());
+      if (uri == null ||
+          (uri.scheme != 'http' && uri.scheme != 'https') ||
+          uri.host.isEmpty) {
+        throw FormatException('menu.json idle.gallery.$key: HTTP(S) URL 필요');
+      }
+      return value.trim();
+    }
+
+    int parsePositiveInt(String key, int fallback) {
+      final value = json[key];
+      if (value == null) return fallback;
+      if (value is! num || value <= 0) {
+        throw FormatException('menu.json idle.gallery.$key: 양수 필요');
+      }
+      return value.toInt();
+    }
+
+    bool parseBool(String key, bool fallback) {
+      final value = json[key];
+      if (value == null) return fallback;
+      if (value is! bool) {
+        throw FormatException('menu.json idle.gallery.$key: true/false 필요');
+      }
+      return value;
+    }
+
+    final maxPosts = parsePositiveInt('maxPosts', defaults.maxPosts);
+    final minPosts = parsePositiveInt('minPosts', defaults.minPosts);
+    if (minPosts > maxPosts) {
+      throw const FormatException(
+        'menu.json idle.gallery.minPosts: maxPosts 이하여야 함',
+      );
+    }
+
+    final urls = <String>[];
+    final urlsRaw = json['urls'];
+    if (urlsRaw is List) {
+      for (var i = 0; i < urlsRaw.length; i++) {
+        final value = parseUrlValue(urlsRaw[i], 'urls[$i]');
+        if (!urls.contains(value)) urls.add(value);
+      }
+      if (urls.isEmpty) {
+        throw const FormatException('menu.json idle.gallery.urls: 한 개 이상 필요');
+      }
+    } else if (urlsRaw != null) {
+      throw const FormatException('menu.json idle.gallery.urls: 배열이어야 함');
+    }
+
+    return GalleryConfig(
+      url: urls.isEmpty ? parseUrlValue(json['url'], 'url') : '',
+      urls: List.unmodifiable(urls),
+      intervalSec: parsePositiveInt(
+        'intervalSec',
+        defaults.intervalSec,
+      ),
+      maxPosts: maxPosts,
+      lookbackDays: json['lookbackDays'] == null
+          ? null
+          : parsePositiveInt('lookbackDays', 1),
+      minPosts: minPosts,
+      refreshIntervalMin: parsePositiveInt(
+        'refreshIntervalMin',
+        defaults.refreshIntervalMin,
+      ),
+      shuffle: parseBool('shuffle', defaults.shuffle),
+      maxImages: parsePositiveInt('maxImages', defaults.maxImages),
+      transition: _parseTransition(json['transition']),
+    );
+  }
+}
+
+bool _isValidHttpUrl(String value) {
+  final uri = Uri.tryParse(value);
+  return uri != null &&
+      (uri.scheme == 'http' || uri.scheme == 'https') &&
+      uri.host.isNotEmpty;
 }
 
 /// 대기화면 설정.
@@ -188,8 +357,11 @@ class IdleConfig {
   /// 앱 시작(콜드 스타트) 직후에 대기화면부터 보여줄지.
   final bool startOnLaunch;
 
-  /// 표시할 콘텐츠 종류.
-  final IdleMode mode;
+  /// 표시할 콘텐츠 종류. `slideshow`, `folder`, `gallery`는 함께 사용할 수 있다.
+  final List<IdleMode> modes;
+
+  /// 기존 단일 모드 접근과의 호환용 첫 번째 모드.
+  IdleMode get mode => modes.isEmpty ? IdleMode.none : modes.first;
 
   /// [mode]가 [IdleMode.image]일 때 사용할 단일 이미지 경로.
   final String? image;
@@ -203,6 +375,9 @@ class IdleConfig {
   /// [mode]가 [IdleMode.folder]일 때 사용할 설정.
   final FolderConfig folder;
 
+  /// [mode]가 [IdleMode.gallery]일 때 사용할 설정.
+  final GalleryConfig gallery;
+
   /// "터치하여 시작" 같은 안내 표시 여부.
   final bool showHint;
 
@@ -213,11 +388,12 @@ class IdleConfig {
     this.enabled = false,
     this.timeoutSec = 60,
     this.startOnLaunch = true,
-    this.mode = IdleMode.none,
+    this.modes = const [IdleMode.none],
     this.image,
     this.slideshow = SlideshowConfig.defaults,
     this.url,
     this.folder = FolderConfig.defaults,
+    this.gallery = GalleryConfig.defaults,
     this.showHint = true,
     this.hintText = '화면을 터치해 주세요',
   });
@@ -228,18 +404,23 @@ class IdleConfig {
   /// `enabled=true` 이고, 모드/콘텐츠가 유효해야 한다.
   bool get isUsable {
     if (!enabled) return false;
-    switch (mode) {
-      case IdleMode.none:
-        return false;
-      case IdleMode.image:
-        return image != null && image!.isNotEmpty;
-      case IdleMode.slideshow:
-        return slideshow.images.isNotEmpty;
-      case IdleMode.url:
-        return url != null && url!.isNotEmpty;
-      case IdleMode.folder:
-        return folder.isUsable;
-    }
+    if (modes.isEmpty || modes.contains(IdleMode.none)) return false;
+    return modes.every((mode) {
+      switch (mode) {
+        case IdleMode.none:
+          return false;
+        case IdleMode.image:
+          return image != null && image!.isNotEmpty;
+        case IdleMode.slideshow:
+          return slideshow.images.isNotEmpty;
+        case IdleMode.url:
+          return url != null && url!.isNotEmpty;
+        case IdleMode.folder:
+          return folder.isUsable;
+        case IdleMode.gallery:
+          return gallery.isUsable;
+      }
+    });
   }
 
   factory IdleConfig.fromJson(Map<String, dynamic> json) {
@@ -280,17 +461,57 @@ class IdleConfig {
       throw const FormatException('menu.json idle.folder: 객체여야 함');
     }
 
+    GalleryConfig gallery = GalleryConfig.defaults;
+    final galleryRaw = json['gallery'];
+    if (galleryRaw is Map<String, dynamic>) {
+      gallery = GalleryConfig.fromJson(galleryRaw);
+    } else if (galleryRaw != null) {
+      throw const FormatException('menu.json idle.gallery: 객체여야 함');
+    }
+
+    final modes = <IdleMode>[];
+    final modesRaw = json['modes'];
+    if (modesRaw is List) {
+      for (var i = 0; i < modesRaw.length; i++) {
+        final mode = _parseIdleMode(modesRaw[i]);
+        if (!modes.contains(mode)) modes.add(mode);
+      }
+      if (modes.isEmpty) {
+        throw const FormatException('menu.json idle.modes: 한 개 이상 필요');
+      }
+    } else if (modesRaw != null) {
+      throw const FormatException('menu.json idle.modes: 배열이어야 함');
+    } else {
+      modes.add(_parseIdleMode(json['mode']));
+    }
+
+    if (modes.contains(IdleMode.url) && modes.length != 1) {
+      throw const FormatException('menu.json idle.modes: url은 단독 모드만 가능');
+    }
+    if (modes.length > 1) {
+      const combinable = {
+        IdleMode.slideshow,
+        IdleMode.folder,
+        IdleMode.gallery,
+      };
+      if (modes.any((mode) => !combinable.contains(mode))) {
+        throw const FormatException(
+          'menu.json idle.modes: slideshow, folder, gallery만 복수 지정 가능',
+        );
+      }
+    }
     final hintText = parseString('hintText') ?? defaults.hintText;
 
     return IdleConfig(
       enabled: parseBool('enabled', defaults.enabled),
       timeoutSec: parseInt('timeoutSec', defaults.timeoutSec),
       startOnLaunch: parseBool('startOnLaunch', defaults.startOnLaunch),
-      mode: _parseIdleMode(json['mode']),
+      modes: List.unmodifiable(modes),
       image: parseString('image'),
       slideshow: slideshow,
       url: parseString('url'),
       folder: folder,
+      gallery: gallery,
       showHint: parseBool('showHint', defaults.showHint),
       hintText: hintText,
     );

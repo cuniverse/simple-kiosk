@@ -23,7 +23,9 @@
     "enabled": true,
     "timeoutSec": 300,
     "startOnLaunch": true,
-    "mode": "slideshow",
+    "modes": [
+      "gallery"
+    ],
     "image": "assets/idle/welcome.jpg",
     "slideshow": {
       "intervalSec": 6,
@@ -35,11 +37,26 @@
       ]
     },
     "folder": {
-      "path": "assets/idle/",
+      "paths": [
+        "assets/idle/"
+      ],
       "intervalSec": 8,
       "shuffle": false,
       "includeImages": true,
       "includeVideos": true,
+      "transition": "fade"
+    },
+    "gallery": {
+      "urls": [
+        "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery"
+      ],
+      "intervalSec": 8,
+      "lookbackDays": 30,
+      "minPosts": 1,
+      "refreshIntervalMin": 5,
+      "shuffle": false,
+      "maxPosts": 10,
+      "maxImages": 100,
       "transition": "fade"
     },
     "url": "https://example.com",

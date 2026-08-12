@@ -305,7 +305,7 @@ search, help, link, web, music, mic, camera, image, download, qr
   "enabled": true,
   "timeoutSec": 60,
   "startOnLaunch": true,
-  "mode": "slideshow",
+  "modes": ["slideshow"],
   "showHint": true,
   "hintText": "화면을 터치해 주세요"
 }
@@ -316,7 +316,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `enabled` | `false` | 대기화면 사용 여부 |
 | `timeoutSec` | `60` | 무입력 → 대기화면 진입까지의 초. `0` 이면 무입력 진입 안 함 |
 | `startOnLaunch` | `true` | 앱 시작 시 즉시 대기화면을 띄울지 |
-| `mode` | `none` | 표시 콘텐츠 (`none` / `image` / `slideshow` / `folder` / `url`) |
+| `modes` | `["none"]` | 표시 콘텐츠 배열. `slideshow`, `folder`, `gallery`는 복수 지정 가능 |
+| `mode` | `none` | 기존 단일 모드 호환 설정. `modes`가 있으면 `modes` 우선 |
 | `showHint` | `true` | "화면을 터치해 주세요" 안내 배지 표시 |
 | `hintText` | `화면을 터치해 주세요` | 안내 문구 |
 
@@ -352,9 +353,9 @@ search, help, link, web, music, mic, camera, image, download, qr
 
 ```json
 "idle": {
-  "enabled": true, "timeoutSec": 60, "mode": "folder",
+  "enabled": true, "timeoutSec": 60, "modes": ["folder"],
   "folder": {
-    "path": "assets/idle/",
+    "paths": ["assets/idle/", "C:/kiosk_media"],
     "intervalSec": 8,
     "shuffle": false,
     "includeImages": true,
@@ -366,7 +367,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 
 | 키 | 기본값 | 설명 |
 |----|--------|------|
-| `path` | 필수 | 폴더 경로. `assets/...` 또는 OS 절대 경로 |
+| `paths` | 필수 | 폴더 경로 배열. 에셋과 OS 절대 경로를 함께 지정 가능 |
+| `path` | - | 기존 단일 폴더 호환 설정. `paths`가 있으면 `paths` 우선 |
 | `intervalSec` | `8` | 이미지 1장당 표시 시간(초). 동영상은 끝까지 재생 후 다음 |
 | `shuffle` | `false` | `true`면 매 진입마다 무작위 순서 |
 | `includeImages` | `true` | 이미지 포함 (`.jpg .jpeg .png .gif .webp .bmp`) |
@@ -391,7 +393,87 @@ search, help, link, web, music, mic, camera, image, download, qr
 **Windows 코덱**: WMP에서 재생되는 형식은 모두 지원. `.mp4(H.264)` 권장.
 일부 형식이 안 된다면 [K-Lite Codec Pack](https://codecguide.com/) 설치.
 
-### D. URL 풀스크린
+### D. 포토갤러리 게시물
+
+웹 포토갤러리의 최신 게시물을 읽어 게시물 본문의 원본 사진을 순환 표시합니다.
+사진 하단에는 해당 게시물 제목이 그라데이션 오버레이로 표시됩니다.
+
+```json
+"idle": {
+  "enabled": true,
+  "timeoutSec": 300,
+  "startOnLaunch": true,
+  "modes": ["gallery"],
+  "gallery": {
+    "urls": [
+      "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
+      "https://example.com/second-gallery"
+    ],
+    "intervalSec": 8,
+    "lookbackDays": 30,
+    "minPosts": 2,
+    "refreshIntervalMin": 5,
+    "shuffle": false,
+    "maxPosts": 4,
+    "maxImages": 40,
+    "transition": "fade"
+  },
+  "showHint": true,
+  "hintText": "화면을 터치해 주세요"
+}
+```
+
+| 키 | 기본값 | 설명 |
+|----|--------|------|
+| `urls` | 필수 | 그누보드 계열 포토갤러리 목록 URL 배열 |
+| `url` | - | 기존 단일 게시판 호환 설정. `urls`가 있으면 `urls` 우선 |
+| `intervalSec` | `8` | 사진 한 장을 표시할 시간(초) |
+| `lookbackDays` | 미지정 | 현재 시각부터 과거 며칠까지 작성된 게시물을 우선 선택 |
+| `minPosts` | `1` | 기간 조건의 결과가 부족할 때 최신순으로 보충할 최소 게시물 수 |
+| `refreshIntervalMin` | `5` | 실행 중 게시판을 다시 확인하는 주기(분) |
+| `shuffle` | `false` | `true`이면 미리 만든 무작위 순서로 사진을 순회 |
+| `maxPosts` | `4` | 최종적으로 사진을 수집할 게시물 수의 상한 |
+| `maxImages` | `40` | 한 번에 순환할 최대 사진 수 |
+| `transition` | `fade` | 사진 전환 효과 (`fade` / `none`) |
+
+- 목록 썸네일 대신 각 게시물 본문의 원본 이미지 링크를 우선 사용합니다.
+- `lookbackDays: 30`이면 갱신 시각을 기준으로 정확히 30일 전까지의 게시물을 선택합니다.
+- `lookbackDays`를 생략하면 기존처럼 최신 게시물을 `maxPosts`개까지 읽습니다.
+- 기간 조건에 맞는 게시물이 `minPosts`보다 적거나 없으면 최신 게시물로 `minPosts`개까지 보충합니다.
+- 5분 갱신 시 현재 사진의 URL과 재생 위치를 유지하므로 슬라이드가 처음부터 다시 시작되지 않습니다.
+- 갱신에 실패하면 현재 재생 목록을 유지하고 다음 주기에 다시 시도합니다.
+- 키보드 `←` / `→` 또는 화면 좌우 스와이프로 이전·다음 사진을 볼 수 있습니다.
+- 화면을 탭하면 보호기가 종료되며, 다시 진입하면 마지막 사진과 재생 순서부터 이어집니다.
+- 랜덤 모드에서도 갱신할 때 기존 무작위 순서는 유지하고 새 사진만 순서에 추가합니다.
+- `minPosts`는 `maxPosts`보다 클 수 없습니다.
+- 게시물 하나에 사진이 여러 장이면 모든 사진에 같은 게시물 제목이 표시됩니다.
+- 개별 게시물 읽기에 실패하면 해당 목록 썸네일로 대체합니다.
+- 게시판 전체를 읽지 못하면 안전 화면을 표시하며 터치로 정상 화면에 복귀할 수 있습니다.
+- 현재 파서는 그누보드 갤러리의 `.card`, `.bo_tit`, `#bo_v_con` 구조를 기준으로 합니다.
+  사이트 스킨 구조가 바뀌면 파서도 함께 수정해야 합니다.
+
+### E. 복수 모드 조합
+
+`slideshow`, `folder`, `gallery`는 함께 지정할 수 있으며 배열 순서대로 각 소스의
+콘텐츠를 하나의 재생 목록으로 합칩니다. 폴더 동영상은 끝까지 재생한 후 다음 항목으로 이동합니다.
+
+```json
+"idle": {
+  "enabled": true,
+  "modes": ["slideshow", "folder", "gallery"],
+  "slideshow": { "images": ["assets/idle/welcome.jpg"] },
+  "folder": { "paths": ["C:/kiosk_media", "D:/event_media"] },
+  "gallery": {
+    "urls": ["https://example.com/gallery-a", "https://example.com/gallery-b"]
+  }
+}
+```
+
+- `url` 모드는 반드시 단독으로만 지정해야 합니다.
+- `image`, `none`도 복수 모드 조합에는 사용할 수 없습니다.
+- 이전 형식인 문자열 `mode`, `folder.path`, `gallery.url`도 계속 지원합니다.
+
+### F. URL 풀스크린
 
 특정 웹페이지(슬라이드 호스팅, 외부 사이니지 시스템 등)를 풀스크린으로 표시.
 

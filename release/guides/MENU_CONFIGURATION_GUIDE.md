@@ -272,7 +272,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `enabled` | bool | `false` | 대기화면 기능 사용 여부 |
 | `timeoutSec` | 숫자 | `60` | 마지막 입력 후 진입할 때까지의 초. `0` 이하는 자동 진입 안 함 |
 | `startOnLaunch` | bool | `true` | 앱 시작 직후 대기화면 표시 여부 |
-| `mode` | 문자열 | `none` | `none`, `image`, `slideshow`, `folder`, `url` |
+| `modes` | 배열 | `["none"]` | `slideshow`, `folder`, `gallery`는 복수 지정 가능 |
+| `mode` | 문자열 | `none` | 기존 단일 모드 호환 설정. `modes`가 있으면 무시 |
 | `showHint` | bool | `true` | 터치 안내 문구 표시 여부 |
 | `hintText` | 문자열 | `화면을 터치해 주세요` | 안내 문구 |
 
@@ -324,9 +325,9 @@ search, help, link, web, music, mic, camera, image, download, qr
 "idle": {
   "enabled": true,
   "timeoutSec": 60,
-  "mode": "folder",
+  "modes": ["folder"],
   "folder": {
-    "path": "C:/kiosk_media",
+    "paths": ["C:/kiosk_media", "D:/event_media"],
     "intervalSec": 8,
     "shuffle": false,
     "includeImages": true,
@@ -338,7 +339,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 
 | 키 | 기본값 | 설명 |
 |---|---|---|
-| `path` | 필수 | `assets/idle/` 또는 운영체제의 절대 폴더 경로 |
+| `paths` | 필수 | 에셋 또는 운영체제 절대 폴더 경로 배열 |
+| `path` | - | 기존 단일 폴더 호환 설정 |
 | `intervalSec` | `8` | 이미지 한 장 표시 시간. 동영상은 재생 완료 후 다음 항목으로 이동 |
 | `shuffle` | `false` | 진입할 때 재생 순서를 섞을지 여부 |
 | `includeImages` | `true` | 이미지 포함 여부 |
@@ -369,6 +371,65 @@ search, help, link, web, music, mic, camera, image, download, qr
   "hintText": "화면을 터치해 주세요"
 }
 ```
+
+### 포토갤러리 게시물 대기화면: `gallery`
+
+```json
+"idle": {
+  "enabled": true,
+  "timeoutSec": 300,
+  "startOnLaunch": true,
+  "modes": ["gallery"],
+  "gallery": {
+    "urls": [
+      "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
+      "https://example.com/second-gallery"
+    ],
+    "intervalSec": 8,
+    "lookbackDays": 30,
+    "minPosts": 2,
+    "refreshIntervalMin": 5,
+    "shuffle": false,
+    "maxPosts": 4,
+    "maxImages": 40,
+    "transition": "fade"
+  },
+  "showHint": true,
+  "hintText": "화면을 터치해 주세요"
+}
+```
+
+최신 게시물 본문의 사진을 순환하며 하단에 게시물 제목을 표시합니다.
+`lookbackDays`는 갱신 시점의 현재 시각부터 과거 며칠까지의 게시물을 선택합니다.
+조건에 맞는 게시물이 없거나 `minPosts`보다 적으면 최신순으로 최소 개수까지 보충합니다.
+`maxPosts`는 최종 게시물 수의 상한이므로 `minPosts`보다 크거나 같아야 합니다.
+`lookbackDays`를 생략하면 기존처럼 최신 게시물을 `maxPosts`개까지 읽습니다.
+기본 5분마다 게시판을 갱신하지만 현재 표시 중인 사진과 슬라이드 위치는 유지합니다.
+갱신 실패 시에도 기존 재생 목록은 중단하지 않습니다.
+`shuffle`이 `true`이면 재생 목록을 미리 섞으며, 갱신 시 기존 순서와 현재 위치를 유지합니다.
+키보드 좌우 방향키와 화면 좌우 스와이프로 이전·다음 사진을 이동할 수 있습니다.
+보호기를 닫았다 다시 열어도 마지막으로 보던 사진부터 이어집니다.
+`maxImages`는 한 번에 순환할 최대 사진 수입니다.
+현재 기능은 그누보드 갤러리 구조를 기준으로 하므로 사이트 스킨이 변경되면 앱의
+갤러리 파서도 수정해야 할 수 있습니다.
+
+### 복수 모드 조합
+
+```json
+"idle": {
+  "enabled": true,
+  "modes": ["slideshow", "folder", "gallery"],
+  "slideshow": { "images": ["assets/idle/welcome.jpg"] },
+  "folder": { "paths": ["C:/kiosk_media", "D:/event_media"] },
+  "gallery": {
+    "urls": ["https://example.com/gallery-a", "https://example.com/gallery-b"]
+  }
+}
+```
+
+세 모드의 콘텐츠는 `modes` 배열 순서대로 하나의 재생 목록으로 합쳐집니다.
+`url`은 반드시 단독 모드여야 하며 `image`, `none`도 복수 조합에 사용할 수 없습니다.
+기존 `mode`, `folder.path`, `gallery.url` 형식도 계속 지원합니다.
 
 ## 8. 용도별 설정 예
 

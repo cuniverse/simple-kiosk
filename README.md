@@ -39,7 +39,7 @@
   - 드래그 가능한 플로팅 윈도우
   - WebView input 포커스 시 자동 호출 + 네비게이션 바 토글로 수동 호출 가능
   - 모든 OS (Windows / macOS / Linux / Android / iOS) 에서 동일 디자인/동작
-- **대기화면(Idle)**: 일정 시간 무조작 시 슬라이드쇼/단일 이미지/URL/폴더 모드로 전환
+- **대기화면(Idle)**: 일정 시간 무조작 시 슬라이드쇼/단일 이미지/URL/폴더/웹 포토갤러리 모드로 전환
 
 ## 실행 방법
 
@@ -153,7 +153,7 @@ flutter pub get
 
 ### idle — 대기화면 설정
 
-자세한 옵션은 [docs/MANUAL.md](docs/MANUAL.md) 참고. 모드(`mode`)는 `slideshow` / `image` / `url` / `folder` 중 선택.
+자세한 옵션은 [docs/MANUAL.md](docs/MANUAL.md) 참고. 모드(`mode`)는 `slideshow` / `image` / `url` / `folder` / `gallery` 중 선택.
 
 ### 전체 예시 (이 저장소의 기본 설정)
 
