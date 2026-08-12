@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param([string]$DataRoot = "$env:ProgramData\SimpleKiosk")
+param(
+    [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
+    [switch]$SkipUpdaterSync
+)
 
 $ErrorActionPreference = 'Stop'
 $pointerPath = Join-Path $DataRoot 'current.json'
@@ -23,6 +26,17 @@ $candidates = @($pointer.currentVersion, $pointer.previousVersion) |
 foreach ($version in $candidates) {
     $exe = Join-Path $DataRoot "versions\$version\simple_kiosk.exe"
     if (Test-Path -LiteralPath $exe) {
+        if (-not $SkipUpdaterSync) {
+            $sourceUpdater = Join-Path $DataRoot "versions\$version\updater"
+            $fixedUpdater = Join-Path $DataRoot 'updater'
+            if (Test-Path -LiteralPath $sourceUpdater) {
+                New-Item -ItemType Directory -Force -Path $fixedUpdater | Out-Null
+                Get-ChildItem -LiteralPath $sourceUpdater -File | ForEach-Object {
+                    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $fixedUpdater $_.Name) -Force
+                }
+                Write-Log "Updater tools synchronized from version $version"
+            }
+        }
         Write-Log "Starting version $version"
         Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden
         exit 0

@@ -2,7 +2,9 @@
 param(
     # CI에서는 GitHub Release 태그에서 추출한 버전을 전달한다.
     # 생략하면 기존처럼 pubspec.yaml의 version을 사용한다.
-    [string]$PackageVersion
+    [string]$PackageVersion,
+    [string]$SigningCertificatePath,
+    [string]$TimestampServer = 'http://timestamp.digicert.com'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,6 +54,27 @@ try {
         throw 'Windows Release 출력 폴더를 찾을 수 없습니다.'
     }
 
+    if (-not [string]::IsNullOrWhiteSpace($SigningCertificatePath)) {
+        if (-not (Test-Path -LiteralPath $SigningCertificatePath)) {
+            throw "코드 서명 인증서를 찾을 수 없습니다: $SigningCertificatePath"
+        }
+        if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_PASSWORD)) {
+            throw 'WINDOWS_SIGNING_CERT_PASSWORD 환경변수가 필요합니다.'
+        }
+        $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
+            -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+        if (-not $signTool) { throw 'signtool.exe를 찾을 수 없습니다.' }
+        $targetExe = Join-Path $releaseDir 'simple_kiosk.exe'
+        & $signTool.FullName sign /fd SHA256 /td SHA256 /tr $TimestampServer `
+            /f $SigningCertificatePath /p $env:WINDOWS_SIGNING_CERT_PASSWORD $targetExe
+        if ($LASTEXITCODE -ne 0) { throw 'simple_kiosk.exe 코드 서명에 실패했습니다.' }
+        & $signTool.FullName verify /pa /v $targetExe
+        if ($LASTEXITCODE -ne 0) { throw 'simple_kiosk.exe 코드 서명 검증에 실패했습니다.' }
+    }
+
     New-Item -ItemType Directory -Force -Path $stage, $distDir | Out-Null
     # 실행 테스트가 만든 WebView2 사용자 프로필(쿠키/캐시/세션)은 배포하지 않는다.
     Get-ChildItem -Path $releaseDir -File |
@@ -67,6 +90,8 @@ try {
     Copy-Item 'scripts\launcher.cmd' (Join-Path $updaterDir 'launcher.cmd')
     Copy-Item 'scripts\install-launcher.ps1' (Join-Path $updaterDir 'install-launcher.ps1')
     Copy-Item 'scripts\migrate-menu-config.ps1' (Join-Path $updaterDir 'migrate-menu-config.ps1')
+    Copy-Item 'scripts\recover.ps1' (Join-Path $updaterDir 'recover.ps1')
+    Copy-Item 'scripts\export-diagnostics.ps1' (Join-Path $updaterDir 'export-diagnostics.ps1')
 
     $exe = Join-Path $stage 'simple_kiosk.exe'
     if (-not (Test-Path $exe)) { throw 'simple_kiosk.exe를 찾을 수 없습니다.' }

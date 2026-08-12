@@ -14,7 +14,7 @@ PowerShell에서 압축을 푼 폴더를 현재 위치로 두고 다음을 실�
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.2
+.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.3
 ```
 
 이후 `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`를 Windows 시작 프로그램이나 작업
@@ -34,6 +34,29 @@ $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Comput
 
 자동 업데이트 기본값은 OFF입니다. 관리자가 켜면 stable Release를 6시간마다 확인하고
 다운로드하며, 기본 설정상 02:00~05:00 사이 화면 보호기 상태에서만 설치합니다.
+관리자 화면에서 확인 주기, 설치 시간대, 유휴 설치 여부, 버전·로그 보관 기간을 변경할
+수 있습니다. 설치 시 ProgramData 폴더는 SYSTEM과 관리자, 설치를 실행한 키오스크
+계정만 접근하도록 ACL이 구성됩니다.
+
+### 수동 복구와 진단 자료
+
+설치된 버전을 확인하거나 특정 정상 버전으로 되돌리려면 다음을 실행합니다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  C:\ProgramData\SimpleKiosk\updater\recover.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  C:\ProgramData\SimpleKiosk\updater\recover.ps1 -Version 1.2.3
+```
+
+관리자 화면의 `진단 자료 내보내기` 또는 아래 명령은 설정 정책, 상태, 로그를 ZIP으로
+만듭니다. 메뉴 오버라이드는 기본적으로 제외되며 필요할 때만 `-IncludeMenuConfig`를
+지정합니다.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
+  C:\ProgramData\SimpleKiosk\updater\export-diagnostics.ps1
+```
 
 ### 기존 설정 마이그레이션
 
@@ -198,9 +221,10 @@ DLL 또는 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 
 ### Windows 보안 경고가 표시됨
 
-기본 빌드는 코드 서명 인증서로 서명되지 않을 수 있습니다. 배포 출처와 SHA-256 값을
-확인할 수 없는 파일은 실행하지 마세요. 조직 외부에 배포할 때는 코드 서명 인증서로
-실행 파일과 배포 패키지에 서명하는 것을 권장합니다.
+GitHub Actions에 `WINDOWS_SIGNING_CERTIFICATE_BASE64`와
+`WINDOWS_SIGNING_CERT_PASSWORD` 비밀값이 모두 등록된 빌드는 실행 파일을 코드
+서명하고 검증합니다. 비밀값이 없는 빌드는 서명되지 않으므로 배포 출처와 SHA-256
+값을 반드시 확인하세요.
 
 ## 10. 운영 참고
 

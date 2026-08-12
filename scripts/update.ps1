@@ -4,7 +4,9 @@ param(
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$true)][string]$ExpectedSha256,
     [Parameter(Mandatory=$true)][int]$AppPid,
-    [string]$DataRoot = "$env:ProgramData\SimpleKiosk"
+    [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
+    [ValidateRange(2, 10)][int]$RetainVersions = 2,
+    [ValidateRange(1, 365)][int]$LogRetentionDays = 30
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +14,10 @@ $logPath = Join-Path $DataRoot 'logs\updater.log'
 $statePath = Join-Path $DataRoot 'state\update-state.json'
 $pointerPath = Join-Path $DataRoot 'current.json'
 New-Item -ItemType Directory -Force -Path (Split-Path $logPath), (Split-Path $statePath) | Out-Null
+if ((Test-Path -LiteralPath $logPath) -and (Get-Item -LiteralPath $logPath).Length -gt 5MB) {
+    $rotatedLog = Join-Path (Split-Path $logPath) "updater-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+    Move-Item -LiteralPath $logPath -Destination $rotatedLog
+}
 
 function Write-Log([string]$Message) {
     "$(Get-Date -Format o) [updater] $Message" | Add-Content -Encoding UTF8 $logPath
@@ -37,6 +43,26 @@ function Write-Pointer([string]$Current, [string]$Previous) {
     [ordered]@{ schemaVersion=1; currentVersion=$Current; previousVersion=$Previous; updatedAt=(Get-Date).ToUniversalTime().ToString('o') } |
         ConvertTo-Json | Set-Content -Encoding UTF8 $temporary
     Move-Item -LiteralPath $temporary -Destination $pointerPath -Force
+}
+function Invoke-Maintenance([string]$Current, [string]$Previous) {
+    $protected = @($Current, $Previous) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $versionsRoot = Join-Path $DataRoot 'versions'
+    $candidates = @(Get-ChildItem -LiteralPath $versionsRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $protected -notcontains $_.Name } |
+        Sort-Object LastWriteTimeUtc -Descending)
+    $extraSlots = [Math]::Max(0, $RetainVersions - $protected.Count)
+    $candidates | Select-Object -Skip $extraSlots | ForEach-Object {
+        Write-Log "Removing old version $($_.Name)"
+        Remove-Item -LiteralPath $_.FullName -Recurse -Force
+    }
+
+    $cutoff = (Get-Date).AddDays(-$LogRetentionDays)
+    Get-ChildItem -LiteralPath (Join-Path $DataRoot 'logs') -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -ne $logPath -and $_.LastWriteTime -lt $cutoff } |
+        Remove-Item -Force
+    Get-ChildItem -LiteralPath (Join-Path $DataRoot 'downloads') -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -ne $PackagePath -and $_.LastWriteTime -lt (Get-Date).AddDays(-7) } |
+        Remove-Item -Force
 }
 
 $tempRoot = Join-Path $DataRoot "downloads\extract-$([Guid]::NewGuid())"
@@ -91,7 +117,7 @@ try {
     }
     Write-Pointer $Version $previous
     Remove-Item -LiteralPath (Join-Path $DataRoot 'state\app-state.json') -Force -ErrorAction SilentlyContinue
-    & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot
+    & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot -SkipUpdaterSync
 
     $deadline = (Get-Date).AddSeconds(45)
     $ready = $false
@@ -107,11 +133,24 @@ try {
         Write-Log "Version $Version health check failed; rolling back to $previous"
         if ([string]::IsNullOrWhiteSpace($previous)) { throw 'Health check failed and no rollback version exists.' }
         Write-Pointer $previous $Version
-        & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot
+        & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot -SkipUpdaterSync
         throw 'New version health check failed; rolled back.'
+    }
+    try {
+        $packagedLauncher = Join-Path $versionRoot 'updater\launcher.ps1'
+        $packagedCommand = Join-Path $versionRoot 'updater\launcher.cmd'
+        if (Test-Path -LiteralPath $packagedLauncher) {
+            Copy-Item -LiteralPath $packagedLauncher -Destination (Join-Path $DataRoot 'launcher.ps1') -Force
+        }
+        if (Test-Path -LiteralPath $packagedCommand) {
+            Copy-Item -LiteralPath $packagedCommand -Destination (Join-Path $DataRoot 'SimpleKiosk.cmd') -Force
+        }
+    } catch {
+        Write-Log "Launcher synchronization deferred: $($_.Exception.Message)"
     }
     Write-State 'installed'
     Write-Log "Version $Version installed successfully"
+    Invoke-Maintenance $Version $previous
 } catch {
     Write-State 'failed' $_.Exception.Message
     Write-Log "FAILED: $($_.Exception.Message)"

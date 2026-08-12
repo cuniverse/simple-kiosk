@@ -37,16 +37,21 @@ class UpdateController extends ChangeNotifier {
   }
 
   Future<void> setEnabled(bool enabled) async {
-    policy = policy.copyWith(enabled: enabled);
+    await updatePolicy(policy.copyWith(enabled: enabled));
+  }
+
+  Future<void> updatePolicy(UpdatePolicy updated) async {
+    final wasEnabled = policy.enabled;
+    policy = updated;
     await UpdatePolicyStore.save(policy);
-    if (!enabled) {
+    if (!policy.enabled) {
       _timer?.cancel();
       status = '자동 업데이트 꺼짐';
       await _service.writeState({'status': 'automatic-disabled'});
     } else {
       status = '자동 업데이트 사용';
       _schedule();
-      unawaited(check(automatic: true));
+      if (!wasEnabled) unawaited(check(automatic: true));
     }
     notifyListeners();
   }
@@ -148,10 +153,33 @@ class UpdateController extends ChangeNotifier {
     busy = true;
     status = '설치 요청 중';
     notifyListeners();
-    await _service.requestInstall(package, update.manifest);
+    await _service.requestInstall(
+      package,
+      update.manifest,
+      retainVersions: policy.retainVersions,
+      logRetentionDays: policy.logRetentionDays,
+    );
     status = '앱 종료 후 설치 예정';
     notifyListeners();
     exit(0);
+  }
+
+  Future<String> exportDiagnostics() async {
+    if (!supported || busy) return '';
+    busy = true;
+    status = '진단 자료 내보내는 중';
+    notifyListeners();
+    try {
+      final path = await _service.exportDiagnostics();
+      status = '진단 자료 저장 완료: $path';
+      return path;
+    } catch (error) {
+      status = '진단 자료 내보내기 실패: $error';
+      rethrow;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
   }
 
   @override

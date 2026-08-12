@@ -47,6 +47,8 @@ class UpdatePolicy {
   final int checkIntervalHours;
   final bool installWhenIdle;
   final UpdateInstallWindow installWindow;
+  final int retainVersions;
+  final int logRetentionDays;
 
   const UpdatePolicy({
     this.enabled = false,
@@ -54,6 +56,8 @@ class UpdatePolicy {
     this.checkIntervalHours = 6,
     this.installWhenIdle = true,
     this.installWindow = const UpdateInstallWindow(),
+    this.retainVersions = 2,
+    this.logRetentionDays = 30,
   });
 
   factory UpdatePolicy.fromJson(Map<String, dynamic> json) {
@@ -61,6 +65,8 @@ class UpdatePolicy {
     final channel = json['channel'];
     final interval = json['checkIntervalHours'];
     final installWhenIdle = json['installWhenIdle'];
+    final retainVersions = json['retainVersions'];
+    final logRetentionDays = json['logRetentionDays'];
     if (enabled != null && enabled is! bool) {
       throw const FormatException('enabled: bool 필요');
     }
@@ -73,21 +79,43 @@ class UpdatePolicy {
     if (installWhenIdle != null && installWhenIdle is! bool) {
       throw const FormatException('installWhenIdle: bool 필요');
     }
+    if (retainVersions != null &&
+        (retainVersions is! num || retainVersions < 2 || retainVersions > 10)) {
+      throw const FormatException('retainVersions: 2~10 필요');
+    }
+    if (logRetentionDays != null &&
+        (logRetentionDays is! num ||
+            logRetentionDays < 1 ||
+            logRetentionDays > 365)) {
+      throw const FormatException('logRetentionDays: 1~365 필요');
+    }
     return UpdatePolicy(
       enabled: enabled as bool? ?? false,
       channel: channel as String? ?? 'stable',
       checkIntervalHours: (interval as num?)?.toInt() ?? 6,
       installWhenIdle: installWhenIdle as bool? ?? true,
       installWindow: UpdateInstallWindow.fromJson(json['installWindow']),
+      retainVersions: (retainVersions as num?)?.toInt() ?? 2,
+      logRetentionDays: (logRetentionDays as num?)?.toInt() ?? 30,
     );
   }
 
-  UpdatePolicy copyWith({bool? enabled}) => UpdatePolicy(
+  UpdatePolicy copyWith({
+    bool? enabled,
+    int? checkIntervalHours,
+    bool? installWhenIdle,
+    UpdateInstallWindow? installWindow,
+    int? retainVersions,
+    int? logRetentionDays,
+  }) =>
+      UpdatePolicy(
         enabled: enabled ?? this.enabled,
         channel: channel,
-        checkIntervalHours: checkIntervalHours,
-        installWhenIdle: installWhenIdle,
-        installWindow: installWindow,
+        checkIntervalHours: checkIntervalHours ?? this.checkIntervalHours,
+        installWhenIdle: installWhenIdle ?? this.installWhenIdle,
+        installWindow: installWindow ?? this.installWindow,
+        retainVersions: retainVersions ?? this.retainVersions,
+        logRetentionDays: logRetentionDays ?? this.logRetentionDays,
       );
 
   Map<String, dynamic> toJson() => {
@@ -97,5 +125,7 @@ class UpdatePolicy {
         'checkIntervalHours': checkIntervalHours,
         'installWhenIdle': installWhenIdle,
         'installWindow': installWindow.toJson(),
+        'retainVersions': retainVersions,
+        'logRetentionDays': logRetentionDays,
       };
 }

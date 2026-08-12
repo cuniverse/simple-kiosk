@@ -64,6 +64,30 @@ void main() {
     expect(window.contains(DateTime(2026, 8, 13, 12)), isFalse);
   });
 
+  test('update policy retention settings round-trip and copy', () {
+    final policy = UpdatePolicy.fromJson({
+      'enabled': true,
+      'checkIntervalHours': 12,
+      'installWhenIdle': false,
+      'installWindow': {'start': '23:00', 'end': '04:00'},
+      'retainVersions': 4,
+      'logRetentionDays': 60,
+    });
+
+    expect(policy.retainVersions, 4);
+    expect(policy.logRetentionDays, 60);
+    expect(policy.copyWith(enabled: false).toJson(), {
+      'schemaVersion': 1,
+      'enabled': false,
+      'channel': 'stable',
+      'checkIntervalHours': 12,
+      'installWhenIdle': false,
+      'installWindow': {'start': '23:00', 'end': '04:00'},
+      'retainVersions': 4,
+      'logRetentionDays': 60,
+    });
+  });
+
   test('슬라이드쇼 대기화면 설정을 파싱한다', () {
     final config = IdleConfig.fromJson({
       'enabled': true,

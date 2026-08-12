@@ -21,6 +21,8 @@ jobs:
     runs-on: windows-latest
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+      WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+      WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
 
     steps:
       - name: Checkout source
@@ -45,7 +47,26 @@ jobs:
 
       - name: Build Windows package
         shell: pwsh
-        run: .\scripts\package-windows.ps1 -PackageVersion $env:RELEASE_VERSION
+        run: |
+          $arguments = @{ PackageVersion = $env:RELEASE_VERSION }
+          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)) {
+            $certificate = Join-Path $env:RUNNER_TEMP 'simple-kiosk-signing.pfx'
+            [IO.File]::WriteAllBytes(
+              $certificate,
+              [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)
+            )
+            $arguments.SigningCertificatePath = $certificate
+          }
+          .\scripts\package-windows.ps1 @arguments
+
+      - name: Remove temporary signing certificate
+        if: always()
+        shell: pwsh
+        run: |
+          $certificate = Join-Path $env:RUNNER_TEMP 'simple-kiosk-signing.pfx'
+          if (Test-Path -LiteralPath $certificate) {
+            Remove-Item -LiteralPath $certificate -Force
+          }
 
       - name: Create update manifest
         shell: pwsh

@@ -148,12 +148,26 @@ class UpdateService {
     );
   }
 
-  Future<void> requestInstall(File package, UpdateManifest manifest) async {
-    if (!Platform.isWindows) throw UnsupportedError('Windows 업데이트만 지원');
-    final script = File(
+  Future<File> _updaterScript(String name) async {
+    final fixed = RuntimePaths.child('updater/$name');
+    if (fixed != null) {
+      final file = File(fixed);
+      if (await file.exists()) return file;
+    }
+    return File(
       '${File(Platform.resolvedExecutable).parent.path}'
-      '${Platform.pathSeparator}updater${Platform.pathSeparator}update.ps1',
+      '${Platform.pathSeparator}updater${Platform.pathSeparator}$name',
     );
+  }
+
+  Future<void> requestInstall(
+    File package,
+    UpdateManifest manifest, {
+    int retainVersions = 2,
+    int logRetentionDays = 30,
+  }) async {
+    if (!Platform.isWindows) throw UnsupportedError('Windows 업데이트만 지원');
+    final script = await _updaterScript('update.ps1');
     if (!await script.exists()) throw StateError('업데이트 실행기 누락: ${script.path}');
     await writeState({
       'status': 'install-requested',
@@ -178,9 +192,35 @@ class UpdateService {
         manifest.sha256,
         '-AppPid',
         '$pid',
+        '-RetainVersions',
+        '$retainVersions',
+        '-LogRetentionDays',
+        '$logRetentionDays',
       ],
       mode: ProcessStartMode.detached,
     );
+  }
+
+  Future<String> exportDiagnostics() async {
+    if (!Platform.isWindows) throw UnsupportedError('Windows만 지원');
+    final script = await _updaterScript('export-diagnostics.ps1');
+    if (!await script.exists()) {
+      throw StateError('진단 도구 누락: ${script.path}');
+    }
+    final result = await Process.run(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        script.path,
+      ],
+    );
+    if (result.exitCode != 0) {
+      throw StateError('${result.stderr}'.trim());
+    }
+    return '${result.stdout}'.trim().split(RegExp(r'[\r\n]+')).last;
   }
 
   void close() {
