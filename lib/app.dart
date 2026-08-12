@@ -15,6 +15,9 @@ import 'widget/navigation_menu.dart';
 import 'widget/virtual_keyboard.dart';
 import 'service/keyboard_controller.dart';
 import 'service/system_keyboard.dart';
+import 'service/app_health_signal.dart';
+import 'service/update_controller.dart';
+import 'widget/update_admin_dialog.dart';
 
 /// 앱 진입 위젯.
 ///
@@ -79,7 +82,9 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
     _future = const MenuConfigLoader().load();
     // 별도 리스너로 실패를 감지해 자동 재시도를 예약한다.
     // FutureBuilder 는 원본 _future 의 에러를 그대로 받아 에러 UI 를 표시한다.
-    _future.then<void>((_) {}, onError: (Object _) {
+    _future.then<void>((_) {
+      AppHealthSignal.markReady();
+    }, onError: (Object _) {
       if (mounted) _scheduleAutoRetry();
     });
   }
@@ -203,6 +208,7 @@ class _KioskHome extends StatefulWidget {
 class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
   final IdleGateController _idleGateController = IdleGateController();
+  late final UpdateController _updateController;
 
   /// 최초 방문 메뉴가 백그라운드에서 준비되는 동안 선택 표시할 인덱스.
   /// 실제 화면은 준비가 끝날 때까지 [_selectedIndex]를 유지한다.
@@ -237,6 +243,14 @@ class _KioskHomeState extends State<_KioskHome> {
   void initState() {
     super.initState();
     _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
+    _updateController = UpdateController();
+    _updateController.initialize();
+  }
+
+  @override
+  void dispose() {
+    _updateController.dispose();
+    super.dispose();
   }
 
   @override
@@ -353,6 +367,11 @@ class _KioskHomeState extends State<_KioskHome> {
   /// 삭제**한다. 캐시(이미지/JS/CSS) 는 유지해 다음 로딩 성능 손해는 없다.
   void _onEnterIdle() {
     if (widget.items.isEmpty) return;
+    _updateController.setIdle(true);
+    if (_updateController.canAutoInstall(isIdle: true)) {
+      _updateController.installNow();
+      return;
+    }
     if (kDebugMode) {
       debugPrint(
         '[KioskHome] 대기화면 진입 → WebView 정리 '
@@ -393,6 +412,7 @@ class _KioskHomeState extends State<_KioskHome> {
   ///
   /// 이미 [_onEnterIdle] 에서 정리되었으므로 여기서는 인덱스만 홈으로 보장한다.
   void _onWake() {
+    _updateController.setIdle(false);
     if (widget.items.isEmpty) return;
     if (_selectedIndex != 0) {
       setState(() => _selectedIndex = 0);
@@ -500,6 +520,12 @@ class _KioskHomeState extends State<_KioskHome> {
                         : null,
                     onEnterIdle: widget.idle.isUsable
                         ? _idleGateController.enterIdle
+                        : null,
+                    onOpenAdmin: UpdateAdminDialog.isConfigured
+                        ? () => UpdateAdminDialog.show(
+                              context,
+                              _updateController,
+                            )
                         : null,
                   ),
                 );

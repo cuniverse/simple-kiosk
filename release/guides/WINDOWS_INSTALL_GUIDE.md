@@ -7,6 +7,60 @@ Simple Kiosk는 별도 설치 프로그램이 없는 **포터블 앱**입니다.
 전체가 프로그램이므로 `simple_kiosk.exe`만 따로 복사하거나 실행에 필요한 파일을
 삭제하면 정상적으로 실행되지 않습니다.
 
+## 자동 업데이트용 권장 설치
+
+직접 실행 방식도 계속 사용할 수 있지만 자동 업데이트와 롤백을 사용하려면 관리자
+PowerShell에서 압축을 푼 폴더를 현재 위치로 두고 다음을 실행합니다.
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.2
+```
+
+이후 `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`를 Windows 시작 프로그램이나 작업
+스케줄러에 등록합니다. 운영 데이터는 프로그램 버전 폴더와 분리됩니다.
+
+### 관리자 PIN 설정
+
+PIN은 평문으로 저장하지 않습니다. SHA-256을 시스템 환경변수로 등록하고 앱을 다시
+시작하면 툴바에 업데이트 관리 버튼이 나타납니다.
+
+```powershell
+$pin = Read-Host '관리자 PIN'
+$bytes = [Text.Encoding]::UTF8.GetBytes($pin)
+$hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-', '').ToLower()
+[Environment]::SetEnvironmentVariable('SIMPLE_KIOSK_ADMIN_PIN_HASH', $hash, 'Machine')
+```
+
+자동 업데이트 기본값은 OFF입니다. 관리자가 켜면 stable Release를 6시간마다 확인하고
+다운로드하며, 기본 설정상 02:00~05:00 사이 화면 보호기 상태에서만 설치합니다.
+
+### 기존 설정 마이그레이션
+
+기존 설치 버전의 수정되지 않은 원본 기본 설정을 확보한 경우에만 실행합니다.
+
+```powershell
+.\updater\migrate-menu-config.ps1 `
+  -LegacyMenu 'C:\기존설치\data\flutter_assets\assets\config\menu.json' `
+  -OriginalDefaults 'C:\백업\menu.original.json'
+```
+
+결과는 `config\menu.override.json`에 저장되고 원본 파일은 날짜별 `backups` 폴더에
+보관됩니다. 원본 기본 설정이 없다면 자동 추정하지 말고 수동 검토해야 합니다.
+
+```text
+C:\ProgramData\SimpleKiosk\
+  current.json
+  config\menu.override.json
+  config\update-policy.json
+  media\
+  state\update-state.json
+  logs\updater.log
+  versions\<version>\
+```
+
+외부 미디어는 오버라이드에서 `media/...` 상대 경로로 지정할 수 있습니다.
+
 ## 1. 패키지 구성
 
 - `simple_kiosk.exe`: 애플리케이션 실행 파일
@@ -77,10 +131,10 @@ $actual -eq $expected
 
 ## 5. 메뉴 및 URL 설정 변경
 
-설치된 배포본의 설정 파일은 다음 위치에 있습니다.
+자동 업데이트 설치의 운영 오버라이드는 다음 위치에 있습니다.
 
 ```text
-C:\SimpleKiosk\data\flutter_assets\assets\config\menu.json
+C:\ProgramData\SimpleKiosk\config\menu.override.json
 ```
 
 앱을 완전히 종료한 상태에서 파일을 백업한 후 UTF-8 형식으로 편집하세요. JSON 문법에
@@ -101,19 +155,15 @@ C:\SimpleKiosk\data\flutter_assets\assets\config\menu.json
 
 1. `Win + R`을 누릅니다.
 2. `shell:startup`을 입력하고 Enter를 누릅니다.
-3. 열린 시작프로그램 폴더에 `simple_kiosk.exe`의 **바로가기**를 복사합니다.
+3. `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`의 바로가기를 복사합니다.
 
 실행 파일 자체를 시작프로그램 폴더로 옮기면 안 됩니다. 반드시 설치 폴더의 실행
 파일을 가리키는 바로가기를 사용하세요.
 
 ## 7. 업데이트
 
-1. 실행 중인 Simple Kiosk를 `Alt + F4`로 종료합니다.
-2. 기존 `menu.json`과 추가한 사용자 이미지가 있다면 별도로 백업합니다.
-3. 새 배포 ZIP을 기존 폴더와 다른 새 폴더에 모두 압축 해제합니다.
-4. 필요한 설정과 사용자 이미지만 새 폴더로 옮깁니다.
-5. 새 `simple_kiosk.exe`를 실행해 동작을 확인합니다.
-6. 문제가 없으면 바탕화면 및 시작프로그램 바로가기 대상을 새 실행 파일로 변경합니다.
+관리자 화면에서 자동 업데이트를 켜거나 `지금 업데이트 확인`을 사용합니다. 설치는
+운영 설정과 미디어를 보존하며 시작 검증에 실패하면 이전 정상 버전으로 롤백합니다.
 
 DLL 또는 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동봉 파일의 버전이 다르면
 앱이 시작되지 않을 수 있습니다.
@@ -139,13 +189,12 @@ DLL 또는 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 
 - PC의 인터넷 연결과 대상 URL을 Microsoft Edge에서 확인합니다.
 - 사내 프록시, 방화벽 및 인증서 정책을 확인합니다.
-- `menu.json`의 URL과 JSON 문법을 확인합니다.
+- `menu.override.json`의 URL과 JSON 문법을 확인합니다.
 
 ### 설정 변경이 반영되지 않음
 
 - 앱을 작업 관리자에서도 완전히 종료한 후 다시 실행합니다.
-- 소스 폴더가 아니라 실제 설치 폴더의
-  `data\flutter_assets\assets\config\menu.json`을 수정했는지 확인합니다.
+- `C:\ProgramData\SimpleKiosk\config\menu.override.json`을 수정했는지 확인합니다.
 
 ### Windows 보안 경고가 표시됨
 

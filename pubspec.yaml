@@ -1,4 +1,4 @@
-name: simple_kiosk
+﻿name: simple_kiosk
 description: 성당 로비/디지털 사이니지용 Flutter 키오스크 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
 version: 1.2.2
@@ -13,6 +13,8 @@ dependencies:
   # 포토갤러리 대기화면의 게시판 HTML 요청/파싱.
   http: ^1.6.0
   html: ^0.15.6
+  crypto: ^3.0.6
+  package_info_plus: ^8.3.1
   # Android / iOS / macOS / Windows를 지원하는 InAppWebView.
   # Windows는 WebView2 Runtime 기반으로 동작한다.
   flutter_inappwebview: ^6.1.5
@@ -32,6 +34,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/config/menu.json
+    - assets/config/menu.defaults.json
     - assets/icons/
     - assets/idle/

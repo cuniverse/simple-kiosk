@@ -46,10 +46,10 @@ winget install --id Microsoft.EdgeWebView2Runtime -e
 
 ## 4. 메뉴 및 URL 설정 변경
 
-배포본의 설정 파일은 다음 위치에 있습니다.
+자동 업데이트 설치의 운영 오버라이드는 다음 위치에 있습니다.
 
 ```text
-C:\SimpleKiosk\data\flutter_assets\assets\config\menu.json
+C:\ProgramData\SimpleKiosk\config\menu.override.json
 ```
 
 변경 전 파일을 백업하고, 앱을 완전히 종료한 상태에서 UTF-8 형식으로 편집하세요. JSON 문법 오류가 있으면 메뉴가 로드되지 않을 수 있습니다. 변경 후 앱을 다시 실행해야 반영됩니다.
@@ -68,17 +68,15 @@ C:\SimpleKiosk\data\flutter_assets\assets\config\menu.json
 
 1. `Win + R`을 누릅니다.
 2. `shell:startup`을 입력하고 Enter를 누릅니다.
-3. 시작프로그램 폴더에 `simple_kiosk.exe`의 **바로가기**를 복사합니다.
+3. 시작프로그램 폴더에 `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`의 바로가기를 복사합니다.
 
 실행 파일 자체를 시작프로그램 폴더로 옮기면 안 됩니다. 반드시 설치 폴더에 있는 실행 파일을 가리키는 바로가기를 사용하세요.
 
 ## 6. 업데이트
 
-1. 실행 중인 Simple Kiosk를 종료합니다.
-2. 기존 `menu.json`과 사용자 이미지가 있다면 별도 백업합니다.
-3. 새 배포 ZIP을 새 폴더에 모두 압축 해제합니다.
-4. 필요한 설정과 이미지만 새 폴더로 옮깁니다.
-5. 새 `simple_kiosk.exe`를 실행해 확인한 뒤 바로가기 대상을 갱신합니다.
+관리자 화면에서 자동 업데이트를 켜거나 `지금 업데이트 확인`을 사용합니다. 자동
+업데이트 설치는 운영 오버라이드와 `media` 폴더를 변경하지 않으며 실패 시 이전 정상
+버전으로 롤백합니다.
 
 DLL이나 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동봉 파일의 버전이 다르면 앱이 시작되지 않을 수 있습니다.
 
@@ -99,10 +97,9 @@ DLL이나 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 
 - PC의 인터넷 연결과 대상 URL을 Edge 브라우저에서 확인합니다.
 - 사내 프록시, 방화벽, 인증서 정책을 확인합니다.
-- `menu.json`의 URL과 JSON 문법을 확인합니다.
+- `menu.override.json`의 URL과 JSON 문법을 확인합니다.
 
 ### 설정 변경이 반영되지 않음
 
 - 앱을 작업 관리자에서도 완전히 종료한 뒤 다시 실행합니다.
-- 소스 폴더가 아니라 실제 설치 폴더 안의 `data\flutter_assets\assets\config\menu.json`을 편집했는지 확인합니다.
-
+- `C:\ProgramData\SimpleKiosk\config\menu.override.json`을 편집했는지 확인합니다.

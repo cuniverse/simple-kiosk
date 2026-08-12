@@ -83,6 +83,9 @@ class NavigationMenu extends StatelessWidget {
   /// 화면 보호기로 즉시 진입하는 콜백. `null`이면 버튼을 표시하지 않는다.
   final VoidCallback? onEnterIdle;
 
+  /// PIN 보호된 업데이트 관리자 화면을 여는 콜백.
+  final VoidCallback? onOpenAdmin;
+
   const NavigationMenu({
     super.key,
     required this.items,
@@ -105,6 +108,7 @@ class NavigationMenu extends StatelessWidget {
     this.selectedButtonForegroundColor,
     this.onHide,
     this.onEnterIdle,
+    this.onOpenAdmin,
   });
 
   @override
@@ -188,7 +192,9 @@ class NavigationMenu extends StatelessWidget {
                   ),
                 ),
               ),
-              if (showKeyboardToggle || onEnterIdle != null)
+              if (showKeyboardToggle ||
+                  onEnterIdle != null ||
+                  onOpenAdmin != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
                   child: Row(
@@ -199,6 +205,14 @@ class NavigationMenu extends StatelessWidget {
                           orientation: NavigationOrientation.side,
                         ),
                       if (showKeyboardToggle && onEnterIdle != null)
+                        SizedBox(width: buttonGap),
+                      if (onOpenAdmin != null)
+                        _ToolbarVisibilityButton(
+                          icon: Icons.admin_panel_settings_outlined,
+                          tooltip: '업데이트 관리',
+                          onPressed: onOpenAdmin!,
+                        ),
+                      if (onOpenAdmin != null && onEnterIdle != null)
                         SizedBox(width: buttonGap),
                       if (onEnterIdle != null)
                         _ToolbarVisibilityButton(
@@ -304,6 +318,19 @@ class NavigationMenu extends StatelessWidget {
           ),
         );
       }
+      if (onOpenAdmin != null) {
+        children.add(SizedBox(width: buttonGap));
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: _ToolbarVisibilityButton(
+              icon: Icons.admin_panel_settings_outlined,
+              tooltip: '업데이트 관리',
+              onPressed: onOpenAdmin!,
+            ),
+          ),
+        );
+      }
       return Material(
         color: barColor ?? theme.colorScheme.surfaceContainerHighest,
         child: SafeArea(
@@ -375,6 +402,22 @@ class NavigationMenu extends StatelessWidget {
             icon: Icons.wallpaper_outlined,
             tooltip: '화면 보호기 시작',
             onPressed: onEnterIdle!,
+          ),
+        ),
+      );
+    }
+    if (onOpenAdmin != null) {
+      if (!showKeyboardToggle && onHide == null && onEnterIdle == null) {
+        children.add(const Spacer());
+      }
+      children.add(SizedBox(width: buttonGap));
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: _ToolbarVisibilityButton(
+            icon: Icons.admin_panel_settings_outlined,
+            tooltip: '업데이트 관리',
+            onPressed: onOpenAdmin!,
           ),
         ),
       );

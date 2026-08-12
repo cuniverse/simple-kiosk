@@ -1,8 +1,22 @@
 # Simple Kiosk Git 기반 자동 업데이트 계획
 
-> 상태: 설계 검토 단계 — 아직 구현되지 않음  
+> 상태: Windows stable 1차 구현 완료
 > 1차 대상: Windows 키오스크 배포본  
 > 업데이트 원본: GitHub Releases
+
+## 구현 현황
+
+- 외부 기본/오버라이드 설정 병합, 메뉴 ID 병합, 마지막 정상 설정 복구 구현
+- `%ProgramData%\SimpleKiosk` 운영 데이터 구조와 원자적 정책/상태 저장 구현
+- stable GitHub Release 확인, SemVer 비교, 이어받기 다운로드, ZIP SHA-256 검증 구현
+- 자동 업데이트 기본 OFF, 확인 주기, 설치 시간대와 화면 보호기 상태 연동 구현
+- 환경변수 SHA-256 기반 관리자 PIN 화면과 수동 확인·다운로드·설치 구현
+- 고정 Launcher, 별도 Updater, 버전 포인터 전환, 시작 신호와 자동 롤백 구현
+- CI의 태그 버전 주입, Windows ZIP manifest 생성 및 Release 첨부 구현
+- 기존 `menu.json` 차이 추출/백업 마이그레이션 도구 구현
+
+현재 구현은 공개 저장소의 Windows stable 채널을 1차 범위로 한다. 코드 서명,
+비공개 배포 저장소, Windows ACL 자동 구성과 Android/macOS 자동 설치는 후속 범위다.
 
 ## 1. 목적
 

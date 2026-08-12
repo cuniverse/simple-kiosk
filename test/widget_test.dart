@@ -6,11 +6,64 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:simple_kiosk/model/idle_config.dart';
 import 'package:simple_kiosk/model/layout_config.dart';
+import 'package:simple_kiosk/model/update_manifest.dart';
+import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
+import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 
 void main() {
+  test('menu override preserves edits and receives new default items', () {
+    final merged = MenuConfigMerger.merge(
+      {
+        'schemaVersion': 1,
+        'layout': {'toolbarAutoHideSec': 10, 'newOption': true},
+        'items': [
+          {'id': 'home', 'title': 'Home', 'url': 'https://default.example'},
+          {'id': 'new', 'title': 'New', 'url': 'https://new.example'},
+        ],
+      },
+      {
+        'schemaVersion': 1,
+        'layout': {'toolbarAutoHideSec': 20},
+        'items': {
+          'overrides': {
+            'home': {'url': 'https://custom.example'},
+          },
+          'additions': [
+            {'id': 'custom', 'title': 'Custom', 'url': 'https://added.example'},
+          ],
+          'disabledIds': <String>[],
+          'order': ['home', 'custom'],
+        },
+      },
+    ).json;
+
+    expect(merged['layout'], {
+      'toolbarAutoHideSec': 20,
+      'newOption': true,
+    });
+    final items = merged['items'] as List;
+    expect(items.map((item) => item['id']), ['home', 'custom', 'new']);
+    expect(items.first['url'], 'https://custom.example');
+  });
+
+  test('semantic versions and overnight install windows are handled', () {
+    expect(
+      SemanticVersion.parse('1.3.0').compareTo(SemanticVersion.parse('1.2.9')),
+      greaterThan(0),
+    );
+    expect(
+      SemanticVersion.parse('1.3.0-beta.1')
+          .compareTo(SemanticVersion.parse('1.3.0')),
+      lessThan(0),
+    );
+    const window = UpdateInstallWindow(start: '22:00', end: '05:00');
+    expect(window.contains(DateTime(2026, 8, 13, 2)), isTrue);
+    expect(window.contains(DateTime(2026, 8, 13, 12)), isFalse);
+  });
+
   test('슬라이드쇼 대기화면 설정을 파싱한다', () {
     final config = IdleConfig.fromJson({
       'enabled': true,

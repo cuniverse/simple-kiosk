@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -6,6 +7,8 @@ import '../model/idle_config.dart';
 import '../model/layout_config.dart';
 import '../model/menu_config.dart';
 import '../model/menu_item.dart';
+import 'menu_config_merger.dart';
+import 'runtime_paths.dart';
 
 /// `assets/config/menu.json`에서 메뉴 설정을 읽어오는 로더.
 ///
@@ -15,7 +18,7 @@ import '../model/menu_item.dart';
 /// - 배열: `[ ... ]`  (구버전, layout은 기본값)
 class MenuConfigLoader {
   /// 기본 에셋 경로.
-  static const String defaultAssetPath = 'assets/config/menu.json';
+  static const String defaultAssetPath = 'assets/config/menu.defaults.json';
 
   final String assetPath;
 
@@ -26,8 +29,45 @@ class MenuConfigLoader {
   /// 파싱 실패 시 [FormatException]을 던진다.
   Future<MenuConfig> load() async {
     final raw = await rootBundle.loadString(assetPath);
-    final decoded = json.decode(raw);
+    final defaults = json.decode(raw);
+    if (defaults is! Map<String, dynamic>) {
+      throw const FormatException('menu.defaults.json: 최상위 객체 필요');
+    }
 
+    await RuntimePaths.ensureStructure();
+    try {
+      Map<String, dynamic>? override;
+      final overridePath = RuntimePaths.menuOverride;
+      if (overridePath != null && await File(overridePath).exists()) {
+        final decoded = json.decode(await File(overridePath).readAsString());
+        if (decoded is! Map<String, dynamic>) {
+          throw const FormatException('menu.override.json: 최상위 객체 필요');
+        }
+        override = decoded;
+      }
+      final merged = MenuConfigMerger.merge(defaults, override).json;
+      _resolveExternalMediaPaths(merged);
+      final config = parse(merged);
+      final lastGoodPath = RuntimePaths.lastGoodConfig;
+      if (lastGoodPath != null) {
+        await RuntimePaths.atomicWrite(
+          lastGoodPath,
+          const JsonEncoder.withIndent('  ').convert(merged),
+        );
+      }
+      return config;
+    } catch (_) {
+      final lastGoodPath = RuntimePaths.lastGoodConfig;
+      if (lastGoodPath != null && await File(lastGoodPath).exists()) {
+        final decoded = json.decode(await File(lastGoodPath).readAsString());
+        return parse(decoded);
+      }
+      rethrow;
+    }
+  }
+
+  /// 이미 병합된 JSON을 검증하고 모델로 변환한다.
+  static MenuConfig parse(dynamic decoded) {
     final List rawItems;
     final LayoutConfig layout;
     IdleConfig idle = IdleConfig.defaults;
@@ -85,5 +125,25 @@ class MenuConfigLoader {
       throw const FormatException('menu.json: 메뉴가 비어있음');
     }
     return MenuConfig(layout: layout, idle: idle, items: items);
+  }
+
+  static dynamic _resolveExternalMediaPaths(dynamic value) {
+    if (value is Map) {
+      for (final key in value.keys.toList()) {
+        value[key] = _resolveExternalMediaPaths(value[key]);
+      }
+      return value;
+    }
+    if (value is List) {
+      for (var i = 0; i < value.length; i++) {
+        value[i] = _resolveExternalMediaPaths(value[i]);
+      }
+      return value;
+    }
+    if (value is String &&
+        (value.startsWith('media/') || value.startsWith(r'media\'))) {
+      return RuntimePaths.child(value) ?? value;
+    }
+    return value;
   }
 }

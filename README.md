@@ -13,7 +13,7 @@
 
 ## 주요 기능
 
-- JSON 설정(`assets/config/menu.json`) 기반 메뉴 구성
+- 기본 JSON(`assets/config/menu.defaults.json`) + 외부 운영 오버라이드 기반 메뉴 구성
 - 좌측 사이드 네비게이션, 좁은 화면에서는 하단 네비게이션으로 자동 전환
 - 49인치 가로형 터치 사이니지에 적합한 큰 버튼 (최소 높이 72dp)
 - 현재 선택된 메뉴 시각적 강조 표시
@@ -40,6 +40,7 @@
   - WebView input 포커스 시 자동 호출 + 네비게이션 바 토글로 수동 호출 가능
   - 모든 OS (Windows / macOS / Linux / Android / iOS) 에서 동일 디자인/동작
 - **대기화면(Idle)**: 일정 시간 무조작 시 슬라이드쇼/단일 이미지/URL/폴더/웹 포토갤러리 모드로 전환
+- **Windows 자동 업데이트**: GitHub stable Release 확인, SHA-256 검증, 화면 보호기 중 설치, 시작 실패 자동 롤백
 
 ## 실행 방법
 
@@ -104,7 +105,9 @@ flutter pub get
 
 ## 메뉴 설정 변경 방법
 
-`assets/config/menu.json` 파일을 수정합니다. 최상위 구조는 `layout`, `idle`, `items` 세 섹션을 가집니다.
+개발 기본값은 `assets/config/menu.defaults.json`에서 수정합니다. Windows 운영 설정은
+`C:\ProgramData\SimpleKiosk\config\menu.override.json`에 변경한 값만 기록합니다.
+최상위 구조는 `layout`, `idle`, `items` 세 섹션을 가집니다.
 
 ### 최소 예시
 

@@ -29,9 +29,14 @@ $distDir = Join-Path $projectDir 'dist'
 $archive = Join-Path $distDir "$packageName.zip"
 $stageRoot = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
 $stage = Join-Path $stageRoot $packageName
+$pubspecPath = Join-Path $projectDir 'pubspec.yaml'
+$originalPubspec = Get-Content -Raw -Encoding UTF8 $pubspecPath
 
 try {
     Write-Host "Package version: $PackageVersion"
+    # 태그/인수 버전을 앱 런타임 버전에도 적용한다. 빌드 후 원본은 복원한다.
+    $buildPubspec = $originalPubspec -replace '(?m)^version:\s*.+$', "version: $PackageVersion"
+    Set-Content -Encoding UTF8 -NoNewline -Path $pubspecPath -Value $buildPubspec
     flutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'flutter pub get 실패' }
 
@@ -55,6 +60,13 @@ try {
     Copy-Item 'release\guides\WINDOWS_INSTALL_GUIDE.md' (Join-Path $stage 'INSTALL_GUIDE.md')
     Copy-Item 'release\guides\MENU_CONFIGURATION_GUIDE.md' (Join-Path $stage 'MENU_CONFIG_GUIDE.md')
     Copy-Item 'RELEASE_NOTES.md' (Join-Path $stage 'RELEASE_NOTES.md')
+    $updaterDir = Join-Path $stage 'updater'
+    New-Item -ItemType Directory -Force -Path $updaterDir | Out-Null
+    Copy-Item 'scripts\update.ps1' (Join-Path $updaterDir 'update.ps1')
+    Copy-Item 'scripts\launcher.ps1' (Join-Path $updaterDir 'launcher.ps1')
+    Copy-Item 'scripts\launcher.cmd' (Join-Path $updaterDir 'launcher.cmd')
+    Copy-Item 'scripts\install-launcher.ps1' (Join-Path $updaterDir 'install-launcher.ps1')
+    Copy-Item 'scripts\migrate-menu-config.ps1' (Join-Path $updaterDir 'migrate-menu-config.ps1')
 
     $exe = Join-Path $stage 'simple_kiosk.exe'
     if (-not (Test-Path $exe)) { throw 'simple_kiosk.exe를 찾을 수 없습니다.' }
@@ -66,5 +78,6 @@ try {
     Write-Host "Created: $archive"
 }
 finally {
+    Set-Content -Encoding UTF8 -NoNewline -Path $pubspecPath -Value $originalPubspec
     if (Test-Path $stageRoot) { Remove-Item $stageRoot -Recurse -Force }
 }

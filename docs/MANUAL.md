@@ -33,7 +33,7 @@
   - 대기화면을 띄워 무인 운영
   - **세션 위생**: 앱 시작 + 대기화면 진입 시 쿠키 자동 삭제 → 이전 사용자의 로그인 상태가 다음 사용자에게 노출되지 않음
   - **자동 복구**: 페이지 에러 / 렌더러 종료 / Alt+F4 등 비정상 상황에서 WebView 자동 재생성
-- **모든 설정은 한 파일**: `assets/config/menu.json` (앱 재시작 후 반영)
+- **기본값과 운영 설정 분리**: `assets/config/menu.defaults.json` + 외부 `menu.override.json`
 
 ---
 
@@ -65,7 +65,7 @@
 
 ## 3. 설정 파일 한눈에 보기
 
-`assets/config/menu.json` 전체 구조:
+`assets/config/menu.defaults.json` 전체 구조:
 
 ```json
 {
