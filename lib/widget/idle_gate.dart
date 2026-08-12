@@ -5,6 +5,20 @@ import 'package:flutter/material.dart';
 import '../model/idle_config.dart';
 import 'idle_overlay.dart';
 
+/// 외부 버튼 등에서 대기화면 진입을 요청하기 위한 컨트롤러.
+class IdleGateController {
+  VoidCallback? _enterIdle;
+
+  /// 연결된 [IdleGate]를 즉시 대기화면으로 전환한다.
+  void enterIdle() => _enterIdle?.call();
+
+  void _attach(VoidCallback enterIdle) => _enterIdle = enterIdle;
+
+  void _detach(VoidCallback enterIdle) {
+    if (_enterIdle == enterIdle) _enterIdle = null;
+  }
+}
+
 /// 대기화면(Idle) 진입/종료를 관리하는 게이트 위젯.
 ///
 /// 동작:
@@ -15,6 +29,7 @@ import 'idle_overlay.dart';
 class IdleGate extends StatefulWidget {
   final IdleConfig config;
   final Widget child;
+  final IdleGateController? controller;
 
   /// 대기화면이 시작될 때 호출(예: WebView를 홈으로 리셋해두면 잠금화면이 풀릴 때
   /// 깔끔하게 홈에서 시작).
@@ -27,6 +42,7 @@ class IdleGate extends StatefulWidget {
     super.key,
     required this.config,
     required this.child,
+    this.controller,
     this.onEnterIdle,
     this.onWake,
   });
@@ -42,6 +58,7 @@ class _IdleGateState extends State<IdleGate> {
   @override
   void initState() {
     super.initState();
+    widget.controller?._attach(_enterIdle);
     if (widget.config.isUsable && widget.config.startOnLaunch) {
       // 콜드 스타트 직후 한 프레임 뒤에 대기화면 진입.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,6 +73,10 @@ class _IdleGateState extends State<IdleGate> {
   @override
   void didUpdateWidget(covariant IdleGate oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(_enterIdle);
+      widget.controller?._attach(_enterIdle);
+    }
     if (oldWidget.config.timeoutSec != widget.config.timeoutSec ||
         oldWidget.config.enabled != widget.config.enabled) {
       _resetTimer();
@@ -64,6 +85,7 @@ class _IdleGateState extends State<IdleGate> {
 
   @override
   void dispose() {
+    widget.controller?._detach(_enterIdle);
     _timer?.cancel();
     super.dispose();
   }

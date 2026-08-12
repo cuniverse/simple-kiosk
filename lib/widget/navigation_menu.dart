@@ -80,6 +80,9 @@ class NavigationMenu extends StatelessWidget {
   /// 하단 툴바를 접는 콜백. `null`이면 숨김 버튼을 표시하지 않는다.
   final VoidCallback? onHide;
 
+  /// 화면 보호기로 즉시 진입하는 콜백. `null`이면 버튼을 표시하지 않는다.
+  final VoidCallback? onEnterIdle;
+
   const NavigationMenu({
     super.key,
     required this.items,
@@ -101,6 +104,7 @@ class NavigationMenu extends StatelessWidget {
     this.selectedButtonColor,
     this.selectedButtonForegroundColor,
     this.onHide,
+    this.onEnterIdle,
   });
 
   @override
@@ -184,11 +188,25 @@ class NavigationMenu extends StatelessWidget {
                   ),
                 ),
               ),
-              if (showKeyboardToggle)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(8, 4, 8, 12),
-                  child: _KeyboardToggle(
-                    orientation: NavigationOrientation.side,
+              if (showKeyboardToggle || onEnterIdle != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (showKeyboardToggle)
+                        const _KeyboardToggle(
+                          orientation: NavigationOrientation.side,
+                        ),
+                      if (showKeyboardToggle && onEnterIdle != null)
+                        SizedBox(width: buttonGap),
+                      if (onEnterIdle != null)
+                        _ToolbarVisibilityButton(
+                          icon: Icons.wallpaper_outlined,
+                          tooltip: '화면 보호기 시작',
+                          onPressed: onEnterIdle!,
+                        ),
+                    ],
                   ),
                 ),
             ],
@@ -273,6 +291,19 @@ class NavigationMenu extends StatelessWidget {
           ),
         );
       }
+      if (onEnterIdle != null) {
+        children.add(SizedBox(width: buttonGap));
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: _ToolbarVisibilityButton(
+              icon: Icons.wallpaper_outlined,
+              tooltip: '화면 보호기 시작',
+              onPressed: onEnterIdle!,
+            ),
+          ),
+        );
+      }
       return Material(
         color: barColor ?? theme.colorScheme.surfaceContainerHighest,
         child: SafeArea(
@@ -330,6 +361,20 @@ class NavigationMenu extends StatelessWidget {
             icon: Icons.keyboard_arrow_down,
             tooltip: '툴바 감추기',
             onPressed: onHide!,
+          ),
+        ),
+      );
+    }
+    if (onEnterIdle != null) {
+      if (!showKeyboardToggle && onHide == null) children.add(const Spacer());
+      children.add(SizedBox(width: buttonGap));
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: _ToolbarVisibilityButton(
+            icon: Icons.wallpaper_outlined,
+            tooltip: '화면 보호기 시작',
+            onPressed: onEnterIdle!,
           ),
         ),
       );
@@ -662,7 +707,12 @@ class _ToolbarVisibilityButton extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: scheme.surface,
             foregroundColor: scheme.onSurface,
-            elevation: 1,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            overlayColor: Colors.transparent,
+            splashFactory: NoSplash.splashFactory,
+            animationDuration: Duration.zero,
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -901,7 +951,14 @@ class _NavButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: background,
           foregroundColor: foreground,
-          elevation: selected ? 4 : 1,
+          // 큰 터치 버튼의 기본 splash/highlight와 elevation 전환은 키오스크
+          // 화면에서 메뉴바 전체가 번쩍이는 것처럼 보일 수 있어 제거한다.
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          overlayColor: Colors.transparent,
+          splashFactory: NoSplash.splashFactory,
+          animationDuration: Duration.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -998,6 +1055,8 @@ class _IconImage extends StatelessWidget {
       return Image.network(
         path,
         fit: BoxFit.contain,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
         errorBuilder: (_, __, ___) => fallback,
       );
     }
@@ -1006,6 +1065,8 @@ class _IconImage extends StatelessWidget {
     return Image.asset(
       path,
       fit: BoxFit.contain,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
       errorBuilder: (_, __, ___) => fallback,
     );
   }

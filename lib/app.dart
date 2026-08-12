@@ -202,6 +202,11 @@ class _KioskHome extends StatefulWidget {
 
 class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
+  final IdleGateController _idleGateController = IdleGateController();
+
+  /// 최초 방문 메뉴가 백그라운드에서 준비되는 동안 선택 표시할 인덱스.
+  /// 실제 화면은 준비가 끝날 때까지 [_selectedIndex]를 유지한다.
+  int? _pendingIndex;
 
   /// 하단 네비게이션 바를 접었는지 여부.
   ///
@@ -216,6 +221,9 @@ class _KioskHomeState extends State<_KioskHome> {
   /// IndexedStack 의 자식 중 mount 안 된 항목은 [SizedBox.shrink] 로 두어
   /// 메모리(WebView2 인스턴스) 를 절약한다. 첫 항목은 앱 시작 시 자동 mount.
   final Set<int> _mountedIndices = {0};
+
+  /// 최초 페이지 로드가 끝나 즉시 화면 전환할 수 있는 메뉴 인덱스 집합.
+  final Set<int> _readyIndices = {};
 
   /// 더블 탭 감지를 위한 마지막 탭 시점/대상 메뉴.
   ///
@@ -255,6 +263,11 @@ class _KioskHomeState extends State<_KioskHome> {
 
   void _onSelect(int index) {
     if (index < 0 || index >= widget.items.length) return;
+
+    // 이미 백그라운드에서 준비 중인 메뉴를 다시 눌러도 빈 WebView로 먼저
+    // 전환하지 않는다.
+    if (_pendingIndex == index) return;
+
     final item = widget.items[index];
     final url = item.url;
     final now = DateTime.now();
@@ -281,24 +294,53 @@ class _KioskHomeState extends State<_KioskHome> {
     }
 
     final wasMounted = _mountedIndices.contains(index);
+    final isReady = _readyIndices.contains(index);
 
-    setState(() {
-      _selectedIndex = index;
-      _mountedIndices.add(index);
-    });
-
-    if (!wasMounted) {
-      // 첫 mount 인 항목은 KioskWebView 의 initialUrl 로 자동 로드된다.
-      // 별도 loadUrl 호출 불필요.
+    if (index == _selectedIndex) {
+      // 준비 중이던 다른 메뉴 선택만 취소한다. 현재 메뉴가 상태 유지 모드면
+      // 부모 전체를 다시 그릴 필요가 없다.
+      if (_pendingIndex != null) {
+        setState(() => _pendingIndex = null);
+      }
+      if (isDoubleTap || !keepState) {
+        _controllers[index]?.loadUrl(url);
+      }
       return;
     }
 
+    if (!isReady) {
+      // 최초 방문 메뉴는 기존 화면 뒤에서 먼저 mount/load 한다. 페이지가 준비되면
+      // [_onInitialLoadReady]가 실제 선택 인덱스를 바꿔 빈 화면 노출을 막는다.
+      setState(() {
+        _pendingIndex = index;
+        _mountedIndices.add(index);
+      });
+      return;
+    }
+
+    setState(() {
+      _pendingIndex = null;
+      _selectedIndex = index;
+    });
+
     // 이미 mount 되어 있는 항목.
-    if (isDoubleTap || !keepState) {
+    if (wasMounted && (isDoubleTap || !keepState)) {
       // 강제 재로드: keepState=false 이거나 더블 탭.
       _controllers[index]?.loadUrl(url);
     }
     // keepState=true & 단일 탭 & 이미 mount 됨 → 아무 것도 안 함(상태 유지).
+  }
+
+  void _onInitialLoadReady(int index) {
+    if (!mounted) return;
+    final shouldSelect = _pendingIndex == index;
+    setState(() {
+      _readyIndices.add(index);
+      if (shouldSelect) {
+        _selectedIndex = index;
+        _pendingIndex = null;
+      }
+    });
   }
 
   /// 대기화면 진입 시 호출.
@@ -320,8 +362,12 @@ class _KioskHomeState extends State<_KioskHome> {
     setState(() {
       _bottomToolbarHidden = true;
       _selectedIndex = 0;
+      _pendingIndex = null;
       // 홈만 남기고 모두 언mount.
       _mountedIndices
+        ..clear()
+        ..add(0);
+      _readyIndices
         ..clear()
         ..add(0);
       // 언mount 되는 항목의 컨트롤러 참조도 정리(위젯이 dispose 되면 무효).
@@ -390,6 +436,7 @@ class _KioskHomeState extends State<_KioskHome> {
         body: SafeArea(
           child: IdleGate(
             config: widget.idle,
+            controller: _idleGateController,
             // 대기화면 진입 시 메모리 정리, 깨어날 때 첫 화면으로.
             onEnterIdle: _onEnterIdle,
             onWake: _onWake,
@@ -412,40 +459,49 @@ class _KioskHomeState extends State<_KioskHome> {
                       active: i == _selectedIndex,
                       onReady: (c) {
                         _controllers[i] = c;
-                        // history 컨트롤이 새 컨트롤러를 받도록 리빌드.
-                        if (mounted) setState(() {});
+                        // 현재 화면의 history 컨트롤만 새 컨트롤러를 받도록 리빌드.
+                        // 백그라운드 준비 메뉴는 완료 콜백에서 함께 갱신된다.
+                        if (mounted && i == _selectedIndex) setState(() {});
                       },
+                      onInitialLoadReady: () => _onInitialLoadReady(i),
                     );
                   }),
                 );
 
                 final isSide = position == NavPosition.left ||
                     position == NavPosition.right;
-                final nav = NavigationMenu(
-                  items: widget.items,
-                  selectedIndex: _selectedIndex,
-                  onSelected: _onSelect,
-                  orientation: isSide
-                      ? NavigationOrientation.side
-                      : NavigationOrientation.bottom,
-                  sideWidth: widget.layout.sideWidth,
-                  barHeight: widget.layout.barHeight,
-                  buttonHeight: widget.layout.buttonHeight,
-                  buttonWidth: widget.layout.buttonWidth,
-                  buttonGap: widget.layout.buttonGap,
-                  buttonAlignment: widget.layout.buttonAlignment,
-                  showHistoryButtons: widget.layout.showHistoryButtons,
-                  historyController: _currentController,
-                  showKeyboardToggle: widget.layout.showKeyboardToggle,
-                  barColor: widget.layout.barColor,
-                  buttonColor: widget.layout.buttonColor,
-                  buttonForegroundColor: widget.layout.buttonForegroundColor,
-                  selectedButtonColor: widget.layout.selectedButtonColor,
-                  selectedButtonForegroundColor:
-                      widget.layout.selectedButtonForegroundColor,
-                  onHide: position == NavPosition.bottom
-                      ? _hideBottomToolbar
-                      : null,
+                // 네이티브 WebView가 교체/표시될 때 메뉴바까지 함께 다시 칠해져
+                // 번쩍이는 현상을 막도록 별도 합성 레이어로 격리한다.
+                final nav = RepaintBoundary(
+                  child: NavigationMenu(
+                    items: widget.items,
+                    selectedIndex: _pendingIndex ?? _selectedIndex,
+                    onSelected: _onSelect,
+                    orientation: isSide
+                        ? NavigationOrientation.side
+                        : NavigationOrientation.bottom,
+                    sideWidth: widget.layout.sideWidth,
+                    barHeight: widget.layout.barHeight,
+                    buttonHeight: widget.layout.buttonHeight,
+                    buttonWidth: widget.layout.buttonWidth,
+                    buttonGap: widget.layout.buttonGap,
+                    buttonAlignment: widget.layout.buttonAlignment,
+                    showHistoryButtons: widget.layout.showHistoryButtons,
+                    historyController: _currentController,
+                    showKeyboardToggle: widget.layout.showKeyboardToggle,
+                    barColor: widget.layout.barColor,
+                    buttonColor: widget.layout.buttonColor,
+                    buttonForegroundColor: widget.layout.buttonForegroundColor,
+                    selectedButtonColor: widget.layout.selectedButtonColor,
+                    selectedButtonForegroundColor:
+                        widget.layout.selectedButtonForegroundColor,
+                    onHide: position == NavPosition.bottom
+                        ? _hideBottomToolbar
+                        : null,
+                    onEnterIdle: widget.idle.isUsable
+                        ? _idleGateController.enterIdle
+                        : null,
+                  ),
                 );
 
                 switch (position) {

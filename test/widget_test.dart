@@ -160,6 +160,30 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(hideCount, 1);
   });
+
+  testWidgets('메뉴바 우측 화면 보호기 버튼이 즉시 진입을 요청한다', (tester) async {
+    var enterCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NavigationMenu(
+            items: const [],
+            selectedIndex: 0,
+            onSelected: (_) {},
+            orientation: NavigationOrientation.bottom,
+            onEnterIdle: () => enterCount += 1,
+          ),
+        ),
+      ),
+    );
+
+    final button = find.byTooltip('화면 보호기 시작');
+    expect(button, findsOneWidget);
+
+    await tester.tap(button);
+    await tester.pump();
+    expect(enterCount, 1);
+  });
 }
 
 class _LifecycleProbe extends StatefulWidget {

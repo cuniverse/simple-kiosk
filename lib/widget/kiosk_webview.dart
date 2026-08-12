@@ -24,6 +24,13 @@ class KioskWebView extends StatefulWidget {
   /// 컨트롤러를 외부에 노출하기 위한 콜백.
   final ValueChanged<KioskWebViewController>? onReady;
 
+  /// 최초 페이지가 표시 가능한 상태가 되었을 때 한 번 호출되는 콜백.
+  ///
+  /// 메뉴를 처음 방문할 때 기존 화면을 유지한 채 WebView를 미리 로드한 뒤
+  /// 자연스럽게 전환하는 데 사용한다. 로드 실패나 타임아웃도 준비 완료로
+  /// 간주해 호출자가 에러 화면을 표시할 수 있게 한다.
+  final VoidCallback? onInitialLoadReady;
+
   /// 현재 선택되어 가상 키보드 입력을 받아야 하는 WebView 여부.
   final bool active;
 
@@ -31,6 +38,7 @@ class KioskWebView extends StatefulWidget {
     super.key,
     required this.initialUrl,
     this.onReady,
+    this.onInitialLoadReady,
     this.active = true,
   });
 
@@ -212,6 +220,7 @@ class _KioskWebViewState extends State<KioskWebView> {
   bool _isLoading = true;
   String? _errorMessage;
   String? _currentUrl;
+  bool _initialLoadReadyReported = false;
 
   /// 마지막으로 정상 로드된 URL. 재생성 후 복귀 대상.
   String? _lastGoodUrl;
@@ -412,9 +421,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     _loadingFallback?.cancel();
     _loadingFallback = Timer(_loadingTimeout, () {
       if (!mounted) return;
-      if (_isLoading) {
-        setState(() => _isLoading = false);
-      }
+      _finishLoading();
     });
   }
 
@@ -423,6 +430,13 @@ class _KioskWebViewState extends State<KioskWebView> {
     if (_isLoading) {
       setState(() => _isLoading = false);
     }
+    _reportInitialLoadReady();
+  }
+
+  void _reportInitialLoadReady() {
+    if (_initialLoadReadyReported) return;
+    _initialLoadReadyReported = true;
+    widget.onInitialLoadReady?.call();
   }
 
   /// watchdog 시작. 이미 실행 중이면 재시작한다.
@@ -712,6 +726,7 @@ class _KioskWebViewState extends State<KioskWebView> {
               // 초기 URL을 히스토리 첫 항목으로 등록(메뉴 첫 항목과 동일).
               kc._resetHistory(_lastGoodUrl ?? widget.initialUrl);
               widget.onReady?.call(kc);
+              _scheduleLoadingFallback();
               // 페이지에서 보낼 heartbeat 수신용 핸들러 등록.
               controller.addJavaScriptHandler(
                 handlerName: 'kioskHeartbeat',
@@ -816,6 +831,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                   _isLoading = false;
                   _errorMessage = '페이지를 불러올 수 없습니다.\n(${error.description})';
                 });
+                _reportInitialLoadReady();
                 _scheduleAutoRetry();
               }
             },
@@ -828,6 +844,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                   _errorMessage = '페이지 오류 (HTTP ${errorResponse.statusCode}): '
                       '${errorResponse.reasonPhrase ?? ''}';
                 });
+                _reportInitialLoadReady();
                 _scheduleAutoRetry();
               }
             },

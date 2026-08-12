@@ -11,7 +11,7 @@
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
     "toolbarInitiallyHidden": true,
-    "toolbarAutoHideSec": 10,
+    "toolbarAutoHideSec": 20,
     "barColor": "#1f2937",
     "buttonColor": "#374151",
     "buttonForegroundColor": "#ffffff",
@@ -21,7 +21,7 @@
   },
   "idle": {
     "enabled": true,
-    "timeoutSec": 60,
+    "timeoutSec": 300,
     "startOnLaunch": true,
     "mode": "slideshow",
     "image": "assets/idle/welcome.jpg",
@@ -49,9 +49,10 @@
   "items": [
     {
       "id": "home",
-      "title": "홈",
-      "url": "https://www.google.com/",
-      "icon": "icon:home"
+      "title": "WYD 서울 2027",
+      "url": "https://wydseoul.org/",
+      "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+      "showTitle": false
     },
     {
       "id": "notice",
@@ -67,7 +68,7 @@
     },
     {
       "id": "ycatholic",
-      "title": "여의도성당 홈페이지",
+      "title": "홈페이지",
       "url": "http://ycatholic.or.kr/",
       "icon": "icon:church",
       "keepStateOnTap": true
