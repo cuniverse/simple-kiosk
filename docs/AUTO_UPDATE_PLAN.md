@@ -1,6 +1,6 @@
 # Simple Kiosk Git 기반 자동 업데이트 계획
 
-> 상태: Windows stable 운영 구현 완료, 배포 호환성 검증 보강 중 (v1.2.4)
+> 상태: Windows stable 운영 구현 완료, 현장 단축키 지원 (v1.2.5)
 > 1차 대상: Windows 키오스크 배포본  
 > 업데이트 원본: GitHub Releases
 
@@ -20,6 +20,7 @@
 - GitHub Actions PFX 비밀값 기반 선택적 Windows 코드 서명 구현
 - manifest/설정 스키마와 최소 Updater 버전 호환성 검사 구현
 - 서명 배포본의 Authenticode 신뢰 체인 및 인증서 지문 설치 전 재검증 구현
+- `F12` 버전 정보 및 `F9` 수동 업데이트·재시작 단축키 구현
 
 현재 구현은 공개 저장소의 Windows stable 채널을 대상으로 한다. 비공개 배포 저장소는
 장기 토큰을 단말기에 저장하지 않는 인증 중계 설계가 선행되어야 하며, Android/macOS

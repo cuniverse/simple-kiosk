@@ -21,13 +21,16 @@ class UpdateController extends ChangeNotifier {
   Timer? _timer;
   Timer? _retryTimer;
   int _consecutiveFailures = 0;
+  Future<void>? _initializing;
 
   UpdateController({UpdateService? service})
       : _service = service ?? UpdateService();
 
   bool get supported => Platform.isWindows;
 
-  Future<void> initialize() async {
+  Future<void> initialize() => _initializing ??= _initialize();
+
+  Future<void> _initialize() async {
     currentVersion = (await PackageInfo.fromPlatform()).version;
     policy = await UpdatePolicyStore.load();
     status = policy.enabled ? '자동 업데이트 사용' : '자동 업데이트 꺼짐';
@@ -65,8 +68,11 @@ class UpdateController extends ChangeNotifier {
     );
   }
 
-  Future<void> check({bool automatic = false}) async {
-    if (!supported || busy) return;
+  Future<AvailableUpdate?> check({
+    bool automatic = false,
+    bool rethrowErrors = false,
+  }) async {
+    if (!supported || busy) return available;
     busy = true;
     status = '업데이트 확인 중';
     notifyListeners();
@@ -86,8 +92,9 @@ class UpdateController extends ChangeNotifier {
       if (automatic && policy.enabled && available != null) {
         busy = false;
         await download();
-        return;
+        return available;
       }
+      return available;
     } catch (error) {
       _consecutiveFailures++;
       status = '확인 실패: $error';
@@ -100,15 +107,20 @@ class UpdateController extends ChangeNotifier {
           () => check(automatic: true),
         );
       }
+      if (rethrowErrors) rethrow;
+      return null;
     } finally {
       busy = false;
       notifyListeners();
     }
   }
 
-  Future<void> download() async {
+  Future<File?> download({
+    bool allowAutoInstall = true,
+    bool rethrowErrors = false,
+  }) async {
     final update = available;
-    if (update == null || busy) return;
+    if (update == null || busy) return downloadedPackage;
     busy = true;
     status = '다운로드 중';
     notifyListeners();
@@ -120,13 +132,16 @@ class UpdateController extends ChangeNotifier {
         'version': update.manifest.version,
         'packagePath': downloadedPackage!.path,
       });
-      if (canAutoInstall(isIdle: _isIdle)) {
+      if (allowAutoInstall && canAutoInstall(isIdle: _isIdle)) {
         busy = false;
         await installNow();
-        return;
+        return downloadedPackage;
       }
+      return downloadedPackage;
     } catch (error) {
       status = '다운로드 실패: $error';
+      if (rethrowErrors) rethrow;
+      return null;
     } finally {
       busy = false;
       notifyListeners();
@@ -153,15 +168,22 @@ class UpdateController extends ChangeNotifier {
     busy = true;
     status = '설치 요청 중';
     notifyListeners();
-    await _service.requestInstall(
-      package,
-      update.manifest,
-      retainVersions: policy.retainVersions,
-      logRetentionDays: policy.logRetentionDays,
-    );
-    status = '앱 종료 후 설치 예정';
-    notifyListeners();
-    exit(0);
+    try {
+      await _service.requestInstall(
+        package,
+        update.manifest,
+        retainVersions: policy.retainVersions,
+        logRetentionDays: policy.logRetentionDays,
+      );
+      status = '앱 종료 후 설치 예정';
+      notifyListeners();
+      exit(0);
+    } catch (error) {
+      busy = false;
+      status = '설치 요청 실패: $error';
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<String> exportDiagnostics() async {

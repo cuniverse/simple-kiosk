@@ -14,7 +14,7 @@ PowerShell에서 압축을 푼 폴더를 현재 위치로 두고 다음을 실�
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.4
+.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.5
 ```
 
 이후 `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`를 Windows 시작 프로그램이나 작업
@@ -46,7 +46,7 @@ $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Comput
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   C:\ProgramData\SimpleKiosk\updater\recover.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  C:\ProgramData\SimpleKiosk\updater\recover.ps1 -Version 1.2.4
+  C:\ProgramData\SimpleKiosk\updater\recover.ps1 -Version 1.2.5
 ```
 
 관리자 화면의 `진단 자료 내보내기` 또는 아래 명령은 설정 정책, 상태, 로그를 ZIP으로

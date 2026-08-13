@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'model/idle_config.dart';
 import 'model/layout_config.dart';
@@ -17,6 +19,8 @@ import 'service/keyboard_controller.dart';
 import 'service/system_keyboard.dart';
 import 'service/app_health_signal.dart';
 import 'service/update_controller.dart';
+import 'service/update_service.dart';
+import 'widget/kiosk_shortcuts.dart';
 import 'widget/update_admin_dialog.dart';
 
 /// 앱 진입 위젯.
@@ -209,6 +213,8 @@ class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
   final IdleGateController _idleGateController = IdleGateController();
   late final UpdateController _updateController;
+  bool _versionDialogOpen = false;
+  bool _manualUpdateRunning = false;
 
   /// 최초 방문 메뉴가 백그라운드에서 준비되는 동안 선택 표시할 인덱스.
   /// 실제 화면은 준비가 끝날 때까지 [_selectedIndex]를 유지한다.
@@ -435,6 +441,183 @@ class _KioskHomeState extends State<_KioskHome> {
     return false;
   }
 
+  Future<void> _showVersionInfo() async {
+    if (_versionDialogOpen || _manualUpdateRunning || !mounted) return;
+    _versionDialogOpen = true;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.info_outline),
+              SizedBox(width: 10),
+              Text('프로그램 버전 정보'),
+            ],
+          ),
+          content: SelectionArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Simple Kiosk v${info.version}'),
+                if (info.buildNumber.isNotEmpty)
+                  Text('빌드 번호: ${info.buildNumber}'),
+                const Text(
+                  'Updater 버전: v${UpdateService.updaterVersion}',
+                ),
+                const Text(
+                  '실행 모드: ${kReleaseMode ? 'Release' : 'Debug'}',
+                ),
+                Text('운영체제: ${Platform.operatingSystem}'),
+              ],
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _versionDialogOpen = false;
+    }
+  }
+
+  Future<T> _runUpdateProgress<T>(
+    String title,
+    Future<T> Function() operation,
+  ) async {
+    final dialogReady = Completer<void>();
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          if (!dialogReady.isCompleted) dialogReady.complete();
+          return PopScope(
+            canPop: false,
+            child: AnimatedBuilder(
+              animation: _updateController,
+              builder: (context, _) => AlertDialog(
+                title: Text(title),
+                content: Row(
+                  children: [
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(child: Text(_updateController.status)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    await dialogReady.future;
+    try {
+      return await operation();
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    }
+  }
+
+  Future<void> _showMessage(String title, String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _checkUpdateFromShortcut() async {
+    if (_manualUpdateRunning || _versionDialogOpen || !mounted) return;
+    _manualUpdateRunning = true;
+    try {
+      await _updateController.initialize();
+      if (!_updateController.supported) {
+        await _showMessage('업데이트', '자동 업데이트는 Windows에서 지원됩니다.');
+        return;
+      }
+      if (_updateController.busy) {
+        await _showMessage('업데이트', '다른 업데이트 작업이 진행 중입니다.');
+        return;
+      }
+
+      final update = await _runUpdateProgress(
+        '업데이트 확인',
+        () => _updateController.check(rethrowErrors: true),
+      );
+      if (!mounted) return;
+      if (update == null) {
+        await _showMessage(
+          '업데이트',
+          '현재 v${_updateController.currentVersion}가 최신 버전입니다.',
+        );
+        return;
+      }
+
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('새 업데이트 발견'),
+          content: Text(
+            '현재 버전: v${_updateController.currentVersion}\n'
+            '새 버전: v${update.manifest.version}\n\n'
+            '업데이트를 설치하면 프로그램이 자동으로 재시작됩니다.\n'
+            '지금 업데이트하시겠습니까?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('나중에'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('업데이트'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true || !mounted) return;
+
+      final package = await _runUpdateProgress(
+        '업데이트 다운로드',
+        () => _updateController.download(
+          allowAutoInstall: false,
+          rethrowErrors: true,
+        ),
+      );
+      if (package == null || !mounted) return;
+
+      await _runUpdateProgress(
+        '업데이트 설치 및 재시작',
+        _updateController.installNow,
+      );
+    } catch (error) {
+      if (mounted) await _showMessage('업데이트 실패', '$error');
+    } finally {
+      _manualUpdateRunning = false;
+    }
+  }
+
   /// 현재 화면 크기와 설정을 토대로 실제 적용될 위치를 계산한다.
   NavPosition _effectivePosition(double width) {
     final p = widget.layout.navPosition;
@@ -446,7 +629,7 @@ class _KioskHomeState extends State<_KioskHome> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
+    final content = PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
@@ -477,6 +660,8 @@ class _KioskHomeState extends State<_KioskHome> {
                       key: ValueKey('kiosk-webview-${item.id}'),
                       initialUrl: item.url,
                       active: i == _selectedIndex,
+                      onShowVersion: _showVersionInfo,
+                      onCheckUpdate: _checkUpdateFromShortcut,
                       onReady: (c) {
                         _controllers[i] = c;
                         // 현재 화면의 history 컨트롤만 새 컨트롤러를 받도록 리빌드.
@@ -580,6 +765,11 @@ class _KioskHomeState extends State<_KioskHome> {
           ),
         ),
       ),
+    );
+    return KioskShortcuts(
+      onShowVersion: _showVersionInfo,
+      onCheckUpdate: _checkUpdateFromShortcut,
+      child: content,
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -12,6 +13,7 @@ import 'package:simple_kiosk/service/gallery_feed_loader.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
+import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 
 void main() {
@@ -623,6 +625,29 @@ void main() {
     await tester.tap(button);
     await tester.pump();
     expect(enterCount, 1);
+  });
+
+  testWidgets('F12와 F9 기능키를 전역 단축키로 처리한다', (tester) async {
+    var versionCount = 0;
+    var updateCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: KioskShortcuts(
+          onShowVersion: () => versionCount += 1,
+          onCheckUpdate: () => updateCount += 1,
+          child: const Scaffold(body: Text('Kiosk')),
+        ),
+      ),
+    );
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.f12);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.f12);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.f9);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.f9);
+    await tester.pump();
+
+    expect(versionCount, 1);
+    expect(updateCount, 1);
   });
 }
 

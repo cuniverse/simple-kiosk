@@ -31,6 +31,10 @@ class KioskWebView extends StatefulWidget {
   /// 간주해 호출자가 에러 화면을 표시할 수 있게 한다.
   final VoidCallback? onInitialLoadReady;
 
+  /// 네이티브 WebView가 키보드 포커스를 가진 경우의 기능키 전달 콜백.
+  final VoidCallback? onShowVersion;
+  final VoidCallback? onCheckUpdate;
+
   /// 현재 선택되어 가상 키보드 입력을 받아야 하는 WebView 여부.
   final bool active;
 
@@ -39,6 +43,8 @@ class KioskWebView extends StatefulWidget {
     required this.initialUrl,
     this.onReady,
     this.onInitialLoadReady,
+    this.onShowVersion,
+    this.onCheckUpdate,
     this.active = true,
   });
 
@@ -553,6 +559,38 @@ class _KioskWebViewState extends State<KioskWebView> {
     }
   }
 
+  /// Windows WebView2가 직접 키보드 포커스를 가진 동안에도 F9/F12가 앱에
+  /// 전달되도록 페이지의 캡처 단계에서 기능키를 가로챈다.
+  Future<void> _injectFunctionKeyScript() async {
+    final controller = _webController;
+    if (controller == null) return;
+    try {
+      await controller.evaluateJavascript(source: r'''
+        (function () {
+          if (window.__kioskFunctionKeyHookStarted) return;
+          window.__kioskFunctionKeyHookStarted = true;
+          window.addEventListener('keydown', function (event) {
+            if (event.repeat) return;
+            var handler = null;
+            if (event.key === 'F12' || event.keyCode === 123) {
+              handler = 'kioskShowVersion';
+            } else if (event.key === 'F9' || event.keyCode === 120) {
+              handler = 'kioskCheckUpdate';
+            }
+            if (!handler) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            try {
+              window.flutter_inappwebview.callHandler(handler);
+            } catch (_) { /* 무시 */ }
+          }, true);
+        })();
+      ''');
+    } catch (_) {
+      // 페이지 전환 중 주입 실패는 다음 onLoadStop에서 다시 시도한다.
+    }
+  }
+
   /// 사용자가 메뉴를 눌렀을 때 응답 감시 타이머를 시작한다.
   /// 일정 시간 내 [onLoadStart]/[onLoadStop] 이 도달하지 않으면 WebView 를
   /// 재생성한다.
@@ -751,6 +789,20 @@ class _KioskWebViewState extends State<KioskWebView> {
                   return null;
                 },
               );
+              controller.addJavaScriptHandler(
+                handlerName: 'kioskShowVersion',
+                callback: (_) {
+                  if (widget.active) widget.onShowVersion?.call();
+                  return null;
+                },
+              );
+              controller.addJavaScriptHandler(
+                handlerName: 'kioskCheckUpdate',
+                callback: (_) {
+                  if (widget.active) widget.onCheckUpdate?.call();
+                  return null;
+                },
+              );
               // 화면에 보이는 WebView만 watchdog을 가동한다. IndexedStack 뒤의
               // WebView는 플랫폼이 JS 타이머를 throttle할 수 있다.
               if (widget.active) _startHealthCheck();
@@ -783,6 +835,7 @@ class _KioskWebViewState extends State<KioskWebView> {
               _injectHeartbeatScript();
               // OS 가상 키보드 트리거용 input 포커스 리스너도 함께 주입.
               _injectKeyboardFocusScript();
+              _injectFunctionKeyScript();
               // 일부 사이트는 onLoadStart 없이 리다이렉트만 되는 경우도 있으므로 공식
               // 종료 시점의 url 도 히스토리에 안전하게 포함시킨다(중복은 자체 필터됨).
               _kioskController?._noteNavigationStart(url?.toString());
