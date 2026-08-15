@@ -7,6 +7,7 @@
 namespace {
 constexpr UINT kShowVersionMessage = WM_APP + 1;
 constexpr UINT kCheckUpdateMessage = WM_APP + 2;
+constexpr UINT kShowManualMessage = WM_APP + 3;
 HWND g_kiosk_window = nullptr;
 
 LRESULT CALLBACK KioskKeyboardHook(int code, WPARAM wparam, LPARAM lparam) {
@@ -16,6 +17,10 @@ LRESULT CALLBACK KioskKeyboardHook(int code, WPARAM wparam, LPARAM lparam) {
     const auto* event = reinterpret_cast<KBDLLHOOKSTRUCT*>(lparam);
     const HWND foreground = ::GetAncestor(::GetForegroundWindow(), GA_ROOT);
     if (foreground == g_kiosk_window) {
+      if (event->vkCode == VK_F1) {
+        ::PostMessage(g_kiosk_window, kShowManualMessage, 0, 0);
+        return 1;
+      }
       if (event->vkCode == VK_F12) {
         ::PostMessage(g_kiosk_window, kShowVersionMessage, 0, 0);
         return 1;
@@ -103,6 +108,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case kShowManualMessage:
+      if (shortcut_channel_) {
+        shortcut_channel_->InvokeMethod(
+            "showManual",
+            std::make_unique<flutter::EncodableValue>());
+      }
+      return 0;
     case kShowVersionMessage:
       if (shortcut_channel_) {
         shortcut_channel_->InvokeMethod(

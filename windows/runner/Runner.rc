@@ -89,13 +89,14 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "simple_kiosk" "\0"
+            VALUE "CompanyName", "cuniverse" "\0"
+            VALUE "FileDescription", "Simple Kiosk" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "simple_kiosk" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 cuniverse <cuniverse@catholic.or.kr>. All rights reserved." "\0"
+            VALUE "Comments", "https://github.com/cuniverse/simple-kiosk" "\0"
             VALUE "OriginalFilename", "simple_kiosk.exe" "\0"
-            VALUE "ProductName", "simple_kiosk" "\0"
+            VALUE "ProductName", "Simple Kiosk" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

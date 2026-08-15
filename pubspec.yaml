@@ -1,7 +1,7 @@
 ﻿name: simple_kiosk
 description: 성당 로비/디지털 사이니지용 Flutter 키오스크 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.8
+version: 1.2.9
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -25,11 +25,14 @@ dependencies:
   video_player_win: ^3.1.1
   # 데스크톱(Windows/macOS/Linux) 키오스크 전체화면 제어.
   window_manager: ^0.4.3
+  # 데스크톱 시스템 트레이 아이콘과 메뉴.
+  tray_manager: ^0.5.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  markdown: ^7.3.1
 
 flutter:
   uses-material-design: true

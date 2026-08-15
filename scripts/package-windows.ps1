@@ -84,6 +84,9 @@ try {
     Copy-Item (Join-Path $releaseDir 'data') $stage -Recurse -Force
     Copy-Item 'release\guides\WINDOWS_INSTALL_GUIDE.md' (Join-Path $stage 'INSTALL_GUIDE.md')
     Copy-Item 'release\guides\MENU_CONFIGURATION_GUIDE.md' (Join-Path $stage 'MENU_CONFIG_GUIDE.md')
+    dart run tool\build_user_manual.dart `
+        docs\MANUAL.md (Join-Path $stage 'USER_MANUAL.html')
+    if ($LASTEXITCODE -ne 0) { throw '사용자 매뉴얼 HTML 생성 실패' }
     Copy-Item 'RELEASE_NOTES.md' (Join-Path $stage 'RELEASE_NOTES.md')
     $updaterDir = Join-Path $stage 'updater'
     New-Item -ItemType Directory -Force -Path $updaterDir | Out-Null

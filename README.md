@@ -1,5 +1,9 @@
 # Simple Kiosk
 
+제작자: cuniverse (`cuniverse@catholic.or.kr`)
+
+GitHub: https://github.com/cuniverse/simple-kiosk
+
 성당 로비 또는 디지털 사이니지용 Flutter 키오스크 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 

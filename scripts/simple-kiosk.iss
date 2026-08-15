@@ -15,7 +15,11 @@
 AppId={{6C95C054-1458-4B4C-9458-1420CA590CA6}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=Simple Kiosk
+AppPublisher=cuniverse
+AppPublisherURL=https://github.com/cuniverse/simple-kiosk
+AppSupportURL=https://github.com/cuniverse/simple-kiosk/issues
+AppUpdatesURL=https://github.com/cuniverse/simple-kiosk/releases
+AppContact=cuniverse@catholic.or.kr
 DefaultDirName={code:GetInstallDir}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -34,6 +38,9 @@ UsePreviousAppDir=no
 UninstallDisplayIcon={app}\versions\{#AppVersion}\{#AppExeName}
 VersionInfoVersion={#AppVersion}
 VersionInfoProductName={#AppName}
+VersionInfoCompany=cuniverse
+VersionInfoDescription=Simple Kiosk
+VersionInfoCopyright=Copyright (C) 2026 cuniverse <cuniverse@catholic.or.kr>
 
 [Dirs]
 Name: "{app}\config"
@@ -48,19 +55,23 @@ Name: "{app}\versions"
 Source: "{#SourceDir}\*"; DestDir: "{app}\versions\{#AppVersion}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceDir}\updater\launcher.ps1"; DestDir: "{app}"; DestName: "launcher.ps1"; Flags: ignoreversion
 Source: "{#SourceDir}\updater\launcher.cmd"; DestDir: "{app}"; DestName: "SimpleKiosk.cmd"; Flags: ignoreversion
+Source: "{#SourceDir}\USER_MANUAL.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\updater\*"; DestDir: "{app}\updater"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
 Type: files; Name: "{userstartup}\Simple Kiosk.lnk"
 Type: files; Name: "{userstartup}\SimpleKiosk.lnk"
+Type: files; Name: "{app}\USER_MANUAL.md"
 
 [Icons]
 Name: "{group}\Simple Kiosk"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"
+Name: "{group}\Simple Kiosk 사용자 매뉴얼"; Filename: "{app}\USER_MANUAL.html"
 Name: "{group}\Simple Kiosk 제거"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Simple Kiosk"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: desktopicon
-Name: "{userstartup}\Simple Kiosk"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"
+Name: "{userstartup}\Simple Kiosk"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: startup
 
 [Tasks]
+Name: "startup"; Description: "Windows 로그인 시 Simple Kiosk 자동 실행"; GroupDescription: "자동 실행:"
 Name: "desktopicon"; Description: "바탕 화면 바로가기 만들기"; GroupDescription: "추가 바로가기:"; Flags: unchecked
 
 [Run]

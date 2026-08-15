@@ -4,12 +4,14 @@ import 'package:flutter/services.dart';
 /// WebView가 포커스를 가진 상태에서도 키오스크 전역 기능키를 처리한다.
 class KioskShortcuts extends StatefulWidget {
   final Widget child;
+  final VoidCallback onShowManual;
   final VoidCallback onShowVersion;
   final VoidCallback onCheckUpdate;
 
   const KioskShortcuts({
     super.key,
     required this.child,
+    required this.onShowManual,
     required this.onShowVersion,
     required this.onCheckUpdate,
   });
@@ -38,6 +40,9 @@ class _KioskShortcutsState extends State<KioskShortcuts> {
   Future<void> _handleNativeShortcut(MethodCall call) async {
     if (!mounted) return;
     switch (call.method) {
+      case 'showManual':
+        widget.onShowManual();
+        return;
       case 'showVersion':
         widget.onShowVersion();
         return;
@@ -49,6 +54,10 @@ class _KioskShortcutsState extends State<KioskShortcuts> {
 
   bool _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return false;
+    if (event.logicalKey == LogicalKeyboardKey.f1) {
+      widget.onShowManual();
+      return true;
+    }
     if (event.logicalKey == LogicalKeyboardKey.f12) {
       widget.onShowVersion();
       return true;

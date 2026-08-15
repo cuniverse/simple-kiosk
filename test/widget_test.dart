@@ -655,12 +655,37 @@ void main() {
     expect(enterCount, 1);
   });
 
-  testWidgets('F12와 F9 기능키를 전역 단축키로 처리한다', (tester) async {
+  testWidgets('메뉴바의 키오스크 감추기 버튼을 표시하고 실행한다', (tester) async {
+    var hideCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NavigationMenu(
+            items: const [],
+            selectedIndex: 0,
+            onSelected: (_) {},
+            orientation: NavigationOrientation.bottom,
+            onHideKiosk: () => hideCount += 1,
+          ),
+        ),
+      ),
+    );
+
+    final button = find.byTooltip('키오스크 감추기');
+    expect(button, findsOneWidget);
+    await tester.tap(button);
+    await tester.pump();
+    expect(hideCount, 1);
+  });
+
+  testWidgets('F1, F12, F9 기능키를 전역 단축키로 처리한다', (tester) async {
+    var manualCount = 0;
     var versionCount = 0;
     var updateCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: KioskShortcuts(
+          onShowManual: () => manualCount += 1,
           onShowVersion: () => versionCount += 1,
           onCheckUpdate: () => updateCount += 1,
           child: const Scaffold(body: Text('Kiosk')),
@@ -668,12 +693,15 @@ void main() {
       ),
     );
 
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.f1);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.f1);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.f12);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.f12);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.f9);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.f9);
     await tester.pump();
 
+    expect(manualCount, 1);
     expect(versionCount, 1);
     expect(updateCount, 1);
   });

@@ -43,6 +43,22 @@ foreach ($version in $candidates) {
                 }
                 Write-Log "Updater tools synchronized from version $version"
             }
+            foreach ($documentName in @(
+                'USER_MANUAL.html',
+                'INSTALL_GUIDE.md',
+                'MENU_CONFIG_GUIDE.md',
+                'RELEASE_NOTES.md'
+            )) {
+                $sourceDocument = Join-Path $DataRoot "versions\$version\$documentName"
+                if (Test-Path -LiteralPath $sourceDocument) {
+                    Copy-Item -LiteralPath $sourceDocument `
+                        -Destination (Join-Path $DataRoot $documentName) -Force
+                }
+            }
+            if (Test-Path -LiteralPath (Join-Path $DataRoot 'USER_MANUAL.html')) {
+                Remove-Item -LiteralPath (Join-Path $DataRoot 'USER_MANUAL.md') `
+                    -Force -ErrorAction SilentlyContinue
+            }
         }
         Write-Log "Starting version $version"
         $env:SIMPLE_KIOSK_DATA_DIR = $DataRoot

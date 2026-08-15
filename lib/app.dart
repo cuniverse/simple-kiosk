@@ -11,11 +11,13 @@ import 'model/layout_config.dart';
 import 'model/menu_config.dart';
 import 'model/menu_item.dart';
 import 'service/menu_config_loader.dart';
+import 'service/runtime_paths.dart';
 import 'widget/idle_gate.dart';
 import 'widget/kiosk_webview.dart';
 import 'widget/navigation_menu.dart';
 import 'widget/virtual_keyboard.dart';
 import 'service/keyboard_controller.dart';
+import 'service/kiosk_tray_controller.dart';
 import 'service/system_keyboard.dart';
 import 'service/app_health_signal.dart';
 import 'service/update_controller.dart';
@@ -213,7 +215,9 @@ class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
   final IdleGateController _idleGateController = IdleGateController();
   late final UpdateController _updateController;
+  late final KioskTrayController _trayController;
   bool _versionDialogOpen = false;
+  bool _manualDialogOpen = false;
   bool _manualUpdateRunning = false;
 
   /// 최초 방문 메뉴가 백그라운드에서 준비되는 동안 선택 표시할 인덱스.
@@ -251,12 +255,26 @@ class _KioskHomeState extends State<_KioskHome> {
     _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
     _updateController = UpdateController();
     _updateController.initialize();
+    _trayController = KioskTrayController(
+      onOpenSettings: _showAdminSettings,
+      onOpenManual: _showUserManual,
+    );
+    unawaited(_initializeTray());
   }
 
   @override
   void dispose() {
+    unawaited(_trayController.dispose());
     _updateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initializeTray() async {
+    try {
+      await _trayController.initialize();
+    } catch (error) {
+      if (kDebugMode) debugPrint('[tray] 초기화 실패: $error');
+    }
   }
 
   @override
@@ -472,6 +490,13 @@ class _KioskHomeState extends State<_KioskHome> {
                   '실행 모드: ${kReleaseMode ? 'Release' : 'Debug'}',
                 ),
                 Text('운영체제: ${Platform.operatingSystem}'),
+                const SizedBox(height: 12),
+                const Divider(),
+                const Text('제작자: cuniverse'),
+                const Text('이메일: cuniverse@catholic.or.kr'),
+                const Text(
+                  'GitHub: https://github.com/cuniverse/simple-kiosk',
+                ),
               ],
             ),
           ),
@@ -486,6 +511,122 @@ class _KioskHomeState extends State<_KioskHome> {
     } finally {
       _versionDialogOpen = false;
     }
+  }
+
+  Future<void> _showUserManual() async {
+    if (_manualDialogOpen || _manualUpdateRunning || !mounted) return;
+    _manualDialogOpen = true;
+    try {
+      final path = RuntimePaths.child('USER_MANUAL.html');
+      if (path == null || !await File(path).exists()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('사용자 매뉴얼 파일을 찾을 수 없습니다.')),
+          );
+        }
+        return;
+      }
+      final html = await File(path).readAsString();
+      if (!mounted) return;
+      final baseUrl = WebUri.uri(File(path).uri);
+      InAppWebViewController? manualController;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          insetPadding: const EdgeInsets.all(24),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: MediaQuery.sizeOf(dialogContext).width - 48,
+            height: MediaQuery.sizeOf(dialogContext).height - 48,
+            child: Column(
+              children: [
+                Material(
+                  color: Theme.of(dialogContext).colorScheme.surfaceContainer,
+                  child: SizedBox(
+                    height: 56,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: '뒤로',
+                          onPressed: () async {
+                            final controller = manualController;
+                            if (controller != null &&
+                                await controller.canGoBack()) {
+                              await controller.goBack();
+                            }
+                          },
+                          icon: const Icon(Icons.arrow_back),
+                        ),
+                        IconButton(
+                          tooltip: '매뉴얼 처음으로',
+                          onPressed: () => manualController?.loadData(
+                            data: html,
+                            baseUrl: baseUrl,
+                          ),
+                          icon: const Icon(Icons.home_outlined),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.menu_book_outlined),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Simple Kiosk 사용자 매뉴얼',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '닫기',
+                          onPressed: () => Navigator.pop(dialogContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: InAppWebView(
+                    initialData: InAppWebViewInitialData(
+                      data: html,
+                      baseUrl: baseUrl,
+                    ),
+                    initialSettings: InAppWebViewSettings(
+                      javaScriptEnabled: false,
+                      useShouldOverrideUrlLoading: true,
+                      supportZoom: true,
+                    ),
+                    onWebViewCreated: (controller) {
+                      manualController = controller;
+                    },
+                    shouldOverrideUrlLoading: (controller, action) async {
+                      final scheme = action.request.url?.scheme;
+                      return const {'file', 'about', 'http', 'https'}
+                              .contains(scheme)
+                          ? NavigationActionPolicy.ALLOW
+                          : NavigationActionPolicy.CANCEL;
+                    },
+                    onCreateWindow: (controller, action) async => false,
+                    onDownloadStartRequest: (controller, request) async {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } finally {
+      _manualDialogOpen = false;
+    }
+  }
+
+  Future<void> _showAdminSettings() async {
+    if (!mounted) return;
+    await UpdateAdminDialog.show(context, _updateController);
   }
 
   Future<T> _runUpdateProgress<T>(
@@ -707,11 +848,9 @@ class _KioskHomeState extends State<_KioskHome> {
                         ? _idleGateController.enterIdle
                         : null,
                     onOpenAdmin: UpdateAdminDialog.isConfigured
-                        ? () => UpdateAdminDialog.show(
-                              context,
-                              _updateController,
-                            )
+                        ? _showAdminSettings
                         : null,
+                    onHideKiosk: _trayController.hideWindow,
                   ),
                 );
 
@@ -767,6 +906,7 @@ class _KioskHomeState extends State<_KioskHome> {
       ),
     );
     return KioskShortcuts(
+      onShowManual: _showUserManual,
       onShowVersion: _showVersionInfo,
       onCheckUpdate: _checkUpdateFromShortcut,
       child: content,

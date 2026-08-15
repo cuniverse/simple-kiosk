@@ -86,6 +86,9 @@ class NavigationMenu extends StatelessWidget {
   /// PIN 보호된 업데이트 관리자 화면을 여는 콜백.
   final VoidCallback? onOpenAdmin;
 
+  /// 키오스크 창을 시스템 트레이로 감추는 콜백.
+  final VoidCallback? onHideKiosk;
+
   const NavigationMenu({
     super.key,
     required this.items,
@@ -109,6 +112,7 @@ class NavigationMenu extends StatelessWidget {
     this.onHide,
     this.onEnterIdle,
     this.onOpenAdmin,
+    this.onHideKiosk,
   });
 
   @override
@@ -194,7 +198,8 @@ class NavigationMenu extends StatelessWidget {
               ),
               if (showKeyboardToggle ||
                   onEnterIdle != null ||
-                  onOpenAdmin != null)
+                  onOpenAdmin != null ||
+                  onHideKiosk != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
                   child: Row(
@@ -219,6 +224,17 @@ class NavigationMenu extends StatelessWidget {
                           icon: Icons.wallpaper_outlined,
                           tooltip: '화면 보호기 시작',
                           onPressed: onEnterIdle!,
+                        ),
+                      if (onHideKiosk != null &&
+                          (showKeyboardToggle ||
+                              onOpenAdmin != null ||
+                              onEnterIdle != null))
+                        SizedBox(width: buttonGap),
+                      if (onHideKiosk != null)
+                        _ToolbarVisibilityButton(
+                          icon: Icons.visibility_off_outlined,
+                          tooltip: '키오스크 감추기',
+                          onPressed: onHideKiosk!,
                         ),
                     ],
                   ),
@@ -331,6 +347,19 @@ class NavigationMenu extends StatelessWidget {
           ),
         );
       }
+      if (onHideKiosk != null) {
+        children.add(SizedBox(width: buttonGap));
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            child: _ToolbarVisibilityButton(
+              icon: Icons.visibility_off_outlined,
+              tooltip: '키오스크 감추기',
+              onPressed: onHideKiosk!,
+            ),
+          ),
+        );
+      }
       return Material(
         color: barColor ?? theme.colorScheme.surfaceContainerHighest,
         child: SafeArea(
@@ -418,6 +447,25 @@ class NavigationMenu extends StatelessWidget {
             icon: Icons.admin_panel_settings_outlined,
             tooltip: '업데이트 관리',
             onPressed: onOpenAdmin!,
+          ),
+        ),
+      );
+    }
+    if (onHideKiosk != null) {
+      if (!showKeyboardToggle &&
+          onHide == null &&
+          onEnterIdle == null &&
+          onOpenAdmin == null) {
+        children.add(const Spacer());
+      }
+      children.add(SizedBox(width: buttonGap));
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: _ToolbarVisibilityButton(
+            icon: Icons.visibility_off_outlined,
+            tooltip: '키오스크 감추기',
+            onPressed: onHideKiosk!,
           ),
         ),
       );
