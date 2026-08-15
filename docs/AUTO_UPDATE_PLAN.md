@@ -1,13 +1,13 @@
 # Simple Kiosk Git 기반 자동 업데이트 계획
 
-> 상태: Windows stable 운영 구현 완료, 현장 단축키 지원 (v1.2.5)
+> 상태: Windows stable 운영 구현 완료, 현장 단축키 지원 (v1.2.6)
 > 1차 대상: Windows 키오스크 배포본  
 > 업데이트 원본: GitHub Releases
 
 ## 구현 현황
 
 - 외부 기본/오버라이드 설정 병합, 메뉴 ID 병합, 마지막 정상 설정 복구 구현
-- `%ProgramData%\SimpleKiosk` 운영 데이터 구조와 원자적 정책/상태 저장 구현
+- 실행 파일 폴더 기준 운영 데이터 구조와 원자적 정책/상태 저장 구현
 - stable GitHub Release 확인, SemVer 비교, 이어받기 다운로드, ZIP SHA-256 검증 구현
 - 자동 업데이트 기본 OFF, 확인 주기, 설치 시간대와 화면 보호기 상태 연동 구현
 - 환경변수 SHA-256 기반 관리자 PIN 화면과 수동 확인·다운로드·설치 구현
@@ -15,7 +15,7 @@
 - CI의 태그 버전 주입, Windows ZIP manifest 생성 및 Release 첨부 구현
 - 기존 `menu.json` 차이 추출/백업 마이그레이션 도구 구현
 - 관리자 화면에서 확인 주기, 유휴 설치, 설치 시간대와 보관 정책 편집 구현
-- 이전 버전·다운로드·로그 정리, 고정 업데이터 동기화와 ProgramData ACL 구현
+- 이전 버전·다운로드·로그 정리와 고정 업데이터 동기화 구현
 - 수동 버전 복구 및 진단 자료 ZIP 내보내기 도구 구현
 - GitHub Actions PFX 비밀값 기반 선택적 Windows 코드 서명 구현
 - manifest/설정 스키마와 최소 Updater 버전 호환성 검사 구현
@@ -70,7 +70,7 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
 ## 4. 목표 디렉터리 구조
 
 ```text
-C:\ProgramData\SimpleKiosk\
+<simple_kiosk.exe가 들어 있는 프로그램 폴더>\
   current.json                     # 현재/직전 정상 버전 포인터
   config\
     menu.override.json             # 운영자가 변경한 값만 저장
@@ -88,7 +88,8 @@ C:\ProgramData\SimpleKiosk\
 ```
 
 앱의 기본 설정은 각 버전 패키지 안에 `menu.defaults.json`으로 포함한다. 운영 데이터는
-`C:\ProgramData\SimpleKiosk` 아래에만 저장하고 버전 폴더에는 기록하지 않는다.
+실행 파일 폴더 아래에만 저장하고 버전 폴더에는 기록하지 않는다. 별도 루트는
+`SIMPLE_KIOSK_DATA_DIR`을 명시한 경우에만 사용한다.
 
 ## 5. 설정 보존 및 새 설정 반영
 
@@ -164,7 +165,7 @@ C:\ProgramData\SimpleKiosk\
 업데이트 정책은 메뉴 설정과 분리해 다음 파일에 저장한다.
 
 ```text
-C:\ProgramData\SimpleKiosk\config\update-policy.json
+<프로그램 폴더>\config\update-policy.json
 ```
 
 초기 형식은 다음과 같다.
@@ -290,7 +291,7 @@ Manifest 초안:
 - 설치 결과와 오류를 `update-state.json` 및 로그에 기록한다.
 
 업데이트 실행기는 버전 패키지에 포함되고, 고정 Launcher가 다음 정상 시작 시 현재
-버전의 도구를 `%ProgramData%\SimpleKiosk\updater`에 동기화한다.
+버전의 도구를 `<프로그램 폴더>\updater`에 동기화한다.
 
 ## 10. 보안 및 안정성
 

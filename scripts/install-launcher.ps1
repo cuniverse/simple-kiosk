@@ -4,26 +4,40 @@ param(
     [Parameter(Mandatory=$true)][string]$Version,
     [string]$LegacyMenu,
     [string]$OriginalDefaults,
-    [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
-    [switch]$SkipAcl
+    [string]$DataRoot,
+    [switch]$ConfigureAcl
 )
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($DataRoot)) {
+    $DataRoot = Split-Path -Parent $PSScriptRoot
+}
 $resolvedPackage = (Resolve-Path -LiteralPath $PackageDirectory).Path
 $versionRoot = Join-Path $DataRoot "versions\$Version"
 New-Item -ItemType Directory -Force -Path $DataRoot, (Join-Path $DataRoot 'config'), (Join-Path $DataRoot 'media'), (Join-Path $DataRoot 'state'), (Join-Path $DataRoot 'logs'), (Join-Path $DataRoot 'downloads'), (Join-Path $DataRoot 'versions'), (Join-Path $DataRoot 'updater') | Out-Null
 if (-not (Test-Path -LiteralPath (Join-Path $resolvedPackage 'simple_kiosk.exe'))) { throw 'simple_kiosk.exe가 없습니다.' }
 if (Test-Path -LiteralPath $versionRoot) { Remove-Item -LiteralPath $versionRoot -Recurse -Force }
-Copy-Item -LiteralPath $resolvedPackage -Destination $versionRoot -Recurse
+if ([IO.Path]::GetFullPath($resolvedPackage).TrimEnd('\') -eq [IO.Path]::GetFullPath($DataRoot).TrimEnd('\')) {
+    New-Item -ItemType Directory -Force -Path $versionRoot | Out-Null
+    $runtimeNames = @('config', 'media', 'state', 'logs', 'downloads', 'versions', 'diagnostics', 'backups')
+    Get-ChildItem -LiteralPath $resolvedPackage -Force |
+        Where-Object { $runtimeNames -notcontains $_.Name } |
+        Copy-Item -Destination $versionRoot -Recurse -Force
+} else {
+    Copy-Item -LiteralPath $resolvedPackage -Destination $versionRoot -Recurse
+}
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launcher.ps1') -Destination (Join-Path $DataRoot 'launcher.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launcher.cmd') -Destination (Join-Path $DataRoot 'SimpleKiosk.cmd') -Force
-Get-ChildItem -LiteralPath $PSScriptRoot -File | Copy-Item -Destination (Join-Path $DataRoot 'updater') -Force
-if (-not $SkipAcl) {
+$updaterDestination = Join-Path $DataRoot 'updater'
+if ([IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\') -ne [IO.Path]::GetFullPath($updaterDestination).TrimEnd('\')) {
+    Get-ChildItem -LiteralPath $PSScriptRoot -File | Copy-Item -Destination $updaterDestination -Force
+}
+if ($ConfigureAcl) {
     $currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     & icacls.exe $DataRoot /inheritance:r /grant:r `
         "SYSTEM:(OI)(CI)F" `
         "BUILTIN\Administrators:(OI)(CI)F" `
         "${currentIdentity}:(OI)(CI)M" /T /C | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'ProgramData ACL 설정에 실패했습니다.' }
+    if ($LASTEXITCODE -ne 0) { throw '데이터 폴더 ACL 설정에 실패했습니다.' }
 }
 if (-not [string]::IsNullOrWhiteSpace($LegacyMenu)) {
     if ([string]::IsNullOrWhiteSpace($OriginalDefaults)) {

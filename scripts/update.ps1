@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$true)][string]$ExpectedSha256,
     [Parameter(Mandatory=$true)][int]$AppPid,
-    [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
+    [string]$DataRoot,
     [ValidateRange(2, 10)][int]$RetainVersions = 2,
     [ValidateRange(1, 365)][int]$LogRetentionDays = 30,
     [switch]$RequireAuthenticode,
@@ -12,6 +12,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($DataRoot)) {
+    $DataRoot = Split-Path -Parent $PSScriptRoot
+}
 $logPath = Join-Path $DataRoot 'logs\updater.log'
 $statePath = Join-Path $DataRoot 'state\update-state.json'
 $pointerPath = Join-Path $DataRoot 'current.json'
@@ -124,6 +127,19 @@ try {
     if (Test-Path -LiteralPath $versionRoot) { Remove-Item -LiteralPath $versionRoot -Recurse -Force }
     Move-Item -LiteralPath $packageRoot.FullName -Destination $versionRoot
 
+    # A package may have been started directly instead of being bootstrapped by
+    # install-launcher.ps1. Install the new version's launcher before the first
+    # restart so that this update path can repair that deployment as well.
+    $packagedLauncher = Join-Path $versionRoot 'updater\launcher.ps1'
+    $packagedCommand = Join-Path $versionRoot 'updater\launcher.cmd'
+    if (-not (Test-Path -LiteralPath $packagedLauncher)) {
+        throw 'Package is missing updater\launcher.ps1.'
+    }
+    Copy-Item -LiteralPath $packagedLauncher -Destination (Join-Path $DataRoot 'launcher.ps1') -Force
+    if (Test-Path -LiteralPath $packagedCommand) {
+        Copy-Item -LiteralPath $packagedCommand -Destination (Join-Path $DataRoot 'SimpleKiosk.cmd') -Force
+    }
+
     $previous = ''
     if (Test-Path -LiteralPath $pointerPath) {
         $pointer = Get-Content -Raw -Encoding UTF8 $pointerPath | ConvertFrom-Json
@@ -149,18 +165,6 @@ try {
         Write-Pointer $previous $Version
         & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot -SkipUpdaterSync
         throw 'New version health check failed; rolled back.'
-    }
-    try {
-        $packagedLauncher = Join-Path $versionRoot 'updater\launcher.ps1'
-        $packagedCommand = Join-Path $versionRoot 'updater\launcher.cmd'
-        if (Test-Path -LiteralPath $packagedLauncher) {
-            Copy-Item -LiteralPath $packagedLauncher -Destination (Join-Path $DataRoot 'launcher.ps1') -Force
-        }
-        if (Test-Path -LiteralPath $packagedCommand) {
-            Copy-Item -LiteralPath $packagedCommand -Destination (Join-Path $DataRoot 'SimpleKiosk.cmd') -Force
-        }
-    } catch {
-        Write-Log "Launcher synchronization deferred: $($_.Exception.Message)"
     }
     Write-State 'installed'
     Write-Log "Version $Version installed successfully"

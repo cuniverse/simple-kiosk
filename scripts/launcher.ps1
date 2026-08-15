@@ -1,10 +1,17 @@
 [CmdletBinding()]
 param(
-    [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
+    [string]$DataRoot,
     [switch]$SkipUpdaterSync
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($DataRoot)) {
+    $DataRoot = if ((Split-Path -Leaf $PSScriptRoot) -eq 'updater') {
+        Split-Path -Parent $PSScriptRoot
+    } else {
+        $PSScriptRoot
+    }
+}
 $pointerPath = Join-Path $DataRoot 'current.json'
 $logPath = Join-Path $DataRoot 'logs\updater.log'
 New-Item -ItemType Directory -Force -Path (Split-Path $logPath) | Out-Null
@@ -38,6 +45,7 @@ foreach ($version in $candidates) {
             }
         }
         Write-Log "Starting version $version"
+        $env:SIMPLE_KIOSK_DATA_DIR = $DataRoot
         Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden
         exit 0
     }

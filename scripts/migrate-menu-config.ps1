@@ -2,9 +2,12 @@
 param(
     [Parameter(Mandatory=$true)][string]$LegacyMenu,
     [Parameter(Mandatory=$true)][string]$OriginalDefaults,
-    [string]$DataRoot = "$env:ProgramData\SimpleKiosk"
+    [string]$DataRoot
 )
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($DataRoot)) {
+    $DataRoot = Split-Path -Parent $PSScriptRoot
+}
 
 function ConvertTo-Map($Value) {
     if ($null -eq $Value) { return $null }

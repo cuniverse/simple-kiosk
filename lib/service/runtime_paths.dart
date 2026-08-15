@@ -8,9 +8,7 @@ class RuntimePaths {
       return overridden.trim();
     }
     if (!Platform.isWindows) return null;
-    final programData = Platform.environment['ProgramData'];
-    if (programData == null || programData.isEmpty) return null;
-    return '$programData${Platform.pathSeparator}SimpleKiosk';
+    return File(Platform.resolvedExecutable).parent.path;
   }
 
   static String? child(String relativePath) {

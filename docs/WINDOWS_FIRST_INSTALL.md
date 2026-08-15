@@ -49,7 +49,7 @@ winget install --id Microsoft.EdgeWebView2Runtime -e
 자동 업데이트 설치의 운영 오버라이드는 다음 위치에 있습니다.
 
 ```text
-C:\ProgramData\SimpleKiosk\config\menu.override.json
+<프로그램 폴더>\config\menu.override.json
 ```
 
 변경 전 파일을 백업하고, 앱을 완전히 종료한 상태에서 UTF-8 형식으로 편집하세요. JSON 문법 오류가 있으면 메뉴가 로드되지 않을 수 있습니다. 변경 후 앱을 다시 실행해야 반영됩니다.
@@ -68,7 +68,7 @@ C:\ProgramData\SimpleKiosk\config\menu.override.json
 
 1. `Win + R`을 누릅니다.
 2. `shell:startup`을 입력하고 Enter를 누릅니다.
-3. 시작프로그램 폴더에 `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`의 바로가기를 복사합니다.
+3. 시작프로그램 폴더에 `<프로그램 폴더>\SimpleKiosk.cmd`의 바로가기를 복사합니다.
 
 실행 파일 자체를 시작프로그램 폴더로 옮기면 안 됩니다. 반드시 설치 폴더에 있는 실행 파일을 가리키는 바로가기를 사용하세요.
 
@@ -102,4 +102,4 @@ DLL이나 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 ### 설정 변경이 반영되지 않음
 
 - 앱을 작업 관리자에서도 완전히 종료한 뒤 다시 실행합니다.
-- `C:\ProgramData\SimpleKiosk\config\menu.override.json`을 편집했는지 확인합니다.
+- `<프로그램 폴더>\config\menu.override.json`을 편집했는지 확인합니다.

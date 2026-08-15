@@ -1,11 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
+    [string]$DataRoot,
     [string]$OutputDirectory,
     [switch]$IncludeMenuConfig
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($DataRoot)) {
+    $DataRoot = Split-Path -Parent $PSScriptRoot
+}
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $DataRoot 'diagnostics'
 }

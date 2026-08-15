@@ -1,11 +1,14 @@
 [CmdletBinding()]
 param(
     [string]$Version,
-    [string]$DataRoot = "$env:ProgramData\SimpleKiosk",
+    [string]$DataRoot,
     [switch]$NoLaunch
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($DataRoot)) {
+    $DataRoot = Split-Path -Parent $PSScriptRoot
+}
 $versionsRoot = Join-Path $DataRoot 'versions'
 $pointerPath = Join-Path $DataRoot 'current.json'
 

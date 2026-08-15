@@ -19,16 +19,32 @@ class KioskShortcuts extends StatefulWidget {
 }
 
 class _KioskShortcutsState extends State<KioskShortcuts> {
+  static const _nativeChannel = MethodChannel('simple_kiosk/shortcuts');
+
   @override
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    _nativeChannel.setMethodCallHandler(_handleNativeShortcut);
   }
 
   @override
   void dispose() {
+    _nativeChannel.setMethodCallHandler(null);
     HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     super.dispose();
+  }
+
+  Future<void> _handleNativeShortcut(MethodCall call) async {
+    if (!mounted) return;
+    switch (call.method) {
+      case 'showVersion':
+        widget.onShowVersion();
+        return;
+      case 'checkUpdate':
+        widget.onCheckUpdate();
+        return;
+    }
   }
 
   bool _handleKeyEvent(KeyEvent event) {

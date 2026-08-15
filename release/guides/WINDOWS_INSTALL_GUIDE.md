@@ -14,11 +14,12 @@ PowerShell에서 압축을 푼 폴더를 현재 위치로 두고 다음을 실�
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.5
+.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.6
 ```
 
-이후 `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`를 Windows 시작 프로그램이나 작업
-스케줄러에 등록합니다. 운영 데이터는 프로그램 버전 폴더와 분리됩니다.
+이후 압축을 푼 **프로그램 폴더의 `SimpleKiosk.cmd`**를 Windows 시작 프로그램이나
+작업 스케줄러에 등록합니다. 설정·로그·업데이트 파일도 기본적으로 이 폴더 아래에
+저장됩니다. 별도 위치가 필요할 때만 `SIMPLE_KIOSK_DATA_DIR` 환경변수를 지정합니다.
 
 ### 관리자 PIN 설정
 
@@ -35,8 +36,8 @@ $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Comput
 자동 업데이트 기본값은 OFF입니다. 관리자가 켜면 stable Release를 6시간마다 확인하고
 다운로드하며, 기본 설정상 02:00~05:00 사이 화면 보호기 상태에서만 설치합니다.
 관리자 화면에서 확인 주기, 설치 시간대, 유휴 설치 여부, 버전·로그 보관 기간을 변경할
-수 있습니다. 설치 시 ProgramData 폴더는 SYSTEM과 관리자, 설치를 실행한 키오스크
-계정만 접근하도록 ACL이 구성됩니다.
+수 있습니다. 별도 데이터 폴더에 제한된 ACL이 필요하면 설치 명령에
+`-DataRoot <경로> -ConfigureAcl`을 추가합니다.
 
 ### 수동 복구와 진단 자료
 
@@ -44,9 +45,9 @@ $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Comput
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  C:\ProgramData\SimpleKiosk\updater\recover.ps1
+  .\updater\recover.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  C:\ProgramData\SimpleKiosk\updater\recover.ps1 -Version 1.2.5
+  .\updater\recover.ps1 -Version 1.2.6
 ```
 
 관리자 화면의 `진단 자료 내보내기` 또는 아래 명령은 설정 정책, 상태, 로그를 ZIP으로
@@ -55,7 +56,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  C:\ProgramData\SimpleKiosk\updater\export-diagnostics.ps1
+  .\updater\export-diagnostics.ps1
 ```
 
 ### 기존 설정 마이그레이션
@@ -72,7 +73,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 보관됩니다. 원본 기본 설정이 없다면 자동 추정하지 말고 수동 검토해야 합니다.
 
 ```text
-C:\ProgramData\SimpleKiosk\
+<simple_kiosk.exe가 들어 있는 프로그램 폴더>\
   current.json
   config\menu.override.json
   config\update-policy.json
@@ -157,7 +158,7 @@ $actual -eq $expected
 자동 업데이트 설치의 운영 오버라이드는 다음 위치에 있습니다.
 
 ```text
-C:\ProgramData\SimpleKiosk\config\menu.override.json
+<프로그램 폴더>\config\menu.override.json
 ```
 
 앱을 완전히 종료한 상태에서 파일을 백업한 후 UTF-8 형식으로 편집하세요. JSON 문법에
@@ -178,7 +179,7 @@ C:\ProgramData\SimpleKiosk\config\menu.override.json
 
 1. `Win + R`을 누릅니다.
 2. `shell:startup`을 입력하고 Enter를 누릅니다.
-3. `C:\ProgramData\SimpleKiosk\SimpleKiosk.cmd`의 바로가기를 복사합니다.
+3. 프로그램 폴더에 생성된 `SimpleKiosk.cmd`의 바로가기를 복사합니다.
 
 실행 파일 자체를 시작프로그램 폴더로 옮기면 안 됩니다. 반드시 설치 폴더의 실행
 파일을 가리키는 바로가기를 사용하세요.
@@ -217,7 +218,7 @@ DLL 또는 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 ### 설정 변경이 반영되지 않음
 
 - 앱을 작업 관리자에서도 완전히 종료한 후 다시 실행합니다.
-- `C:\ProgramData\SimpleKiosk\config\menu.override.json`을 수정했는지 확인합니다.
+- `<프로그램 폴더>\config\menu.override.json`을 수정했는지 확인합니다.
 
 ### Windows 보안 경고가 표시됨
 

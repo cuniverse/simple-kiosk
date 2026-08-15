@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -196,7 +197,7 @@ class UpdateService {
       'sha256': manifest.sha256,
       'appPid': pid,
     });
-    await Process.start(
+    final process = await Process.start(
       'powershell.exe',
       [
         '-NoProfile',
@@ -222,8 +223,52 @@ class UpdateService {
           manifest.signerThumbprint!,
         ],
       ],
-      mode: ProcessStartMode.detached,
+      mode: ProcessStartMode.normal,
     );
+
+    // The updater writes `installing` before waiting for this app to exit.
+    // Do not terminate the kiosk until that handshake is observed; otherwise a
+    // PowerShell startup/argument error leaves the app closed and the state
+    // permanently stuck at `install-requested`.
+    final stdoutBuffer = StringBuffer();
+    final stderrBuffer = StringBuffer();
+    process.stdout.transform(utf8.decoder).listen(stdoutBuffer.write);
+    process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+    final exited = process.exitCode.then<int?>((value) => value);
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (DateTime.now().isBefore(deadline)) {
+      final state = await _readUpdateState();
+      if (state?['version'] == manifest.version &&
+          state?['status'] == 'installing') {
+        return;
+      }
+      final exitCode = await Future.any<int?>([
+        exited,
+        Future<int?>.delayed(const Duration(milliseconds: 200), () => null),
+      ]);
+      if (exitCode != null) {
+        final detail = stderrBuffer.toString().trim().isNotEmpty
+            ? stderrBuffer.toString().trim()
+            : stdoutBuffer.toString().trim();
+        throw StateError(
+          '업데이트 실행기가 시작되지 않았습니다 (종료 코드 $exitCode)'
+          '${detail.isEmpty ? '' : ': $detail'}',
+        );
+      }
+    }
+    process.kill();
+    throw TimeoutException('업데이트 실행기 시작 확인 시간이 초과되었습니다.');
+  }
+
+  Future<Map<String, dynamic>?> _readUpdateState() async {
+    final path = RuntimePaths.updateState;
+    if (path == null) return null;
+    try {
+      final decoded = json.decode(await File(path).readAsString());
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String> exportDiagnostics() async {

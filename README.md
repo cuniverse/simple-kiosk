@@ -106,7 +106,7 @@ flutter pub get
 ## 메뉴 설정 변경 방법
 
 개발 기본값은 `assets/config/menu.defaults.json`에서 수정합니다. Windows 운영 설정은
-`C:\ProgramData\SimpleKiosk\config\menu.override.json`에 변경한 값만 기록합니다.
+`<simple_kiosk.exe가 들어 있는 폴더>\config\menu.override.json`에 변경한 값만 기록합니다.
 최상위 구조는 `layout`, `idle`, `items` 세 섹션을 가집니다.
 
 ### 최소 예시

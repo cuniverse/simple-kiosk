@@ -14,7 +14,7 @@ assets/config/menu.defaults.json
 | 환경 | 설정 위치 및 반영 방법 |
 |---|---|
 | 개발 환경 | `assets/config/menu.defaults.json` 수정 후 앱을 재시작합니다. |
-| Windows 배포본 | `C:\ProgramData\SimpleKiosk\config\menu.override.json`에 변경값만 기록하고 앱을 재시작합니다. |
+| Windows 배포본 | `<프로그램 폴더>\config\menu.override.json`에 변경값만 기록하고 앱을 재시작합니다. |
 
 Windows 운영 오버라이드는 전체 기본 설정을 복사하지 않고 변경한 값만 작성합니다.
 `layout`과 `idle`은 키 단위로 재귀 병합되며 메뉴는 `id`를 기준으로 병합됩니다.
@@ -36,14 +36,14 @@ Windows 운영 오버라이드는 전체 기본 설정을 복사하지 않고 �
 ```
 
 오버라이드의 `null` 값은 삭제가 아니라 새 버전 기본값으로 복원한다는 뜻입니다.
-`media/...` 경로는 `C:\ProgramData\SimpleKiosk\media\...`로 해석됩니다.
+`media/...` 경로는 `<프로그램 폴더>\media\...`로 해석됩니다.
 | Android 배포본 | APK 내부 에셋을 직접 수정하지 않습니다. 프로젝트 원본을 수정한 뒤 APK를 다시 빌드하고 설치합니다. |
 | macOS 배포본 | 앱 번들 직접 수정은 서명 무결성을 깨뜨릴 수 있습니다. 프로젝트 원본을 수정한 뒤 앱을 다시 빌드합니다. |
 
-Windows에서 기본 설치 폴더가 `C:\SimpleKiosk`라면 실제 경로는 다음과 같습니다.
+Windows에서 프로그램 폴더가 `C:\SimpleKiosk`라면 실제 경로는 다음과 같습니다.
 
 ```text
-C:\ProgramData\SimpleKiosk\config\menu.override.json
+C:\SimpleKiosk\config\menu.override.json
 ```
 
 ## 2. 안전하게 수정하는 순서
