@@ -1,20 +1,50 @@
 # Simple Kiosk Windows 최초 설치 가이드
 
-이 문서는 `simple-kiosk-windows-<version>.zip` 배포 파일을 처음 설치하는 운영
+이 문서는 `simple-kiosk-windows-setup-<version>.exe` 또는 ZIP 배포 파일을 처음 설치하는 운영
 담당자를 위한 안내서입니다.
 
-Simple Kiosk는 별도 설치 프로그램이 없는 **포터블 앱**입니다. 압축을 푼 폴더
-전체가 프로그램이므로 `simple_kiosk.exe`만 따로 복사하거나 실행에 필요한 파일을
-삭제하면 정상적으로 실행되지 않습니다.
+일반 사용자는 installer EXE 사용을 권장합니다. 다운로드 직후 installer 실행 시에는
+Windows SmartScreen 확인이 한 번 표시될 수 있지만 설치 후 바로가기 실행과 앱 내부
+자동 업데이트에서는 다운로드한 실행 파일을 직접 열지 않습니다.
 
-## 자동 업데이트용 권장 설치
+기본 설치 위치는 `%LOCALAPPDATA%\Programs\SimpleKiosk`이며 관리자 권한이 필요하지
+않습니다. ZIP은 포터블 설치나 복구가 필요한 운영자를 위한 보조 배포본입니다.
 
-직접 실행 방식도 계속 사용할 수 있지만 자동 업데이트와 롤백을 사용하려면 관리자
-PowerShell에서 압축을 푼 폴더를 현재 위치로 두고 다음을 실행합니다.
+## installer 권장 설치
+
+1. `simple-kiosk-windows-setup-<version>.exe`를 실행합니다.
+2. 최초 SmartScreen 화면이 표시되면 배포 출처를 확인한 뒤 실행합니다.
+3. 설치 위치와 바탕화면 바로가기 생성 여부를 선택합니다.
+4. 설치 완료 후 시작 메뉴의 `Simple Kiosk`를 실행합니다.
+
+installer는 자동 업데이트용 런처와 버전 포인터를 자동 구성하고 Windows 로그인 시
+자동 실행되도록 현재 사용자의 시작프로그램에 등록합니다. 같은 PC에 기존 설치 정보가
+있으면 그 설치 위치를 먼저 확인해 기본 경로로 사용합니다. 설치 위치를 바꾸면 이전
+`Simple Kiosk` 시작프로그램 바로가기를 제거하고 새 설치 경로를 가리키도록 다시 등록합니다.
+자동 업데이트가 새 버전을 설치해도 시작프로그램은 특정 버전의 EXE가 아닌 고정된
+`launcher.ps1`을 실행하므로 변경된 현재 버전이 다음 실행부터 자동 선택됩니다.
+
+### 삭제
+
+Windows 설정의 **앱 > 설치된 앱 > Simple Kiosk > 제거** 또는 시작 메뉴의 제거 항목을
+사용합니다. 제거하면 시작 메뉴·바탕화면·시작프로그램 바로가기와 설치된 모든 앱 버전,
+업데이트 캐시는 항상 삭제됩니다.
+
+제거 과정에서 설정과 사용자 파일도 함께 삭제할지 묻습니다. 기본값인 **아니요**를
+선택하면 `config`, `media`, `state`, `logs`, `diagnostics`, `backups`를 보존하므로 나중에
+같은 위치에 재설치할 때 다시 사용할 수 있습니다. **예**를 선택하면 해당 데이터까지
+삭제합니다. 자동 제거처럼 확인창이 표시되지 않는 경우에는 안전하게 사용자 데이터를
+보존합니다.
+
+## ZIP 수동 설치
+
+ZIP의 `simple_kiosk.exe`를 바로 실행하는 완전한 포터블 방식도 계속 지원합니다. 이 경우
+설정과 로그는 압축을 푼 실행 파일 폴더에 저장됩니다. 포터블 폴더에서 자동 업데이트와
+롤백까지 사용하려면 PowerShell에서 다음을 한 번 실행합니다.
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.7
+.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.8
 ```
 
 이후 압축을 푼 **프로그램 폴더의 `SimpleKiosk.cmd`**를 Windows 시작 프로그램이나
@@ -42,7 +72,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   .\updater\recover.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  .\updater\recover.ps1 -Version 1.2.7
+  .\updater\recover.ps1 -Version 1.2.8
 ```
 
 관리자 화면의 `진단 자료 내보내기` 또는 아래 명령은 설정 정책, 상태, 로그를 ZIP으로

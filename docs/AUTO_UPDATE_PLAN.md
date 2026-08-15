@@ -1,6 +1,6 @@
 # Simple Kiosk Git 기반 자동 업데이트 계획
 
-> 상태: Windows stable 운영 구현 완료, 현장 단축키 및 관리자 PIN 변경 지원 (v1.2.7)
+> 상태: Windows stable 운영 구현 완료, 설치형 EXE 지원 (v1.2.8)
 > 1차 대상: Windows 키오스크 배포본  
 > 업데이트 원본: GitHub Releases
 

@@ -4,7 +4,9 @@ param(
     # 생략하면 기존처럼 pubspec.yaml의 version을 사용한다.
     [string]$PackageVersion,
     [string]$SigningCertificatePath,
-    [string]$TimestampServer = 'http://timestamp.digicert.com'
+    [string]$TimestampServer = 'http://timestamp.digicert.com',
+    [switch]$BuildInstaller,
+    [string]$InnoCompilerPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -92,6 +94,7 @@ try {
     Copy-Item 'scripts\migrate-menu-config.ps1' (Join-Path $updaterDir 'migrate-menu-config.ps1')
     Copy-Item 'scripts\recover.ps1' (Join-Path $updaterDir 'recover.ps1')
     Copy-Item 'scripts\export-diagnostics.ps1' (Join-Path $updaterDir 'export-diagnostics.ps1')
+    Copy-Item 'scripts\configure-installer.ps1' (Join-Path $updaterDir 'configure-installer.ps1')
 
     $exe = Join-Path $stage 'simple_kiosk.exe'
     if (-not (Test-Path $exe)) { throw 'simple_kiosk.exe를 찾을 수 없습니다.' }
@@ -101,6 +104,42 @@ try {
     if (Test-Path $archive) { Remove-Item $archive -Force }
     Compress-Archive -Path $stage -DestinationPath $archive -CompressionLevel Optimal
     Write-Host "Created: $archive"
+
+    if ($BuildInstaller) {
+        if ([string]::IsNullOrWhiteSpace($InnoCompilerPath)) {
+            $innoCandidates = @(
+                (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
+                (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
+                (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe')
+            )
+            $InnoCompilerPath = $innoCandidates |
+                Where-Object { Test-Path -LiteralPath $_ } |
+                Select-Object -First 1
+        }
+        if ([string]::IsNullOrWhiteSpace($InnoCompilerPath) -or
+            -not (Test-Path -LiteralPath $InnoCompilerPath)) {
+            throw 'Inno Setup 6 ISCC.exe를 찾을 수 없습니다.'
+        }
+        & $InnoCompilerPath `
+            "/DSourceDir=$stage" `
+            "/DAppVersion=$PackageVersion" `
+            "/DOutputDir=$distDir" `
+            'scripts\simple-kiosk.iss'
+        if ($LASTEXITCODE -ne 0) { throw 'Windows installer 생성 실패' }
+
+        $installer = Join-Path $distDir "simple-kiosk-windows-setup-$archiveVersion.exe"
+        if (-not (Test-Path -LiteralPath $installer)) {
+            throw "생성된 installer를 찾을 수 없습니다: $installer"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($SigningCertificatePath)) {
+            & $signTool.FullName sign /fd SHA256 /td SHA256 /tr $TimestampServer `
+                /f $SigningCertificatePath /p $env:WINDOWS_SIGNING_CERT_PASSWORD $installer
+            if ($LASTEXITCODE -ne 0) { throw 'Windows installer 코드 서명 실패' }
+            & $signTool.FullName verify /pa /v $installer
+            if ($LASTEXITCODE -ne 0) { throw 'Windows installer 코드 서명 검증 실패' }
+        }
+        Write-Host "Created: $installer"
+    }
 }
 finally {
     Set-Content -Encoding UTF8 -NoNewline -Path $pubspecPath -Value $originalPubspec

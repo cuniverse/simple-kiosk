@@ -1,7 +1,7 @@
 ﻿name: simple_kiosk
 description: 성당 로비/디지털 사이니지용 Flutter 키오스크 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.7
+version: 1.2.8
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

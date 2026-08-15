@@ -48,7 +48,14 @@ jobs:
       - name: Build Windows package
         shell: pwsh
         run: |
-          $arguments = @{ PackageVersion = $env:RELEASE_VERSION }
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Inno Setup installation failed.'
+          }
+          $arguments = @{
+            PackageVersion = $env:RELEASE_VERSION
+            BuildInstaller = $true
+          }
           if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)) {
             $certificate = Join-Path $env:RUNNER_TEMP 'simple-kiosk-signing.pfx'
             [IO.File]::WriteAllBytes(
@@ -86,7 +93,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: simple-kiosk-windows
-          path: dist/simple-kiosk-windows-${{ steps.release-version.outputs.archive-version }}.zip
+          path: |
+            dist/simple-kiosk-windows-${{ steps.release-version.outputs.archive-version }}.zip
+            dist/simple-kiosk-windows-setup-${{ steps.release-version.outputs.archive-version }}.exe
           if-no-files-found: error
 
       - name: Publish GitHub Release
@@ -100,4 +109,5 @@ jobs:
           overwrite_files: true
           files: |
             dist/simple-kiosk-windows-${{ steps.release-version.outputs.archive-version }}.zip
+            dist/simple-kiosk-windows-setup-${{ steps.release-version.outputs.archive-version }}.exe
             dist/update-manifest.json

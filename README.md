@@ -74,12 +74,17 @@ bash scripts/package-macos.sh
 # Windows PowerShell
 .\scripts\package-windows.ps1
 
+# ZIP과 installer EXE 함께 생성 (Inno Setup 6 필요)
+.\scripts\package-windows.ps1 -BuildInstaller
+
 # 패키지 파일명에 사용할 버전을 직접 지정
 .\scripts\package-windows.ps1 -PackageVersion 1.2.0
 ```
 
 GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
-`v1.2.0` 태그는 `simple-kiosk-windows-1.2.0.zip`을 생성합니다. 로컬에서
+`v1.2.0` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.0.zip`과 최초
+설치용 `simple-kiosk-windows-setup-1.2.0.exe`를 생성합니다. ZIP 안의
+`simple_kiosk.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
 `-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.
 
 macOS에서는 Windows 네이티브 앱을 직접 빌드할 수 없습니다. GitHub 저장소의
