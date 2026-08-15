@@ -21,6 +21,7 @@ class RuntimePaths {
   static String? get menuOverride => child('config/menu.override.json');
   static String? get updatePolicy => child('config/update-policy.json');
   static String? get adminPin => child('config/admin-pin.json');
+  static String? get adminApiSettings => child('config/admin-api.json');
   static String? get updateState => child('state/update-state.json');
   static String? get lastGoodConfig => child('state/last-good-config.json');
   static String? get appState => child('state/app-state.json');

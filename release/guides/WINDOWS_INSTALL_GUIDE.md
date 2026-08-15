@@ -69,6 +69,42 @@ Set-ExecutionPolicy -Scope Process Bypass
 해시로 `<프로그램 폴더>\config\admin-pin.json`에 저장됩니다. 이 파일을 삭제하면
 다음 인증부터 기본 PIN `1259`로 돌아갑니다.
 
+### 관리 API와 관리자 페이지
+
+관리 API는 기본적으로 사용하며 모든 IPv4 인터페이스의 TCP `80` 포트에서 대기합니다.
+프로그램의 **설정 > 관리 API / 관리자 페이지**에서 사용 여부와 포트를 변경할 수 있고,
+설정은 `<프로그램 폴더>\config\admin-api.json`에 저장됩니다. 포트가 이미 사용 중이면
+키오스크는 계속 실행되며 설정 화면에 API 시작 오류가 표시됩니다.
+
+다른 PC의 브라우저에서 `http://<키오스크 IP>:<포트>/`에 접속합니다. 로그인 암호는
+프로그램 설정과 동일한 관리자 PIN입니다. 관리자 페이지에서 상태 확인, 메뉴 설정 변경,
+화면 보이기·감추기, 업데이트, 재시작과 완전 종료를 수행할 수 있습니다.
+
+REST 클라이언트는 먼저 `POST /api/login`에 `{"pin":"1259"}` 형식으로 로그인한 뒤 반환된
+토큰을 `Authorization: Bearer <token>` 헤더로 보냅니다. 자동화 도구에서는
+`X-Admin-Pin: <PIN>` 또는 HTTP Basic 인증의 암호로 PIN을 직접 사용할 수도 있습니다.
+
+| 메서드와 경로 | 기능 |
+|---|---|
+| `GET /api/status` | 실행·화면·버전·업데이트 상태 확인 |
+| `GET /api/config` | 현재 `menu.override.json` 확인 |
+| `PUT /api/config` | 메뉴 설정 검증·저장·즉시 적용 |
+| `GET`, `PUT /api/server-settings` | 관리 API 사용 여부와 포트 확인·변경 |
+| `POST /api/actions/show` | 키오스크 화면 표시 |
+| `POST /api/actions/hide` | 키오스크 화면 감추기 |
+| `POST /api/actions/update` | 업데이트 확인·다운로드·설치 |
+| `POST /api/actions/restart` | 프로그램 재시작 |
+| `POST /api/actions/shutdown` | 프로그램 완전 종료 |
+
+외부 접속이 차단되면 관리자 PowerShell에서 실제 사용 포트에 맞춰 방화벽 규칙을 추가합니다.
+
+```powershell
+New-NetFirewallRule -DisplayName "Simple Kiosk Admin API" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 80
+```
+
+관리 페이지는 TLS가 없는 HTTP이므로 인터넷에 직접 노출하지 말고 신뢰할 수 있는 내부망과
+제한된 방화벽 범위에서만 사용하세요. 설치 직후 기본 PIN도 반드시 변경하는 것을 권장합니다.
+
 자동 업데이트 기본값은 OFF입니다. 관리자가 켜면 stable Release를 6시간마다 확인하고
 다운로드하며, 기본 설정상 02:00~05:00 사이 화면 보호기 상태에서만 설치합니다.
 관리자 화면에서 확인 주기, 설치 시간대, 유휴 설치 여부, 버전·로그 보관 기간을 변경할

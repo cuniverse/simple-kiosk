@@ -44,6 +44,9 @@ try {
     flutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'flutter pub get 실패' }
 
+    & (Join-Path $PSScriptRoot 'build-icons.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows 아이콘 생성 실패' }
+
     flutter build windows --release
     if ($LASTEXITCODE -ne 0) { throw 'Windows 릴리스 빌드 실패' }
 

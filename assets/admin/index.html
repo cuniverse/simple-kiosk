@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Simple Kiosk 관리자</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    :root { color-scheme:dark; font-family:system-ui,sans-serif; background:#111827; color:#f9fafb }
+    * { box-sizing:border-box } body { margin:0; padding:24px } main { max-width:980px; margin:auto }
+    h1 { margin:0 0 20px; font-size:26px } .card { background:#1f2937; border:1px solid #374151; border-radius:14px; padding:18px; margin-bottom:16px }
+    .hidden { display:none } label { display:block; margin:10px 0 6px; color:#d1d5db }
+    input,select,textarea { width:100%; color:#f9fafb; background:#111827; border:1px solid #4b5563; border-radius:8px; padding:11px }
+    textarea { min-height:330px; font:13px ui-monospace,monospace; resize:vertical }
+    button { border:0; border-radius:8px; padding:10px 15px; color:white; background:#2563eb; cursor:pointer; font-weight:600 }
+    button.secondary { background:#4b5563 } button.danger { background:#b91c1c } button:disabled { opacity:.5; cursor:wait }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end } .row>label { flex:1 1 160px }
+    pre { white-space:pre-wrap; word-break:break-word; background:#111827; padding:12px; border-radius:8px; min-height:90px }
+    #message { min-height:24px; color:#93c5fd } .warning { color:#fbbf24; font-size:13px }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:20px } .brand img { width:54px; height:54px } .brand h1 { margin:0 }
+  </style>
+</head>
+<body>
+<main>
+  <div class="brand"><img src="/favicon.ico" alt=""><h1>Simple Kiosk 관리자</h1></div>
+  <section id="loginCard" class="card">
+    <h2>로그인</h2>
+    <p>프로그램 설정에서 사용하는 관리자 PIN과 동일합니다.</p>
+    <form id="loginForm">
+      <label>관리자 PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
+      <button type="submit">로그인</button>
+    </form>
+  </section>
+
+  <div id="admin" class="hidden">
+    <section class="card">
+      <div class="row"><h2 style="flex:1">실행 상태</h2><button class="secondary" id="refresh">새로고침</button><button class="secondary" id="logout">로그아웃</button></div>
+      <pre id="status">불러오는 중…</pre>
+      <div class="row">
+        <button data-action="show">키오스크 보이기</button>
+        <button data-action="hide" class="secondary">키오스크 감추기</button>
+        <button data-action="update">업데이트</button>
+        <button data-action="restart" class="secondary">재시작</button>
+        <button data-action="shutdown" class="danger">완전 종료</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>관리 API 설정</h2>
+      <p class="warning">HTTP PIN 인증이므로 신뢰할 수 있는 내부망에서만 사용하고 Windows 방화벽으로 접근 대상을 제한하세요.</p>
+      <div class="row">
+        <label>사용 여부<select id="apiEnabled"><option value="true">사용</option><option value="false">사용 안 함</option></select></label>
+        <label>포트<input id="apiPort" type="number" min="1" max="65535"></label>
+        <button id="saveServer">저장</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>외부 메뉴 설정</h2>
+      <p><code>menu.override.json</code> 내용을 JSON 객체로 편집합니다. 저장 전에 기본 설정과 병합 검증합니다.</p>
+      <textarea id="config" spellcheck="false"></textarea>
+      <div class="row"><button id="saveConfig">저장 후 즉시 적용</button><button class="secondary" id="loadConfig">다시 불러오기</button></div>
+    </section>
+  </div>
+  <p id="message"></p>
+</main>
+<script>
+const $=id=>document.getElementById(id); let token=sessionStorage.getItem('simpleKioskAdminToken')||'';
+const message=(text,error=false)=>{$('message').textContent=text;$('message').style.color=error?'#fca5a5':'#93c5fd'};
+async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(token)headers.Authorization=`Bearer ${token}`;const response=await fetch(path,{...options,headers});const body=await response.json().catch(()=>({}));if(response.status===401){logout(false);throw new Error(body.message||'인증이 만료되었습니다.')}if(!response.ok)throw new Error(body.message||body.error||`HTTP ${response.status}`);return body}
+function showAdmin(){$('loginCard').classList.add('hidden');$('admin').classList.remove('hidden');refreshAll()}
+function logout(callApi=true){if(callApi&&token)api('/api/logout',{method:'POST'}).catch(()=>{});token='';sessionStorage.removeItem('simpleKioskAdminToken');$('admin').classList.add('hidden');$('loginCard').classList.remove('hidden')}
+async function loadStatus(){$('status').textContent=JSON.stringify(await api('/api/status'),null,2)}
+async function loadConfig(){$('config').value=JSON.stringify(await api('/api/config'),null,2)}
+async function loadServer(){const s=await api('/api/server-settings');$('apiEnabled').value=String(s.enabled);$('apiPort').value=s.port}
+async function refreshAll(){try{await Promise.all([loadStatus(),loadConfig(),loadServer()]);message('정보를 갱신했습니다.')}catch(e){message(e.message,true)}}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();try{const r=await api('/api/login',{method:'POST',body:JSON.stringify({pin:$('pin').value})});token=r.token;sessionStorage.setItem('simpleKioskAdminToken',token);$('pin').value='';showAdmin()}catch(e){message(e.message,true)}});
+$('refresh').onclick=refreshAll;$('logout').onclick=()=>logout();$('loadConfig').onclick=()=>loadConfig().catch(e=>message(e.message,true));
+$('saveConfig').onclick=async()=>{try{const value=JSON.parse($('config').value);await api('/api/config',{method:'PUT',body:JSON.stringify(value)});message('설정을 저장하고 적용했습니다.')}catch(e){message(e.message,true)}};
+$('saveServer').onclick=async()=>{try{const next={schemaVersion:1,enabled:$('apiEnabled').value==='true',port:Number($('apiPort').value)};await api('/api/server-settings',{method:'PUT',body:JSON.stringify(next)});message('서버가 다시 시작됩니다. 새 포트로 다시 접속하세요.')}catch(e){message(e.message,true)}};
+document.querySelectorAll('[data-action]').forEach(button=>button.onclick=async()=>{const action=button.dataset.action;if(['update','restart','shutdown'].includes(action)&&!confirm(`${button.textContent} 작업을 실행할까요?`))return;try{const r=await api(`/api/actions/${action}`,{method:'POST'});message(r.message||'요청을 접수했습니다.');setTimeout(()=>loadStatus().catch(()=>{}),700)}catch(e){message(e.message,true)}});
+if(token)showAdmin();
+</script>
+</body>
+</html>

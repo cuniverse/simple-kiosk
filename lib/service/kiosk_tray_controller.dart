@@ -91,6 +91,7 @@ class KioskTrayController with TrayListener, WindowListener {
     await windowManager.setPreventClose(false);
     await trayManager.destroy();
     await windowManager.destroy();
+    exit(0);
   }
 
   Future<void> dispose() async {

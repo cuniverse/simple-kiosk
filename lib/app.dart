@@ -5,11 +5,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'model/idle_config.dart';
 import 'model/layout_config.dart';
 import 'model/menu_config.dart';
 import 'model/menu_item.dart';
+import 'service/admin_api_controller.dart';
 import 'service/menu_config_loader.dart';
 import 'service/runtime_paths.dart';
 import 'widget/idle_gate.dart';
@@ -182,6 +184,7 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
           items: snapshot.data!.items,
           layout: snapshot.data!.layout,
           idle: snapshot.data!.idle,
+          onReloadConfig: _retry,
         );
       },
     );
@@ -201,10 +204,12 @@ class _KioskHome extends StatefulWidget {
   final List<MenuItem> items;
   final LayoutConfig layout;
   final IdleConfig idle;
+  final VoidCallback onReloadConfig;
   const _KioskHome({
     required this.items,
     required this.layout,
     required this.idle,
+    required this.onReloadConfig,
   });
 
   @override
@@ -216,6 +221,8 @@ class _KioskHomeState extends State<_KioskHome> {
   final IdleGateController _idleGateController = IdleGateController();
   late final UpdateController _updateController;
   late final KioskTrayController _trayController;
+  late final AdminApiController _adminApiController;
+  final DateTime _startedAt = DateTime.now();
   bool _versionDialogOpen = false;
   bool _manualDialogOpen = false;
   bool _manualUpdateRunning = false;
@@ -259,12 +266,22 @@ class _KioskHomeState extends State<_KioskHome> {
       onOpenSettings: _showAdminSettings,
       onOpenManual: _showUserManual,
     );
+    const configLoader = MenuConfigLoader();
+    _adminApiController = AdminApiController(
+      statusProvider: _adminStatus,
+      actionHandler: _handleAdminAction,
+      configReader: configLoader.readOverride,
+      configWriter: _saveExternalConfig,
+    );
     unawaited(_initializeTray());
+    unawaited(_initializeAdminApi());
   }
 
   @override
   void dispose() {
     unawaited(_trayController.dispose());
+    unawaited(_adminApiController.close());
+    _adminApiController.dispose();
     _updateController.dispose();
     super.dispose();
   }
@@ -275,6 +292,90 @@ class _KioskHomeState extends State<_KioskHome> {
     } catch (error) {
       if (kDebugMode) debugPrint('[tray] 초기화 실패: $error');
     }
+  }
+
+  Future<void> _initializeAdminApi() async {
+    try {
+      await _adminApiController.initialize();
+    } catch (error) {
+      if (kDebugMode) debugPrint('[admin-api] 초기화 실패: $error');
+    }
+  }
+
+  Future<Map<String, dynamic>> _adminStatus() async {
+    await _updateController.initialize();
+    final visible = Platform.isWindows ? await windowManager.isVisible() : true;
+    return {
+      'application': 'Simple Kiosk',
+      'running': true,
+      'visible': visible,
+      'version': _updateController.currentVersion,
+      'startedAt': _startedAt.toUtc().toIso8601String(),
+      'uptimeSeconds': DateTime.now().difference(_startedAt).inSeconds,
+      'selectedMenu': widget.items[_selectedIndex].id,
+      'update': {
+        'status': _updateController.status,
+        'busy': _updateController.busy,
+        'availableVersion': _updateController.available?.manifest.version,
+        'lastCheckedAt':
+            _updateController.lastCheckedAt?.toUtc().toIso8601String(),
+      },
+    };
+  }
+
+  Future<Map<String, dynamic>> _handleAdminAction(String action) async {
+    switch (action) {
+      case 'show':
+        await _trayController.showWindow();
+        return {'message': '키오스크 화면을 표시했습니다.'};
+      case 'hide':
+        await _trayController.hideWindow();
+        return {'message': '키오스크 화면을 감췄습니다.'};
+      case 'restart':
+        Timer(const Duration(milliseconds: 500), _restartApplication);
+        return {'message': '키오스크를 재시작합니다.'};
+      case 'shutdown':
+        Timer(
+          const Duration(milliseconds: 500),
+          () => unawaited(_trayController.exitApplication()),
+        );
+        return {'message': '키오스크를 완전히 종료합니다.'};
+      case 'update':
+        await _updateController.initialize();
+        final available = await _updateController.check(rethrowErrors: true);
+        if (available == null) {
+          return {'message': '이미 최신 버전입니다.'};
+        }
+        final package = await _updateController.download(
+          allowAutoInstall: false,
+          rethrowErrors: true,
+        );
+        if (package == null) throw StateError('업데이트 패키지를 내려받지 못했습니다.');
+        Timer(
+          const Duration(milliseconds: 500),
+          () => unawaited(_updateController.installNow()),
+        );
+        return {
+          'message': '업데이트 설치를 시작합니다.',
+          'version': available.manifest.version,
+        };
+    }
+    throw ArgumentError.value(action, 'action', '지원하지 않는 관리 작업');
+  }
+
+  Future<void> _saveExternalConfig(Map<String, dynamic> config) async {
+    await const MenuConfigLoader().saveOverride(config);
+    Timer(const Duration(milliseconds: 500), widget.onReloadConfig);
+  }
+
+  void _restartApplication() {
+    unawaited(
+      Process.start(
+        Platform.resolvedExecutable,
+        const ['--restart-delay'],
+        mode: ProcessStartMode.detached,
+      ).then((_) => exit(0)),
+    );
   }
 
   @override
@@ -626,7 +727,11 @@ class _KioskHomeState extends State<_KioskHome> {
 
   Future<void> _showAdminSettings() async {
     if (!mounted) return;
-    await UpdateAdminDialog.show(context, _updateController);
+    await UpdateAdminDialog.show(
+      context,
+      _updateController,
+      adminApiController: _adminApiController,
+    );
   }
 
   Future<T> _runUpdateProgress<T>(

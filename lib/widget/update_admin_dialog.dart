@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../model/admin_api_settings.dart';
 import '../model/update_policy.dart';
+import '../service/admin_api_controller.dart';
 import '../service/admin_pin_store.dart';
 import '../service/update_controller.dart';
 
@@ -11,8 +13,9 @@ class UpdateAdminDialog {
 
   static Future<void> show(
     BuildContext context,
-    UpdateController controller,
-  ) async {
+    UpdateController controller, {
+    AdminApiController? adminApiController,
+  }) async {
     final pinController = TextEditingController();
     final authenticated = await showDialog<bool>(
       context: context,
@@ -54,6 +57,7 @@ class UpdateAdminDialog {
       builder: (context) => _UpdateAdminPanel(
         controller: controller,
         pinStore: _pinStore,
+        adminApiController: adminApiController,
       ),
     );
   }
@@ -62,8 +66,13 @@ class UpdateAdminDialog {
 class _UpdateAdminPanel extends StatefulWidget {
   final UpdateController controller;
   final AdminPinStore pinStore;
+  final AdminApiController? adminApiController;
 
-  const _UpdateAdminPanel({required this.controller, required this.pinStore});
+  const _UpdateAdminPanel({
+    required this.controller,
+    required this.pinStore,
+    this.adminApiController,
+  });
 
   @override
   State<_UpdateAdminPanel> createState() => _UpdateAdminPanelState();
@@ -75,8 +84,10 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
   late int _checkIntervalHours;
   late int _retainVersions;
   late int _logRetentionDays;
+  late bool _adminApiEnabled;
   late final TextEditingController _startController;
   late final TextEditingController _endController;
+  late final TextEditingController _adminApiPortController;
 
   @override
   void initState() {
@@ -87,14 +98,20 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     _checkIntervalHours = policy.checkIntervalHours;
     _retainVersions = policy.retainVersions;
     _logRetentionDays = policy.logRetentionDays;
+    _adminApiEnabled = widget.adminApiController?.settings.enabled ?? true;
     _startController = TextEditingController(text: policy.installWindow.start);
     _endController = TextEditingController(text: policy.installWindow.end);
+    _adminApiPortController = TextEditingController(
+      text:
+          '${widget.adminApiController?.settings.port ?? AdminApiSettings.defaultPort}',
+    );
   }
 
   @override
   void dispose() {
     _startController.dispose();
     _endController.dispose();
+    _adminApiPortController.dispose();
     super.dispose();
   }
 
@@ -207,9 +224,46 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     }
   }
 
+  Future<void> _saveAdminApi() async {
+    final controller = widget.adminApiController;
+    if (controller == null) return;
+    final port = int.tryParse(_adminApiPortController.text.trim());
+    if (port == null || port < 1 || port > 65535) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('관리 API 포트는 1~65535로 입력하세요.')),
+      );
+      return;
+    }
+    try {
+      await controller.updateSettings(
+        AdminApiSettings(enabled: _adminApiEnabled, port: port),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              controller.running
+                  ? '관리 API 설정을 저장했습니다. 포트: ${controller.actualPort}'
+                  : controller.lastError ?? '관리 API를 사용하지 않습니다.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('관리 API 설정 저장 실패: $error')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-        animation: widget.controller,
+        animation: Listenable.merge([
+          widget.controller,
+          if (widget.adminApiController != null) widget.adminApiController!,
+        ]),
         builder: (context, _) {
           final controller = widget.controller;
           return AlertDialog(
@@ -343,6 +397,43 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                         child: const Text('PIN 변경'),
                       ),
                     ),
+                    if (widget.adminApiController != null) ...[
+                      const Divider(height: 28),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('관리 API / 관리자 페이지'),
+                        subtitle: Text(
+                          widget.adminApiController!.running
+                              ? '실행 중 · ${widget.adminApiController!.address}'
+                              : widget.adminApiController!.lastError ??
+                                  '사용 안 함',
+                        ),
+                        value: _adminApiEnabled,
+                        onChanged: widget.adminApiController!.busy
+                            ? null
+                            : (value) =>
+                                setState(() => _adminApiEnabled = value),
+                      ),
+                      TextField(
+                        controller: _adminApiPortController,
+                        enabled: !widget.adminApiController!.busy,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: '관리 API 포트',
+                          helperText: '기본값 80 · 변경 시 서버가 즉시 재시작됩니다.',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.tonal(
+                          onPressed: widget.adminApiController!.busy
+                              ? null
+                              : _saveAdminApi,
+                          child: const Text('관리 API 설정 저장'),
+                        ),
+                      ),
+                    ],
                     const Divider(height: 28),
                     Text('현재 버전: ${controller.currentVersion}'),
                     Text(

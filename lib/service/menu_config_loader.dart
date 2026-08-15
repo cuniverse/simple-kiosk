@@ -24,6 +24,34 @@ class MenuConfigLoader {
 
   const MenuConfigLoader({this.assetPath = defaultAssetPath});
 
+  Future<Map<String, dynamic>> readOverride() async {
+    final path = RuntimePaths.menuOverride;
+    if (path == null || !await File(path).exists()) return <String, dynamic>{};
+    final decoded = json.decode(await File(path).readAsString());
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('menu.override.json: 최상위 객체 필요');
+    }
+    return decoded;
+  }
+
+  Future<void> saveOverride(Map<String, dynamic> override) async {
+    final raw = await rootBundle.loadString(assetPath);
+    final defaults = json.decode(raw);
+    if (defaults is! Map<String, dynamic>) {
+      throw const FormatException('menu.defaults.json: 최상위 객체 필요');
+    }
+    final merged = MenuConfigMerger.merge(defaults, override).json;
+    parse(merged);
+    final path = RuntimePaths.menuOverride;
+    if (path == null) {
+      throw UnsupportedError('메뉴 설정 저장 경로를 사용할 수 없습니다.');
+    }
+    await RuntimePaths.atomicWrite(
+      path,
+      const JsonEncoder.withIndent('  ').convert(override),
+    );
+  }
+
   /// 에셋에서 메뉴 설정을 로드한다.
   ///
   /// 파싱 실패 시 [FormatException]을 던진다.

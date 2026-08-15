@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
@@ -15,7 +16,10 @@ import 'app.dart';
 /// - Windows/macOS/Linux 데스크톱은 [window_manager] 로 borderless fullscreen 표시.
 /// - 개발 중 일반 창 모드는 환경변수 `SIMPLE_KIOSK_WINDOWED=1` 로 전환.
 /// - 키오스크 운영 시에는 별도 디바이스 설정(잠금/킥아웃 등)을 함께 적용한다.
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
+  if (arguments.contains('--restart-delay')) {
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
   WidgetsFlutterBinding.ensureInitialized();
 
   // 가로 방향 우선 (필요 시 운영 환경에서 조정).
@@ -31,8 +35,7 @@ Future<void> main() async {
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
   // 데스크톱: borderless fullscreen.
-  if (!kIsWeb &&
-      (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+  if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
     final windowed = Platform.environment['SIMPLE_KIOSK_WINDOWED'] == '1';
     await windowManager.ensureInitialized();
     const options = WindowOptions(
