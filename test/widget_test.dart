@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,7 @@ import 'package:simple_kiosk/model/layout_config.dart';
 import 'package:simple_kiosk/model/update_manifest.dart';
 import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
+import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
@@ -17,6 +20,31 @@ import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 
 void main() {
+  test('관리자 PIN은 기본값, 변경 파일, 파일 삭제 순서로 동작한다', () async {
+    final directory = await Directory.systemTemp.createTemp('admin-pin-test-');
+    final file =
+        File('${directory.path}${Platform.pathSeparator}admin-pin.json');
+    final store = AdminPinStore(
+      file: file,
+      random: Random(1),
+      iterations: 20,
+    );
+    addTearDown(() => directory.delete(recursive: true));
+
+    expect(await store.verify('1259'), isTrue);
+    expect(await store.verify('0000'), isFalse);
+
+    await store.changePin('9876');
+    expect(await store.hasCustomPin, isTrue);
+    expect(await store.verify('1259'), isFalse);
+    expect(await store.verify('9876'), isTrue);
+    expect(await file.readAsString(), isNot(contains('9876')));
+
+    await file.delete();
+    expect(await store.verify('1259'), isTrue);
+    expect(await store.verify('9876'), isFalse);
+  });
+
   test('menu override preserves edits and receives new default items', () {
     final merged = MenuConfigMerger.merge(
       {

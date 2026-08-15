@@ -14,7 +14,7 @@ PowerShell에서 압축을 푼 폴더를 현재 위치로 두고 다음을 실�
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.6
+.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.7
 ```
 
 이후 압축을 푼 **프로그램 폴더의 `SimpleKiosk.cmd`**를 Windows 시작 프로그램이나
@@ -23,15 +23,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 ### 관리자 PIN 설정
 
-PIN은 평문으로 저장하지 않습니다. SHA-256을 시스템 환경변수로 등록하고 앱을 다시
-시작하면 툴바에 업데이트 관리 버튼이 나타납니다.
-
-```powershell
-$pin = Read-Host '관리자 PIN'
-$bytes = [Text.Encoding]::UTF8.GetBytes($pin)
-$hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-', '').ToLower()
-[Environment]::SetEnvironmentVariable('SIMPLE_KIOSK_ADMIN_PIN_HASH', $hash, 'Machine')
-```
+최초 관리자 PIN은 `1259`입니다. 관리자 화면의 `PIN 변경`에서 숫자 4~12자리로
+변경할 수 있습니다. 변경 PIN은 평문이 아닌 솔트가 적용된 PBKDF2-HMAC-SHA256
+해시로 `<프로그램 폴더>\config\admin-pin.json`에 저장됩니다. 이 파일을 삭제하면
+다음 인증부터 기본 PIN `1259`로 돌아갑니다.
 
 자동 업데이트 기본값은 OFF입니다. 관리자가 켜면 stable Release를 6시간마다 확인하고
 다운로드하며, 기본 설정상 02:00~05:00 사이 화면 보호기 상태에서만 설치합니다.
@@ -47,7 +42,7 @@ $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Comput
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   .\updater\recover.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  .\updater\recover.ps1 -Version 1.2.6
+  .\updater\recover.ps1 -Version 1.2.7
 ```
 
 관리자 화면의 `진단 자료 내보내기` 또는 아래 명령은 설정 정책, 상태, 로그를 ZIP으로

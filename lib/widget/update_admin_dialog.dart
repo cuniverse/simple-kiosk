@@ -1,29 +1,18 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 
 import '../model/update_policy.dart';
+import '../service/admin_pin_store.dart';
 import '../service/update_controller.dart';
 
 class UpdateAdminDialog {
-  static String? get _configuredHash {
-    final value = Platform.environment['SIMPLE_KIOSK_ADMIN_PIN_HASH'];
-    if (value == null || !RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(value)) {
-      return null;
-    }
-    return value.toLowerCase();
-  }
+  static final AdminPinStore _pinStore = AdminPinStore();
 
-  static bool get isConfigured => _configuredHash != null;
+  static bool get isConfigured => true;
 
   static Future<void> show(
     BuildContext context,
     UpdateController controller,
   ) async {
-    final expected = _configuredHash;
-    if (expected == null) return;
     final pinController = TextEditingController();
     final authenticated = await showDialog<bool>(
       context: context,
@@ -48,9 +37,10 @@ class UpdateAdminDialog {
         ],
       ),
     );
-    final actual = sha256.convert(utf8.encode(pinController.text)).toString();
+    final validPin = authenticated == true &&
+        await _pinStore.verify(pinController.text.trim());
     pinController.dispose();
-    if (authenticated != true || actual != expected || !context.mounted) {
+    if (!validPin || !context.mounted) {
       if (authenticated == true && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('관리자 PIN이 올바르지 않습니다.')),
@@ -61,15 +51,19 @@ class UpdateAdminDialog {
 
     await showDialog<void>(
       context: context,
-      builder: (context) => _UpdateAdminPanel(controller: controller),
+      builder: (context) => _UpdateAdminPanel(
+        controller: controller,
+        pinStore: _pinStore,
+      ),
     );
   }
 }
 
 class _UpdateAdminPanel extends StatefulWidget {
   final UpdateController controller;
+  final AdminPinStore pinStore;
 
-  const _UpdateAdminPanel({required this.controller});
+  const _UpdateAdminPanel({required this.controller, required this.pinStore});
 
   @override
   State<_UpdateAdminPanel> createState() => _UpdateAdminPanelState();
@@ -139,6 +133,77 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('업데이트 정책을 저장했습니다.')),
       );
+    }
+  }
+
+  Future<void> _changePin() async {
+    final newPinController = TextEditingController();
+    final confirmController = TextEditingController();
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('관리자 PIN 변경'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: newPinController,
+              autofocus: true,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '새 PIN (숫자 4~12자리)'),
+            ),
+            TextField(
+              controller: confirmController,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '새 PIN 확인'),
+              onSubmitted: (_) => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('변경'),
+          ),
+        ],
+      ),
+    );
+    final newPin = newPinController.text.trim();
+    final confirmation = confirmController.text.trim();
+    newPinController.dispose();
+    confirmController.dispose();
+    if (approved != true || !mounted) return;
+    if (newPin != confirmation) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('새 PIN이 서로 일치하지 않습니다.')),
+      );
+      return;
+    }
+    try {
+      await widget.pinStore.changePin(newPin);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('관리자 PIN을 변경했습니다.')),
+        );
+      }
+    } on FormatException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('관리자 PIN 저장에 실패했습니다: $error')),
+        );
+      }
     }
   }
 
@@ -263,6 +328,19 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                       child: FilledButton.tonal(
                         onPressed: controller.busy ? null : _save,
                         child: const Text('정책 저장'),
+                      ),
+                    ),
+                    const Divider(height: 28),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('관리자 PIN'),
+                      subtitle: const Text(
+                        '변경 PIN은 PBKDF2 솔트 해시 파일로 저장됩니다. '
+                        '파일 삭제 시 기본 PIN으로 복원됩니다.',
+                      ),
+                      trailing: OutlinedButton(
+                        onPressed: controller.busy ? null : _changePin,
+                        child: const Text('PIN 변경'),
                       ),
                     ),
                     const Divider(height: 28),
