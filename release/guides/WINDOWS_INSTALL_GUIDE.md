@@ -252,9 +252,10 @@ $actual -eq $expected
 
 주요 설정은 다음과 같습니다.
 
-- `items[].title`: 메뉴 이름
-- `items[].url`: 연결할 URL(운영 환경에서는 HTTPS 권장)
-- `items[].icon`: 메뉴 아이콘
+- `languages[]`: 화면보호기 해제 후 선택할 언어
+- `languages[].items[].title`: 언어별 메뉴 이름
+- `languages[].items[].url`: 언어별 연결 URL(운영 환경에서는 HTTPS 권장)
+- `languages[].items[].icon`: 언어별 메뉴 아이콘
 - `layout`: 메뉴 위치, 크기, 색상 및 표시 옵션
 - `idle`: 대기화면과 전환 시간
 

@@ -9,14 +9,18 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:simple_kiosk/model/idle_config.dart';
 import 'package:simple_kiosk/model/layout_config.dart';
+import 'package:simple_kiosk/model/menu_language.dart';
+import 'package:simple_kiosk/model/menu_item.dart';
 import 'package:simple_kiosk/model/update_manifest.dart';
 import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
+import 'package:simple_kiosk/service/menu_config_loader.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
 import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
+import 'package:simple_kiosk/widget/language_selection.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 
 void main() {
@@ -78,6 +82,110 @@ void main() {
     final items = merged['items'] as List;
     expect(items.map((item) => item['id']), ['home', 'custom', 'new']);
     expect(items.first['url'], 'https://custom.example');
+  });
+
+  test('언어별 메뉴 설정을 파싱하고 기본 언어를 선택한다', () {
+    final config = MenuConfigLoader.parse({
+      'defaultLanguage': 'en',
+      'languages': [
+        {
+          'id': 'ko',
+          'label': '한국어',
+          'items': [
+            {'id': 'home', 'title': '홈', 'url': 'https://ko.example'},
+          ],
+        },
+        {
+          'id': 'en',
+          'label': 'English',
+          'items': [
+            {'id': 'home', 'title': 'Home', 'url': 'https://en.example'},
+            {'id': 'news', 'title': 'News', 'url': 'https://news.example'},
+          ],
+        },
+      ],
+    });
+
+    expect(config.languages.map((language) => language.id), ['ko', 'en']);
+    expect(config.defaultLanguageId, 'en');
+    expect(config.items.map((item) => item.title), ['Home', 'News']);
+  });
+
+  test('기본 메뉴 설정은 한국어와 English 메뉴를 제공한다', () {
+    final decoded = jsonDecode(
+      File('assets/config/menu.defaults.json').readAsStringSync(),
+    );
+    final config = MenuConfigLoader.parse(decoded);
+
+    expect(config.defaultLanguageId, 'ko');
+    expect(
+      config.languages.map((language) => language.id),
+      containsAll(['ko', 'en']),
+    );
+    expect(config.languages.length, greaterThanOrEqualTo(2));
+    expect(config.language('ko').items.first.title, 'WYD 서울 2027');
+    expect(
+      config.language('en').items.firstWhere((item) => item.id == 'aos').title,
+      'Archdiocese of Seoul',
+    );
+  });
+
+  test('기존 items 오버라이드는 다국어 기본값에서도 단일 메뉴로 유지된다', () {
+    final merged = MenuConfigMerger.merge(
+      {
+        'schemaVersion': 2,
+        'languages': [
+          {
+            'id': 'ko',
+            'label': '한국어',
+            'items': [
+              {'id': 'home', 'title': '홈', 'url': 'https://default.example'},
+            ],
+          },
+        ],
+      },
+      {
+        'schemaVersion': 1,
+        'items': {
+          'overrides': {
+            'home': {'url': 'https://custom.example'},
+          },
+        },
+      },
+    ).json;
+
+    expect(merged, isNot(contains('languages')));
+    final config = MenuConfigLoader.parse(merged);
+    expect(config.languages.single.id, 'default');
+    expect(config.items.single.url, 'https://custom.example');
+  });
+
+  testWidgets('언어 선택 화면은 큰 버튼으로 언어를 표시한다', (tester) async {
+    var selected = -1;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LanguageSelection(
+          title: '언어를 선택하세요',
+          subtitle: 'Please select your language',
+          languages: const [
+            MenuLanguage(
+              id: 'ko',
+              label: '한국어',
+              items: [
+                MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
+              ],
+            ),
+          ],
+          onSelected: (index) => selected = index,
+        ),
+      ),
+    );
+
+    final button = find.byKey(const ValueKey('language-ko'));
+    expect(button, findsOneWidget);
+    expect(tester.getSize(button), const Size(300, 140));
+    await tester.tap(button);
+    expect(selected, 0);
   });
 
   test('semantic versions and overnight install windows are handled', () {
@@ -177,7 +285,7 @@ void main() {
     );
     expect(
       () => UpdateService.validateCompatibility(
-        manifest(configSchemaVersion: 2),
+        manifest(configSchemaVersion: 3),
       ),
       throwsStateError,
     );

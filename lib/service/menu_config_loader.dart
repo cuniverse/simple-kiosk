@@ -6,7 +6,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../model/idle_config.dart';
 import '../model/layout_config.dart';
 import '../model/menu_config.dart';
-import '../model/menu_item.dart';
+import '../model/menu_language.dart';
 import 'menu_config_merger.dart';
 import 'runtime_paths.dart';
 
@@ -96,23 +96,18 @@ class MenuConfigLoader {
 
   /// 이미 병합된 JSON을 검증하고 모델로 변환한다.
   static MenuConfig parse(dynamic decoded) {
-    final List rawItems;
     final LayoutConfig layout;
     IdleConfig idle = IdleConfig.defaults;
+    List<MenuLanguage> languages;
+    String? requestedDefaultLanguage;
+    var selectionTitle = '언어를 선택하세요';
+    var selectionSubtitle = 'Please select your language';
 
     if (decoded is List) {
       // 구버전: 배열 = items만 정의된 형식.
-      rawItems = decoded;
       layout = LayoutConfig.defaults;
+      languages = [_legacyLanguage(decoded)];
     } else if (decoded is Map<String, dynamic>) {
-      final itemsValue = decoded['items'];
-      if (itemsValue is! List) {
-        throw const FormatException(
-          'menu.json: "items"는 배열이어야 함',
-        );
-      }
-      rawItems = itemsValue;
-
       final layoutValue = decoded['layout'];
       if (layoutValue == null) {
         layout = LayoutConfig.defaults;
@@ -134,25 +129,92 @@ class MenuConfigLoader {
           'menu.json: "idle"은 객체여야 함',
         );
       }
+
+      final languagesValue = decoded['languages'];
+      if (languagesValue != null) {
+        if (languagesValue is! List || languagesValue.isEmpty) {
+          throw const FormatException(
+              'menu.json: "languages"는 한 개 이상의 배열이어야 함');
+        }
+        languages = <MenuLanguage>[];
+        final languageIds = <String>{};
+        for (var i = 0; i < languagesValue.length; i++) {
+          final raw = languagesValue[i];
+          if (raw is! Map<String, dynamic>) {
+            throw FormatException('menu.json languages[$i]: 객체 필요');
+          }
+          final language = MenuLanguage.fromJson(raw, i);
+          if (!languageIds.add(language.id)) {
+            throw FormatException(
+                'menu.json languages: 언어 id 중복 (${language.id})');
+          }
+          languages.add(language);
+        }
+      } else {
+        final itemsValue = decoded['items'];
+        if (itemsValue is! List) {
+          throw const FormatException(
+            'menu.json: "languages" 또는 "items"가 필요함',
+          );
+        }
+        languages = [_legacyLanguage(itemsValue)];
+      }
+
+      final defaultLanguageValue = decoded['defaultLanguage'];
+      if (defaultLanguageValue != null && defaultLanguageValue is! String) {
+        throw const FormatException('menu.json: "defaultLanguage"는 문자열이어야 함');
+      }
+      requestedDefaultLanguage = defaultLanguageValue as String?;
+
+      final selectionValue = decoded['languageSelection'];
+      if (selectionValue != null) {
+        if (selectionValue is! Map<String, dynamic>) {
+          throw const FormatException('menu.json: "languageSelection"은 객체여야 함');
+        }
+        final title = selectionValue['title'];
+        final subtitle = selectionValue['subtitle'];
+        if (title != null && (title is! String || title.trim().isEmpty)) {
+          throw const FormatException(
+              'menu.json languageSelection.title: 문자열 필요');
+        }
+        if (subtitle != null && subtitle is! String) {
+          throw const FormatException(
+              'menu.json languageSelection.subtitle: 문자열 필요');
+        }
+        if (title is String) selectionTitle = title.trim();
+        if (subtitle is String) selectionSubtitle = subtitle.trim();
+      }
     } else {
       throw const FormatException(
         'menu.json: 최상위 구조는 객체 또는 배열이어야 함',
       );
     }
 
-    final items = <MenuItem>[];
-    for (var i = 0; i < rawItems.length; i++) {
-      final entry = rawItems[i];
-      if (entry is! Map<String, dynamic>) {
-        throw FormatException('menu.json items[$i]: 객체 형식이 아님');
-      }
-      items.add(MenuItem.fromJson(entry));
+    final defaultLanguageId =
+        requestedDefaultLanguage?.trim().isNotEmpty == true
+            ? requestedDefaultLanguage!.trim()
+            : languages.first.id;
+    if (!languages.any((language) => language.id == defaultLanguageId)) {
+      throw FormatException(
+        'menu.json defaultLanguage: 등록되지 않은 언어 ($defaultLanguageId)',
+      );
     }
+    return MenuConfig(
+      layout: layout,
+      idle: idle,
+      languages: List.unmodifiable(languages),
+      defaultLanguageId: defaultLanguageId,
+      languageSelectionTitle: selectionTitle,
+      languageSelectionSubtitle: selectionSubtitle,
+    );
+  }
 
-    if (items.isEmpty) {
-      throw const FormatException('menu.json: 메뉴가 비어있음');
-    }
-    return MenuConfig(layout: layout, idle: idle, items: items);
+  static MenuLanguage _legacyLanguage(List<dynamic> rawItems) {
+    return MenuLanguage.fromJson({
+      'id': 'default',
+      'label': '시작',
+      'items': rawItems,
+    }, 0);
   }
 
   static dynamic _resolveExternalMediaPaths(dynamic value) {

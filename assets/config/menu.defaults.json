@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "layout": {
     "navPosition": "bottom",
     "sideWidth": 220,
@@ -58,38 +58,228 @@
     "showHint": true,
     "hintText": "화면을 터치해 주세요"
   },
-  "items": [
+  "defaultLanguage": "ko",
+  "languageSelection": {
+    "title": "언어를 선택하세요",
+    "subtitle": "Please select your language"
+  },
+  "languages": [
     {
-      "id": "home",
-      "title": "WYD 서울 2027",
-      "url": "https://wydseoul.org/",
-      "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
-      "showTitle": false
+      "id": "ko",
+      "label": "한국어",
+      "subtitle": "Korean",
+      "items": [
+        {
+          "id": "home",
+          "title": "WYD 서울 2027",
+          "url": "https://wydseoul.org/",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "showTitle": false
+        },
+        {
+          "id": "goodnews",
+          "title": "굿뉴스",
+          "url": "https://www.catholic.or.kr/",
+          "icon": "assets/icons/goodnews-white.png",
+          "showTitle": false
+        },
+        {
+          "id": "aos",
+          "title": "서울대교구",
+          "url": "https://aos.catholic.or.kr/index",
+          "icon": "assets/icons/aos-toolbar-white.png"
+        },
+        {
+          "id": "notice",
+          "title": "공지",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=notice",
+          "icon": "icon:notice"
+        },
+        {
+          "id": "gallery",
+          "title": "포토갤러리",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
+          "icon": "icon:gallery"
+        },
+        {
+          "id": "ycatholic",
+          "title": "홈페이지",
+          "url": "http://ycatholic.or.kr/",
+          "icon": "icon:church",
+          "keepStateOnTap": true
+        },
+        {
+          "id": "jubo",
+          "title": "주보",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
+          "icon": "icon:book"
+        }
+      ]
     },
     {
-      "id": "notice",
-      "title": "공지",
-      "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=notice",
-      "icon": "icon:notice"
+      "id": "en",
+      "label": "English",
+      "subtitle": "영어",
+      "items": [
+        {
+          "id": "home",
+          "title": "WYD Seoul 2027",
+          "url": "https://wydseoul.org/en",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "showTitle": false
+        },
+        {
+          "id": "aos",
+          "title": "Archdiocese of Seoul",
+          "url": "https://aos.catholic.or.kr/en/index",
+          "icon": "assets/icons/aos-toolbar-white.png"
+        },
+        {
+          "id": "ycatholic",
+          "title": "Parish Website",
+          "url": "http://ycatholic.or.kr/",
+          "icon": "icon:church",
+          "keepStateOnTap": true
+        },
+        {
+          "id": "jubo",
+          "title": "Bulletin",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
+          "icon": "icon:book"
+        }
+      ]
     },
     {
-      "id": "gallery",
-      "title": "포토갤러리",
-      "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
-      "icon": "icon:gallery"
+      "id": "es",
+      "label": "Español",
+      "subtitle": "스페인어",
+      "items": [
+        {
+          "id": "home",
+          "title": "WYD Seoul 2027",
+          "url": "https://wydseoul.org/es",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "showTitle": false
+        },
+        {
+          "id": "aos",
+          "title": "Archdiocese of Seoul",
+          "url": "https://aos.catholic.or.kr/en/index",
+          "icon": "assets/icons/aos-toolbar-white.png"
+        },
+        {
+          "id": "ycatholic",
+          "title": "Parish Website",
+          "url": "http://ycatholic.or.kr/",
+          "icon": "icon:church",
+          "keepStateOnTap": true
+        },
+        {
+          "id": "jubo",
+          "title": "Bulletin",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
+          "icon": "icon:book"
+        }
+      ]
     },
     {
-      "id": "ycatholic",
-      "title": "홈페이지",
-      "url": "http://ycatholic.or.kr/",
-      "icon": "icon:church",
-      "keepStateOnTap": true
+      "id": "fr",
+      "label": "Français",
+      "subtitle": "프랑스어",
+      "items": [
+        {
+          "id": "home",
+          "title": "WYD Seoul 2027",
+          "url": "https://wydseoul.org/fr",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "showTitle": false
+        },
+        {
+          "id": "aos",
+          "title": "Archdiocese of Seoul",
+          "url": "https://aos.catholic.or.kr/en/index",
+          "icon": "assets/icons/aos-toolbar-white.png"
+        },
+        {
+          "id": "ycatholic",
+          "title": "Parish Website",
+          "url": "http://ycatholic.or.kr/",
+          "icon": "icon:church",
+          "keepStateOnTap": true
+        },
+        {
+          "id": "jubo",
+          "title": "Bulletin",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
+          "icon": "icon:book"
+        }
+      ]
     },
     {
-      "id": "jubo",
-      "title": "주보",
-      "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
-      "icon": "icon:book"
+      "id": "pt",
+      "label": "Português",
+      "subtitle": "포르투갈어",
+      "items": [
+        {
+          "id": "home",
+          "title": "WYD Seoul 2027",
+          "url": "https://wydseoul.org/pt",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "showTitle": false
+        },
+        {
+          "id": "aos",
+          "title": "Archdiocese of Seoul",
+          "url": "https://aos.catholic.or.kr/en/index",
+          "icon": "assets/icons/aos-toolbar-white.png"
+        },
+        {
+          "id": "ycatholic",
+          "title": "Parish Website",
+          "url": "http://ycatholic.or.kr/",
+          "icon": "icon:church",
+          "keepStateOnTap": true
+        },
+        {
+          "id": "jubo",
+          "title": "Bulletin",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
+          "icon": "icon:book"
+        }
+      ]
+    },
+    {
+      "id": "it",
+      "label": "Italiano",
+      "subtitle": "이탈리아어",
+      "items": [
+        {
+          "id": "home",
+          "title": "WYD Seoul 2027",
+          "url": "https://wydseoul.org/it",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "showTitle": false
+        },
+        {
+          "id": "aos",
+          "title": "Archdiocese of Seoul",
+          "url": "https://aos.catholic.or.kr/en/index",
+          "icon": "assets/icons/aos-toolbar-white.png"
+        },
+        {
+          "id": "ycatholic",
+          "title": "Parish Website",
+          "url": "http://ycatholic.or.kr/",
+          "icon": "icon:church",
+          "keepStateOnTap": true
+        },
+        {
+          "id": "jubo",
+          "title": "Bulletin",
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
+          "icon": "icon:book"
+        }
+      ]
     }
   ]
 }

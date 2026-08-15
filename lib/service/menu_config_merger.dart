@@ -9,7 +9,7 @@ class MenuMergeResult {
 
 /// 새 기본 설정과 운영자 오버라이드를 병합한다.
 class MenuConfigMerger {
-  static const int currentSchemaVersion = 1;
+  static const int currentSchemaVersion = 2;
 
   static MenuMergeResult merge(
     Map<String, dynamic> defaults,
@@ -28,9 +28,25 @@ class MenuConfigMerger {
       result[entry.key] = _mergeValue(result[entry.key], entry.value);
     }
     result['schemaVersion'] = defaults['schemaVersion'] ?? currentSchemaVersion;
-    result['items'] =
-        _mergeItems(defaults['items'], override['items'], warnings);
+    if (override.containsKey('items')) {
+      final defaultItems = defaults['items'] ?? _firstLanguageItems(defaults);
+      result['items'] = _mergeItems(defaultItems, override['items'], warnings);
+      // 기존 items 오버라이드는 기존 단일 언어 동작을 그대로 유지한다.
+      if (!override.containsKey('languages')) result.remove('languages');
+    } else if (defaults.containsKey('items')) {
+      result['items'] = _clone(defaults['items']);
+    } else {
+      result.remove('items');
+    }
     return MenuMergeResult(result, List.unmodifiable(warnings));
+  }
+
+  static dynamic _firstLanguageItems(Map<String, dynamic> defaults) {
+    final languages = defaults['languages'];
+    if (languages is List && languages.isNotEmpty && languages.first is Map) {
+      return (languages.first as Map)['items'];
+    }
+    throw const FormatException('menu.defaults.json: items 또는 languages 필요');
   }
 
   static dynamic _mergeValue(dynamic base, dynamic patch) {

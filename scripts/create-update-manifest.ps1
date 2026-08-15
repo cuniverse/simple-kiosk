@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory=$true)][string]$PackagePath,
     [string]$OutputPath = 'dist\update-manifest.json',
     [string]$MinimumUpdaterVersion = '1.1.0',
-    [ValidateRange(1, 2147483647)][int]$ConfigSchemaVersion = 1,
+    [ValidateRange(1, 2147483647)][int]$ConfigSchemaVersion = 2,
     [switch]$RequireAuthenticode,
     [string]$SignerThumbprint
 )

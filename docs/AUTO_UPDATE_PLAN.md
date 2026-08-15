@@ -111,7 +111,7 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "layout": {
     "toolbarAutoHideSec": 20
   },
@@ -138,6 +138,8 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
 - 오버라이드에 있는 키는 운영자 값을 우선한다.
 - `null`은 키 삭제가 아니라 명시적인 기본값 복원으로 정의한다.
 - 메뉴는 배열 위치가 아닌 변하지 않는 `items[].id`를 기준으로 병합한다.
+- 다국어 설정은 `languages` 배열 안에 언어별 독립 `items` 배열로 저장하며, 기존
+  schemaVersion 1의 최상위 `items` 오버라이드는 단일 언어 모드로 유지한다.
 - 기본 메뉴의 URL·제목 등을 운영자가 수정한 경우 해당 필드만 보존한다.
 - 새 버전에 추가된 기본 메뉴는 `disabledIds`에 없는 한 기본 순서에 맞춰 추가한다.
 - 운영자가 추가한 메뉴는 `additions`에 완전한 항목으로 저장하고 업데이트 후에도 유지한다.

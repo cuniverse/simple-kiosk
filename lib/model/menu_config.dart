@@ -1,4 +1,5 @@
 import 'menu_item.dart';
+import 'menu_language.dart';
 import 'layout_config.dart';
 import 'idle_config.dart';
 
@@ -23,11 +24,23 @@ import 'idle_config.dart';
 class MenuConfig {
   final LayoutConfig layout;
   final IdleConfig idle;
-  final List<MenuItem> items;
+  final List<MenuLanguage> languages;
+  final String defaultLanguageId;
+  final String languageSelectionTitle;
+  final String languageSelectionSubtitle;
+
+  /// 기존 단일 메뉴 소비 코드와 설정을 위한 기본 언어 메뉴.
+  List<MenuItem> get items => language(defaultLanguageId).items;
+
+  MenuLanguage language(String id) =>
+      languages.firstWhere((language) => language.id == id);
 
   const MenuConfig({
     required this.layout,
     required this.idle,
-    required this.items,
+    required this.languages,
+    required this.defaultLanguageId,
+    this.languageSelectionTitle = '언어를 선택하세요',
+    this.languageSelectionSubtitle = 'Please select your language',
   });
 }

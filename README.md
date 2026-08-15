@@ -116,20 +116,37 @@ flutter pub get
 
 개발 기본값은 `assets/config/menu.defaults.json`에서 수정합니다. Windows 운영 설정은
 `<simple_kiosk.exe가 들어 있는 폴더>\config\menu.override.json`에 변경한 값만 기록합니다.
-최상위 구조는 `layout`, `idle`, `items` 세 섹션을 가집니다.
+최상위 구조는 `layout`, `idle`, `languages`를 사용합니다. 화면보호기를 해제하면
+등록된 언어를 큰 버튼으로 선택하고 해당 언어의 메뉴만 표시합니다.
 
 ### 최소 예시
 
 ```json
 {
-  "items": [
-    { "id": "home",   "title": "홈",   "url": "https://example.com" },
-    { "id": "notice", "title": "공지", "url": "https://example.com/notice" }
+  "defaultLanguage": "ko",
+  "languages": [
+    {
+      "id": "ko",
+      "label": "한국어",
+      "items": [
+        { "id": "home", "title": "홈", "url": "https://example.com" }
+      ]
+    },
+    {
+      "id": "en",
+      "label": "English",
+      "items": [
+        { "id": "home", "title": "Home", "url": "https://example.com/en" }
+      ]
+    }
   ]
 }
 ```
 
-### items[] — 메뉴 항목 필드
+언어를 추가하려면 `languages` 배열에 고유한 `id`, `label`, 독립된 `items` 배열을
+가진 객체를 추가합니다. 기존 최상위 `items` 형식도 단일 언어로 호환됩니다.
+
+### languages[].items[] — 메뉴 항목 필드
 
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
@@ -195,9 +212,23 @@ flutter pub get
       "images": ["assets/idle/slide1.jpg", "assets/idle/slide2.jpg"]
     }
   },
-  "items": [
-    { "id": "home",   "title": "홈",   "url": "https://example.com",         "icon": "icon:home" },
-    { "id": "notice", "title": "공지", "url": "https://example.com/notice",  "icon": "icon:notice", "keepStateOnTap": true }
+  "defaultLanguage": "ko",
+  "languages": [
+    {
+      "id": "ko",
+      "label": "한국어",
+      "items": [
+        { "id": "home", "title": "홈", "url": "https://example.com", "icon": "icon:home" },
+        { "id": "notice", "title": "공지", "url": "https://example.com/notice", "icon": "icon:notice" }
+      ]
+    },
+    {
+      "id": "en",
+      "label": "English",
+      "items": [
+        { "id": "home", "title": "Home", "url": "https://example.com/en", "icon": "icon:home" }
+      ]
+    }
   ]
 }
 ```

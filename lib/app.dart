@@ -11,6 +11,7 @@ import 'model/idle_config.dart';
 import 'model/layout_config.dart';
 import 'model/menu_config.dart';
 import 'model/menu_item.dart';
+import 'model/menu_language.dart';
 import 'service/admin_api_controller.dart';
 import 'service/menu_config_loader.dart';
 import 'service/runtime_paths.dart';
@@ -25,6 +26,7 @@ import 'service/app_health_signal.dart';
 import 'service/update_controller.dart';
 import 'service/update_service.dart';
 import 'widget/kiosk_shortcuts.dart';
+import 'widget/language_selection.dart';
 import 'widget/update_admin_dialog.dart';
 
 /// 앱 진입 위젯.
@@ -181,7 +183,10 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
           );
         }
         return _KioskHome(
-          items: snapshot.data!.items,
+          languages: snapshot.data!.languages,
+          defaultLanguageId: snapshot.data!.defaultLanguageId,
+          languageSelectionTitle: snapshot.data!.languageSelectionTitle,
+          languageSelectionSubtitle: snapshot.data!.languageSelectionSubtitle,
           layout: snapshot.data!.layout,
           idle: snapshot.data!.idle,
           onReloadConfig: _retry,
@@ -201,12 +206,18 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
 ///   - WebView 뒤로갈 수 있으면 WebView 뒤로
 ///   - 아니면 첫 번째(홈) 메뉴로 이동(앱 종료 방지)
 class _KioskHome extends StatefulWidget {
-  final List<MenuItem> items;
+  final List<MenuLanguage> languages;
+  final String defaultLanguageId;
+  final String languageSelectionTitle;
+  final String languageSelectionSubtitle;
   final LayoutConfig layout;
   final IdleConfig idle;
   final VoidCallback onReloadConfig;
   const _KioskHome({
-    required this.items,
+    required this.languages,
+    required this.defaultLanguageId,
+    required this.languageSelectionTitle,
+    required this.languageSelectionSubtitle,
     required this.layout,
     required this.idle,
     required this.onReloadConfig,
@@ -218,6 +229,8 @@ class _KioskHome extends StatefulWidget {
 
 class _KioskHomeState extends State<_KioskHome> {
   int _selectedIndex = 0;
+  late int _selectedLanguageIndex;
+  bool _showLanguageSelection = false;
   final IdleGateController _idleGateController = IdleGateController();
   late final UpdateController _updateController;
   late final KioskTrayController _trayController;
@@ -256,9 +269,15 @@ class _KioskHomeState extends State<_KioskHome> {
   int? _lastTapIndex;
   static const Duration _doubleTapWindow = Duration(milliseconds: 300);
 
+  MenuLanguage get _selectedLanguage =>
+      widget.languages[_selectedLanguageIndex];
+
+  List<MenuItem> get _items => _selectedLanguage.items;
+
   @override
   void initState() {
     super.initState();
+    _selectedLanguageIndex = _defaultLanguageIndex();
     _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
     _updateController = UpdateController();
     _updateController.initialize();
@@ -312,7 +331,8 @@ class _KioskHomeState extends State<_KioskHome> {
       'version': _updateController.currentVersion,
       'startedAt': _startedAt.toUtc().toIso8601String(),
       'uptimeSeconds': DateTime.now().difference(_startedAt).inSeconds,
-      'selectedMenu': widget.items[_selectedIndex].id,
+      'selectedLanguage': _selectedLanguage.id,
+      'selectedMenu': _items[_selectedIndex].id,
       'update': {
         'status': _updateController.status,
         'busy': _updateController.busy,
@@ -385,6 +405,42 @@ class _KioskHomeState extends State<_KioskHome> {
         widget.layout.toolbarInitiallyHidden) {
       _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
     }
+    final previousLanguageId = oldWidget.languages[_selectedLanguageIndex].id;
+    final matchingIndex = widget.languages.indexWhere(
+      (language) => language.id == previousLanguageId,
+    );
+    _selectedLanguageIndex =
+        matchingIndex >= 0 ? matchingIndex : _defaultLanguageIndex();
+    if (_selectedIndex >= _items.length) {
+      _resetWebViewsForLanguage();
+    }
+  }
+
+  int _defaultLanguageIndex() {
+    final index = widget.languages.indexWhere(
+      (language) => language.id == widget.defaultLanguageId,
+    );
+    return index >= 0 ? index : 0;
+  }
+
+  void _resetWebViewsForLanguage() {
+    _selectedIndex = 0;
+    _pendingIndex = null;
+    _mountedIndices
+      ..clear()
+      ..add(0);
+    _readyIndices.clear();
+    _controllers.clear();
+  }
+
+  void _selectLanguage(int index) {
+    if (index < 0 || index >= widget.languages.length) return;
+    setState(() {
+      _selectedLanguageIndex = index;
+      _showLanguageSelection = false;
+      _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
+      _resetWebViewsForLanguage();
+    });
   }
 
   void _hideBottomToolbar() {
@@ -401,13 +457,13 @@ class _KioskHomeState extends State<_KioskHome> {
       _controllers[_selectedIndex];
 
   void _onSelect(int index) {
-    if (index < 0 || index >= widget.items.length) return;
+    if (index < 0 || index >= _items.length) return;
 
     // 이미 백그라운드에서 준비 중인 메뉴를 다시 눌러도 빈 WebView로 먼저
     // 전환하지 않는다.
     if (_pendingIndex == index) return;
 
-    final item = widget.items[index];
+    final item = _items[index];
     final url = item.url;
     final now = DateTime.now();
 
@@ -491,7 +547,8 @@ class _KioskHomeState extends State<_KioskHome> {
   /// 이전 사용자의 로그인 세션이 다음 사용자에게 노출되지 않도록 **모든 쿠키를
   /// 삭제**한다. 캐시(이미지/JS/CSS) 는 유지해 다음 로딩 성능 손해는 없다.
   void _onEnterIdle() {
-    if (widget.items.isEmpty) return;
+    if (_items.isEmpty) return;
+    final languageIdAtEntry = _selectedLanguage.id;
     _updateController.setIdle(true);
     if (_updateController.canAutoInstall(isIdle: true)) {
       _updateController.installNow();
@@ -529,7 +586,10 @@ class _KioskHomeState extends State<_KioskHome> {
         }
       }
       if (!mounted) return;
-      _controllers[0]?.loadUrl(widget.items.first.url);
+      if (_selectedLanguage.id == languageIdAtEntry &&
+          !_showLanguageSelection) {
+        _controllers[0]?.loadUrl(_items.first.url);
+      }
     }();
   }
 
@@ -538,10 +598,11 @@ class _KioskHomeState extends State<_KioskHome> {
   /// 이미 [_onEnterIdle] 에서 정리되었으므로 여기서는 인덱스만 홈으로 보장한다.
   void _onWake() {
     _updateController.setIdle(false);
-    if (widget.items.isEmpty) return;
-    if (_selectedIndex != 0) {
-      setState(() => _selectedIndex = 0);
-    }
+    if (_items.isEmpty) return;
+    setState(() {
+      _selectedIndex = 0;
+      _showLanguageSelection = true;
+    });
   }
 
   Future<bool> _onWillPop() async {
@@ -889,122 +950,139 @@ class _KioskHomeState extends State<_KioskHome> {
             // 대기화면 진입 시 메모리 정리, 깨어날 때 첫 화면으로.
             onEnterIdle: _onEnterIdle,
             onWake: _onWake,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final position = _effectivePosition(constraints.maxWidth);
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final position = _effectivePosition(constraints.maxWidth);
 
-                // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
-                // 한 번이라도 방문한 항목만 실제 KioskWebView 로 mount 된다.
-                final webViewStack = IndexedStack(
-                  index: _selectedIndex,
-                  children: List<Widget>.generate(widget.items.length, (i) {
-                    if (!_mountedIndices.contains(i)) {
-                      return const SizedBox.shrink();
-                    }
-                    final item = widget.items[i];
-                    return KioskWebView(
-                      key: ValueKey('kiosk-webview-${item.id}'),
-                      initialUrl: item.url,
-                      active: i == _selectedIndex,
-                      onShowVersion: _showVersionInfo,
-                      onCheckUpdate: _checkUpdateFromShortcut,
-                      onReady: (c) {
-                        _controllers[i] = c;
-                        // 현재 화면의 history 컨트롤만 새 컨트롤러를 받도록 리빌드.
-                        // 백그라운드 준비 메뉴는 완료 콜백에서 함께 갱신된다.
-                        if (mounted && i == _selectedIndex) setState(() {});
-                      },
-                      onInitialLoadReady: () => _onInitialLoadReady(i),
+                    // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
+                    // 한 번이라도 방문한 항목만 실제 KioskWebView 로 mount 된다.
+                    final webViewStack = IndexedStack(
+                      index: _selectedIndex,
+                      children: List<Widget>.generate(_items.length, (i) {
+                        if (!_mountedIndices.contains(i)) {
+                          return const SizedBox.shrink();
+                        }
+                        final item = _items[i];
+                        return KioskWebView(
+                          key: ValueKey(
+                            'kiosk-webview-${_selectedLanguage.id}-${item.id}',
+                          ),
+                          initialUrl: item.url,
+                          active: i == _selectedIndex,
+                          onShowVersion: _showVersionInfo,
+                          onCheckUpdate: _checkUpdateFromShortcut,
+                          onReady: (c) {
+                            _controllers[i] = c;
+                            // 현재 화면의 history 컨트롤만 새 컨트롤러를 받도록 리빌드.
+                            // 백그라운드 준비 메뉴는 완료 콜백에서 함께 갱신된다.
+                            if (mounted && i == _selectedIndex) setState(() {});
+                          },
+                          onInitialLoadReady: () => _onInitialLoadReady(i),
+                        );
+                      }),
                     );
-                  }),
-                );
 
-                final isSide = position == NavPosition.left ||
-                    position == NavPosition.right;
-                // 네이티브 WebView가 교체/표시될 때 메뉴바까지 함께 다시 칠해져
-                // 번쩍이는 현상을 막도록 별도 합성 레이어로 격리한다.
-                final nav = RepaintBoundary(
-                  child: NavigationMenu(
-                    items: widget.items,
-                    selectedIndex: _pendingIndex ?? _selectedIndex,
-                    onSelected: _onSelect,
-                    orientation: isSide
-                        ? NavigationOrientation.side
-                        : NavigationOrientation.bottom,
-                    sideWidth: widget.layout.sideWidth,
-                    barHeight: widget.layout.barHeight,
-                    buttonHeight: widget.layout.buttonHeight,
-                    buttonWidth: widget.layout.buttonWidth,
-                    buttonGap: widget.layout.buttonGap,
-                    buttonAlignment: widget.layout.buttonAlignment,
-                    showHistoryButtons: widget.layout.showHistoryButtons,
-                    historyController: _currentController,
-                    showKeyboardToggle: widget.layout.showKeyboardToggle,
-                    barColor: widget.layout.barColor,
-                    buttonColor: widget.layout.buttonColor,
-                    buttonForegroundColor: widget.layout.buttonForegroundColor,
-                    selectedButtonColor: widget.layout.selectedButtonColor,
-                    selectedButtonForegroundColor:
-                        widget.layout.selectedButtonForegroundColor,
-                    onHide: position == NavPosition.bottom
-                        ? _hideBottomToolbar
-                        : null,
-                    onEnterIdle: widget.idle.isUsable
-                        ? _idleGateController.enterIdle
-                        : null,
-                    onOpenAdmin: UpdateAdminDialog.isConfigured
-                        ? _showAdminSettings
-                        : null,
-                    onHideKiosk: _trayController.hideWindow,
-                  ),
-                );
-
-                switch (position) {
-                  case NavPosition.left:
-                    return Row(
-                      children: [
-                        nav,
-                        const VerticalDivider(width: 1),
-                        Expanded(child: webViewStack),
-                      ],
-                    );
-                  case NavPosition.right:
-                    return Row(
-                      children: [
-                        Expanded(child: webViewStack),
-                        const VerticalDivider(width: 1),
-                        nav,
-                      ],
-                    );
-                  case NavPosition.top:
-                    return Column(
-                      children: [
-                        nav,
-                        const Divider(height: 1),
-                        Expanded(child: webViewStack),
-                      ],
-                    );
-                  case NavPosition.bottom:
-                  case NavPosition.auto: // 이론상 도달 불가 — 안전망.
-                    // 툴바 표시 여부와 관계없이 WebView는 항상 Stack의 첫 번째
-                    // 자식에 고정한다. 부모 구조가 바뀌면 네이티브 WebView가
-                    // dispose/recreate되어 페이지 상태가 사라질 수 있기 때문이다.
-                    return BottomToolbarHost(
-                      hidden: _bottomToolbarHidden,
-                      toolbarHeight: widget.layout.barHeight,
-                      autoHideDuration: Duration(
-                        seconds: widget.layout.toolbarAutoHideSec,
-                      ),
-                      onAutoHide: _hideBottomToolbar,
-                      webView: webViewStack,
-                      toolbar: nav,
-                      overlay: CollapsedToolbarOverlay(
+                    final isSide = position == NavPosition.left ||
+                        position == NavPosition.right;
+                    // 네이티브 WebView가 교체/표시될 때 메뉴바까지 함께 다시 칠해져
+                    // 번쩍이는 현상을 막도록 별도 합성 레이어로 격리한다.
+                    final nav = RepaintBoundary(
+                      child: NavigationMenu(
+                        items: _items,
+                        selectedIndex: _pendingIndex ?? _selectedIndex,
+                        onSelected: _onSelect,
+                        orientation: isSide
+                            ? NavigationOrientation.side
+                            : NavigationOrientation.bottom,
+                        sideWidth: widget.layout.sideWidth,
+                        barHeight: widget.layout.barHeight,
+                        buttonHeight: widget.layout.buttonHeight,
+                        buttonWidth: widget.layout.buttonWidth,
+                        buttonGap: widget.layout.buttonGap,
+                        buttonAlignment: widget.layout.buttonAlignment,
+                        showHistoryButtons: widget.layout.showHistoryButtons,
                         historyController: _currentController,
-                        onShowToolbar: _showBottomToolbar,
+                        showKeyboardToggle: widget.layout.showKeyboardToggle,
+                        barColor: widget.layout.barColor,
+                        buttonColor: widget.layout.buttonColor,
+                        buttonForegroundColor:
+                            widget.layout.buttonForegroundColor,
+                        selectedButtonColor: widget.layout.selectedButtonColor,
+                        selectedButtonForegroundColor:
+                            widget.layout.selectedButtonForegroundColor,
+                        onHide: position == NavPosition.bottom
+                            ? _hideBottomToolbar
+                            : null,
+                        onEnterIdle: widget.idle.isUsable
+                            ? _idleGateController.enterIdle
+                            : null,
+                        onOpenAdmin: UpdateAdminDialog.isConfigured
+                            ? _showAdminSettings
+                            : null,
+                        onHideKiosk: _trayController.hideWindow,
                       ),
                     );
-                }
-              },
+
+                    switch (position) {
+                      case NavPosition.left:
+                        return Row(
+                          children: [
+                            nav,
+                            const VerticalDivider(width: 1),
+                            Expanded(child: webViewStack),
+                          ],
+                        );
+                      case NavPosition.right:
+                        return Row(
+                          children: [
+                            Expanded(child: webViewStack),
+                            const VerticalDivider(width: 1),
+                            nav,
+                          ],
+                        );
+                      case NavPosition.top:
+                        return Column(
+                          children: [
+                            nav,
+                            const Divider(height: 1),
+                            Expanded(child: webViewStack),
+                          ],
+                        );
+                      case NavPosition.bottom:
+                      case NavPosition.auto: // 이론상 도달 불가 — 안전망.
+                        // 툴바 표시 여부와 관계없이 WebView는 항상 Stack의 첫 번째
+                        // 자식에 고정한다. 부모 구조가 바뀌면 네이티브 WebView가
+                        // dispose/recreate되어 페이지 상태가 사라질 수 있기 때문이다.
+                        return BottomToolbarHost(
+                          hidden: _bottomToolbarHidden,
+                          toolbarHeight: widget.layout.barHeight,
+                          autoHideDuration: Duration(
+                            seconds: widget.layout.toolbarAutoHideSec,
+                          ),
+                          onAutoHide: _hideBottomToolbar,
+                          webView: webViewStack,
+                          toolbar: nav,
+                          overlay: CollapsedToolbarOverlay(
+                            historyController: _currentController,
+                            onShowToolbar: _showBottomToolbar,
+                          ),
+                        );
+                    }
+                  },
+                ),
+                if (_showLanguageSelection)
+                  Positioned.fill(
+                    child: LanguageSelection(
+                      languages: widget.languages,
+                      title: widget.languageSelectionTitle,
+                      subtitle: widget.languageSelectionSubtitle,
+                      onSelected: _selectLanguage,
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

@@ -30,7 +30,8 @@
   - 다운로드 **차단**
   - **메뉴별 독립 WebView** (IndexedStack): 다른 메뉴에 다녀와도 스크롤/내부 페이지 상태 유지
   - 같은 메뉴 **더블 탭** (300ms 이내) 으로 강제 초기 URL 재로드
-  - 대기화면을 띄워 무인 운영
+  - 대기화면을 띄워 무인 운영하고, 해제 직후 큰 버튼으로 언어 선택
+  - 언어별로 완전히 독립된 메뉴 이름·URL·아이콘 구성
   - **세션 위생**: 앱 시작 + 대기화면 진입 시 쿠키 자동 삭제 → 이전 사용자의 로그인 상태가 다음 사용자에게 노출되지 않음
   - **자동 복구**: 페이지 에러 / 렌더러 종료 / Alt+F4 등 비정상 상황에서 WebView 자동 재생성
 - **기본값과 운영 설정 분리**: `assets/config/menu.defaults.json` + 외부 `menu.override.json`
@@ -58,7 +59,7 @@
 - **툴바 숨김 버튼**: 하단 바의 맨 오른쪽 `⌄` 버튼. 숨긴 뒤에는 화면 우측 하단에
   `←`, `→`, `⌃`(툴바 복원), `⌨`(가상 키보드) 버튼만 플로팅으로 표시. 컨트롤을
   드래그한 뒤 놓으면 왼쪽 위·오른쪽 위·왼쪽 아래·오른쪽 아래 중 가까운 모서리에 정렬
-- **대기화면**: 일정 시간 무입력 시 자동 진입, 화면 터치로 해제
+- **대기화면**: 일정 시간 무입력 시 자동 진입, 화면 터치로 해제한 뒤 언어 선택
 - **메뉴별 WebView**: 메뉴 인덱스마다 독립된 WebView 인스턴스를 lazy 생성하여 IndexedStack 으로 전환
 
 ---
@@ -71,34 +72,56 @@
 {
   "layout": { ... },   // 네비게이션 바 모양/위치
   "idle":   { ... },   // 대기화면 설정 (옵션)
-  "items":  [ ... ]    // 메뉴 항목 목록
+  "defaultLanguage": "ko",
+  "languageSelection": { ... },
+  "languages": [       // 언어와 언어별 메뉴 목록
+    { "id": "ko", "label": "한국어", "items": [ ... ] },
+    { "id": "en", "label": "English", "items": [ ... ] }
+  ]
 }
 ```
 
-세 섹션 모두 변경 후 **앱 재시작**이 필요합니다. (개발 중 핫리스타트는 `R` 키)
+설정 변경 후 **앱 재시작**이 필요합니다. (개발 중 핫리스타트는 `R` 키)
 
 ---
 
 ## 4. 메뉴 관리
 
-### 기본 형식
+### 다국어 기본 형식
 
 ```json
-"items": [
+"defaultLanguage": "ko",
+"languageSelection": {
+  "title": "언어를 선택하세요",
+  "subtitle": "Please select your language"
+},
+"languages": [
   {
-    "id": "home",
-    "title": "홈",
-    "url": "https://example.com",
-    "icon": "icon:home"
+    "id": "ko",
+    "label": "한국어",
+    "subtitle": "Korean",
+    "items": [
+      { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+    ]
   },
   {
-    "id": "notice",
-    "title": "공지",
-    "url": "https://example.com/notice",
-    "icon": "icon:notice"
+    "id": "en",
+    "label": "English",
+    "subtitle": "영어",
+    "items": [
+      { "id": "home", "title": "Home", "url": "https://en.example.com" }
+    ]
   }
 ]
 ```
+
+- 화면보호기를 터치해 해제할 때마다 `languages`의 각 항목이 300×140dp 대형 버튼으로 표시됩니다.
+- 언어를 추가하려면 `languages` 배열에 고유한 `id`, 버튼에 표시할 `label`, 한 개 이상의 `items`를 가진 객체를 추가합니다.
+- `defaultLanguage`는 앱 내부에서 언어 선택 전 준비할 기본 언어입니다.
+- 각 언어의 `items`는 서로 완전히 독립적이므로 메뉴 개수, 이름, URL, 아이콘이 달라도 됩니다.
+- 기존 최상위 `items` 배열만 있는 설정도 단일 언어 설정으로 계속 동작합니다.
+
+### 메뉴 항목 형식
 
 | 필드 | 필수 | 설명 |
 |------|------|------|
@@ -708,26 +731,23 @@ OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 �
     "showHint": true,
     "hintText": "화면을 터치해 주세요"
   },
-  "items": [
+  "defaultLanguage": "ko",
+  "languages": [
     {
-      "id": "home", "title": "홈",
-      "url": "https://example.com",
-      "icon": "icon:home"
+      "id": "ko",
+      "label": "한국어",
+      "items": [
+        { "id": "home", "title": "홈", "url": "https://example.com" },
+        { "id": "notice", "title": "공지", "url": "https://example.com/notice" }
+      ]
     },
     {
-      "id": "notice", "title": "공지",
-      "url": "https://example.com/notice",
-      "icon": "icon:notice"
-    },
-    {
-      "id": "gallery", "title": "포토갤러리",
-      "url": "https://example.com/gallery",
-      "icon": "icon:gallery"
-    },
-    {
-      "id": "jubo", "title": "주보",
-      "url": "https://example.com/jubo",
-      "icon": "icon:book"
+      "id": "en",
+      "label": "English",
+      "items": [
+        { "id": "home", "title": "Home", "url": "https://example.com/en" },
+        { "id": "notice", "title": "Notices", "url": "https://example.com/en/notice" }
+      ]
     }
   ]
 }

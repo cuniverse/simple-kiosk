@@ -17,21 +17,32 @@ assets/config/menu.defaults.json
 | Windows 배포본 | `<프로그램 폴더>\config\menu.override.json`에 변경값만 기록하고 앱을 재시작합니다. |
 
 Windows 운영 오버라이드는 전체 기본 설정을 복사하지 않고 변경한 값만 작성합니다.
-`layout`과 `idle`은 키 단위로 재귀 병합되며 메뉴는 `id`를 기준으로 병합됩니다.
+`layout`과 `idle`은 키 단위로 재귀 병합됩니다. 다국어 설정은 `languages` 배열 전체를
+지정하며 각 언어 안에 독립된 `items` 배열을 둡니다. 기존 단일 `items` 오버라이드도
+계속 지원됩니다.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "layout": { "toolbarAutoHideSec": 20 },
   "idle": { "timeoutSec": 120 },
-  "items": {
-    "overrides": {
-      "home": { "url": "https://custom.example.com" }
+  "defaultLanguage": "ko",
+  "languages": [
+    {
+      "id": "ko",
+      "label": "한국어",
+      "items": [
+        { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+      ]
     },
-    "additions": [],
-    "disabledIds": [],
-    "order": []
-  }
+    {
+      "id": "en",
+      "label": "English",
+      "items": [
+        { "id": "home", "title": "Home", "url": "https://en.example.com" }
+      ]
+    }
+  ]
 }
 ```
 
@@ -77,7 +88,7 @@ JSON 작성 시 다음 사항에 주의하세요.
 
 ## 3. 전체 구조
 
-설정 파일은 `layout`, `idle`, `items` 세 영역으로 구성됩니다.
+설정 파일은 `layout`, `idle`, `languages` 영역으로 구성됩니다.
 
 ```json
 {
@@ -88,12 +99,23 @@ JSON 작성 시 다음 사항에 주의하세요.
     "enabled": false,
     "mode": "none"
   },
-  "items": [
+  "defaultLanguage": "ko",
+  "languageSelection": {
+    "title": "언어를 선택하세요",
+    "subtitle": "Please select your language"
+  },
+  "languages": [
     {
-      "id": "home",
-      "title": "홈",
-      "url": "https://example.com",
-      "icon": "icon:home"
+      "id": "ko",
+      "label": "한국어",
+      "items": [
+        {
+          "id": "home",
+          "title": "홈",
+          "url": "https://example.com/ko",
+          "icon": "icon:home"
+        }
+      ]
     }
   ]
 }
@@ -101,11 +123,43 @@ JSON 작성 시 다음 사항에 주의하세요.
 
 - `layout`: 툴바 위치, 크기, 버튼과 색상 설정
 - `idle`: 일정 시간 사용하지 않을 때 표시할 대기화면 설정
-- `items`: 실제로 표시할 메뉴 버튼 목록
-- `items`는 한 개 이상 있어야 하며 첫 번째 항목이 기본 홈 메뉴가 됩니다.
+- `languages`: 선택 가능한 언어 목록. 한 개 이상의 언어가 필요합니다.
+- `languages[].items`: 해당 언어에서만 표시할 메뉴 버튼 목록
+- 각 언어의 `items`는 한 개 이상 있어야 하며 첫 번째 항목이 해당 언어의 홈 메뉴가 됩니다.
 - 생략 가능한 값을 쓰지 않으면 앱의 기본값이 적용됩니다.
 
-## 4. 메뉴 항목 설정: `items`
+## 4. 언어 및 메뉴 항목 설정
+
+화면보호기를 해제하면 `languages`에 등록된 언어가 큰 버튼으로 표시됩니다. 언어마다
+메뉴 개수, 제목, URL과 아이콘을 독립적으로 지정할 수 있습니다.
+
+```json
+"languages": [
+  {
+    "id": "ko",
+    "label": "한국어",
+    "subtitle": "Korean",
+    "items": [
+      { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+    ]
+  },
+  {
+    "id": "en",
+    "label": "English",
+    "subtitle": "영어",
+    "items": [
+      { "id": "home", "title": "Home", "url": "https://en.example.com" },
+      { "id": "news", "title": "News", "url": "https://en.example.com/news" }
+    ]
+  }
+]
+```
+
+언어를 추가하려면 고유한 `id`, 표시 이름 `label`, 선택적인 `subtitle`, 한 개 이상의
+`items`를 가진 객체를 배열에 추가합니다. `defaultLanguage`에는 등록된 언어 `id`를
+지정합니다.
+
+### 메뉴 항목: `languages[].items`
 
 기본 메뉴 한 개의 형식은 다음과 같습니다.
 
@@ -536,25 +590,22 @@ search, help, link, web, music, mic, camera, image, download, qr
     "showHint": true,
     "hintText": "화면을 터치해 주세요"
   },
-  "items": [
+  "defaultLanguage": "ko",
+  "languages": [
     {
-      "id": "home",
-      "title": "홈",
-      "url": "https://example.com",
-      "icon": "icon:home"
+      "id": "ko",
+      "label": "한국어",
+      "items": [
+        { "id": "home", "title": "홈", "url": "https://example.com" },
+        { "id": "notice", "title": "공지사항", "url": "https://example.com/notice" }
+      ]
     },
     {
-      "id": "notice",
-      "title": "공지사항",
-      "url": "https://example.com/notice",
-      "icon": "icon:notice"
-    },
-    {
-      "id": "gallery",
-      "title": "사진",
-      "url": "https://example.com/gallery",
-      "icon": "icon:gallery",
-      "keepStateOnTap": true
+      "id": "en",
+      "label": "English",
+      "items": [
+        { "id": "home", "title": "Home", "url": "https://example.com/en" }
+      ]
     }
   ]
 }
@@ -576,7 +627,7 @@ search, help, link, web, music, mic, camera, image, download, qr
 ### 앱에 설정 오류 화면이 표시됨
 
 - 필수 필드인 `id`, `title`, `url`이 비어 있지 않은지 확인합니다.
-- `items`가 배열이며 한 개 이상의 메뉴를 포함하는지 확인합니다.
+- `languages`와 각 `languages[].items`가 배열이며 한 개 이상의 항목을 포함하는지 확인합니다.
 - 숫자 필드에 문자열을 넣거나 bool 필드에 `"true"`를 넣지 않았는지 확인합니다.
 - `navPosition`, `buttonAlignment`, `mode`, `transition`의 철자를 확인합니다.
 - 백업한 설정으로 되돌린 뒤 한 항목씩 다시 수정합니다.
