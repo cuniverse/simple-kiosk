@@ -1,5 +1,14 @@
 # Simple Kiosk 릴리즈 노트
 
+## 1.2.11 (개발 중)
+
+- 앱·트레이·installer 아이콘을 투명 배경의 Flutter 계열 하늘색으로 변경합니다.
+- Visual C++ Runtime DLL을 앱 로컬로 포함해 새 Windows PC와 포터블 환경에서 별도 VC++ 설치 없이 실행할 수 있습니다.
+- installer와 포터블 준비 도구가 Microsoft Visual C++ Redistributable을 자동 설치하거나 업데이트합니다.
+- installer가 Microsoft Edge WebView2 Runtime 설치 여부를 검사하고 누락 시 Microsoft 서명 Evergreen Bootstrapper로 자동 설치합니다.
+- 포터블 ZIP에 WebView2 설치용 `InstallPrerequisites.cmd`와 Microsoft 서명 검증 절차를 포함합니다.
+- 패키징 시 WebView2 Bootstrapper의 Authenticode 게시자를 검증하고 검증 실패 시 빌드를 중단합니다.
+
 ## 1.2.10 (개발 중)
 
 - 제공된 로고의 전면 성당 심볼을 앱, 작업 표시줄, 트레이, installer용 다중 해상도 아이콘으로 적용합니다.

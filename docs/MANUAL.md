@@ -604,6 +604,14 @@ OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 �
 - **설정**은 기존과 동일하게 관리자 PIN 인증 후 열립니다.
 - 프로그램을 완전히 끝내려면 트레이 메뉴의 **완전 종료**를 사용합니다.
 
+### Windows 최초 실행 필수 구성요소
+
+- installer와 포터블 ZIP에는 앱 실행에 필요한 Visual C++ Runtime DLL이 포함됩니다.
+- installer와 `InstallPrerequisites.cmd`는 Microsoft Visual C++ Redistributable을 자동 설치하거나 업데이트합니다.
+- installer는 Microsoft Edge WebView2 Runtime을 확인하고 없으면 자동 설치합니다.
+- 포터블 ZIP을 새 PC에서 사용할 때 WebView2가 없으면 `InstallPrerequisites.cmd`를 먼저 실행하세요.
+- WebView2 자동 설치에는 인터넷 연결이 필요합니다.
+
 ### 원격 관리자 페이지와 API
 
 - 프로그램의 **설정 > 관리 API / 관리자 페이지**에서 사용 여부와 포트를 지정합니다. 기본 포트는 `80`입니다.
@@ -622,7 +630,7 @@ OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 �
 
 - **Android**: Lock Task Mode 또는 카니발/MDM 솔루션으로 홈 버튼 차단 권장.
 - **Windows**: 키오스크 모드 사용자 계정 + 시작 프로그램으로 앱 자동 실행.
-  - WebView2 Runtime 사전 설치 필요 (Windows 10 일부 환경).
+  - installer는 WebView2 Runtime이 없는 PC에서 자동 설치합니다.
 - **자동 부팅 후 자동 실행**: OS 별 시작 프로그램 등록.
 
 ### 디스플레이

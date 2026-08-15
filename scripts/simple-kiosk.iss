@@ -53,6 +53,8 @@ Name: "{app}\versions"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}\versions\{#AppVersion}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\prerequisites\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; AfterInstall: InstallVisualCppRuntime
+Source: "{#SourceDir}\prerequisites\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWebView2; AfterInstall: InstallWebView2
 Source: "{#SourceDir}\updater\launcher.ps1"; DestDir: "{app}"; DestName: "launcher.ps1"; Flags: ignoreversion
 Source: "{#SourceDir}\updater\launcher.cmd"; DestDir: "{app}"; DestName: "SimpleKiosk.cmd"; Flags: ignoreversion
 Source: "{#SourceDir}\USER_MANUAL.html"; DestDir: "{app}"; Flags: ignoreversion
@@ -96,6 +98,74 @@ begin
     Result := RemoveBackslashUnlessRoot(PreviousDir)
   else
     Result := ExpandConstant('{localappdata}\Programs\SimpleKiosk');
+end;
+
+function HasWebView2At(RootKey: Integer; const SubKey: String): Boolean;
+var
+  Version: String;
+begin
+  Result :=
+    RegQueryStringValue(RootKey, SubKey, 'pv', Version) and
+    (Version <> '') and
+    (CompareText(Version, '0.0.0.0') <> 0);
+end;
+
+function NeedsWebView2(): Boolean;
+var
+  RuntimeKey: String;
+begin
+  RuntimeKey :=
+    'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+  Result := not (
+    HasWebView2At(HKLM32, RuntimeKey) or
+    HasWebView2At(HKLM64, RuntimeKey) or
+    HasWebView2At(HKCU, RuntimeKey));
+end;
+
+procedure InstallVisualCppRuntime();
+var
+  ResultCode: Integer;
+  Redistributable: String;
+begin
+  Redistributable := ExpandConstant('{tmp}\vc_redist.x64.exe');
+  if not Exec(
+    Redistributable,
+    '/install /quiet /norestart',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode) then
+    RaiseException('Microsoft Visual C++ Runtime 설치 프로그램을 실행하지 못했습니다.');
+
+  if (ResultCode <> 0) and (ResultCode <> 1638) and (ResultCode <> 3010) then
+    RaiseException(
+      'Microsoft Visual C++ Runtime 설치에 실패했습니다. 종료 코드: ' +
+      IntToStr(ResultCode));
+end;
+
+procedure InstallWebView2();
+var
+  ResultCode: Integer;
+  Bootstrapper: String;
+begin
+  Bootstrapper := ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe');
+  if not Exec(
+    Bootstrapper,
+    '/silent /install',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode) then
+    RaiseException('Microsoft Edge WebView2 Runtime 설치 프로그램을 실행하지 못했습니다.');
+
+  if ResultCode <> 0 then
+    RaiseException(
+      'Microsoft Edge WebView2 Runtime 설치에 실패했습니다. 종료 코드: ' +
+      IntToStr(ResultCode));
+
+  if NeedsWebView2() then
+    RaiseException(
+      'Microsoft Edge WebView2 Runtime 설치 후에도 Runtime을 확인할 수 없습니다.');
 end;
 
 function InitializeUninstall(): Boolean;

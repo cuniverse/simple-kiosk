@@ -6,7 +6,9 @@ param(
     [string]$SigningCertificatePath,
     [string]$TimestampServer = 'http://timestamp.digicert.com',
     [switch]$BuildInstaller,
-    [string]$InnoCompilerPath
+    [string]$InnoCompilerPath,
+    [string]$WebView2BootstrapperPath,
+    [string]$VisualCppRedistributablePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,6 +37,60 @@ $stageRoot = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
 $stage = Join-Path $stageRoot $packageName
 $pubspecPath = Join-Path $projectDir 'pubspec.yaml'
 $originalPubspec = Get-Content -Raw -Encoding UTF8 $pubspecPath
+$webView2BootstrapperUrl = 'https://go.microsoft.com/fwlink/p/?LinkId=2124703'
+$visualCppRedistributableUrl = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+
+function Find-VisualCppRuntimeDirectory {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:VCToolsRedistDir)) {
+        [void]$candidates.Add((Join-Path $env:VCToolsRedistDir 'x64'))
+    }
+
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (Test-Path -LiteralPath $vswhere) {
+        $installations = & $vswhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        foreach ($installation in $installations) {
+            $redistRoot = Join-Path $installation 'VC\Redist\MSVC'
+            if (Test-Path -LiteralPath $redistRoot) {
+                Get-ChildItem -LiteralPath $redistRoot -Directory |
+                    Sort-Object Name -Descending |
+                    ForEach-Object { [void]$candidates.Add((Join-Path $_.FullName 'x64')) }
+            }
+        }
+    }
+
+    $runtimes = @()
+    foreach ($candidate in $candidates) {
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
+        $runtimes += Get-ChildItem -LiteralPath $candidate -Directory -Filter 'Microsoft.VC*.CRT' |
+            ForEach-Object {
+                $runtimeDll = Join-Path $_.FullName 'vcruntime140.dll'
+                if (Test-Path -LiteralPath $runtimeDll) {
+                    $versionInfo = (Get-Item -LiteralPath $runtimeDll).VersionInfo
+                    [pscustomobject]@{
+                        Directory = $_.FullName
+                        Version = [version]::new(
+                            $versionInfo.FileMajorPart,
+                            $versionInfo.FileMinorPart,
+                            $versionInfo.FileBuildPart,
+                            $versionInfo.FilePrivatePart)
+                    }
+                }
+            }
+    }
+    $runtime = $runtimes | Sort-Object Version -Descending | Select-Object -First 1
+    if ($runtime) { return $runtime }
+    throw 'Visual C++ x64 재배포 DLL 폴더를 찾을 수 없습니다.'
+}
+
+function Assert-MicrosoftAuthenticodeSignature([string]$Path) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+        $null -eq $signature.SignerCertificate -or
+        $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+        throw "Microsoft 서명 검증에 실패했습니다: $Path ($($signature.Status))"
+    }
+}
 
 try {
     Write-Host "Package version: $PackageVersion"
@@ -58,6 +114,21 @@ try {
     if (-not $releaseDir) {
         throw 'Windows Release 출력 폴더를 찾을 수 없습니다.'
     }
+
+    # 관리자 권한이 없는 최초 PC와 포터블 실행을 위해 MSVC Runtime을 앱 로컬로 배포한다.
+    $vcRuntime = Find-VisualCppRuntimeDirectory
+    $vcRuntimeDir = $vcRuntime.Directory
+    $vcRuntimeDlls = Get-ChildItem -LiteralPath $vcRuntimeDir -File -Filter '*.dll'
+    if (-not $vcRuntimeDlls) {
+        throw "Visual C++ Runtime DLL을 찾을 수 없습니다: $vcRuntimeDir"
+    }
+    $vcRuntimeDlls | Copy-Item -Destination $releaseDir -Force
+    foreach ($requiredRuntime in @('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $releaseDir $requiredRuntime))) {
+            throw "필수 Visual C++ Runtime DLL 누락: $requiredRuntime"
+        }
+    }
+    Write-Host "Bundled Visual C++ Runtime $($vcRuntime.Version): $vcRuntimeDir"
 
     if (-not [string]::IsNullOrWhiteSpace($SigningCertificatePath)) {
         if (-not (Test-Path -LiteralPath $SigningCertificatePath)) {
@@ -101,6 +172,33 @@ try {
     Copy-Item 'scripts\recover.ps1' (Join-Path $updaterDir 'recover.ps1')
     Copy-Item 'scripts\export-diagnostics.ps1' (Join-Path $updaterDir 'export-diagnostics.ps1')
     Copy-Item 'scripts\configure-installer.ps1' (Join-Path $updaterDir 'configure-installer.ps1')
+    Copy-Item 'scripts\install-prerequisites.ps1' (Join-Path $updaterDir 'install-prerequisites.ps1')
+    Copy-Item 'scripts\install-prerequisites.cmd' (Join-Path $stage 'InstallPrerequisites.cmd')
+
+    $prerequisitesDir = Join-Path $stage 'prerequisites'
+    New-Item -ItemType Directory -Force -Path $prerequisitesDir | Out-Null
+    $webView2Bootstrapper = Join-Path $prerequisitesDir 'MicrosoftEdgeWebview2Setup.exe'
+    if (-not [string]::IsNullOrWhiteSpace($WebView2BootstrapperPath)) {
+        $resolvedBootstrapper = (Resolve-Path -LiteralPath $WebView2BootstrapperPath).Path
+        Copy-Item -LiteralPath $resolvedBootstrapper -Destination $webView2Bootstrapper -Force
+    } else {
+        Write-Host 'Downloading Microsoft Edge WebView2 Evergreen Bootstrapper...'
+        Invoke-WebRequest -UseBasicParsing -Uri $webView2BootstrapperUrl -OutFile $webView2Bootstrapper
+    }
+    Assert-MicrosoftAuthenticodeSignature $webView2Bootstrapper
+    Write-Host 'Verified Microsoft signature: WebView2 Evergreen Bootstrapper'
+
+    $packagedVcRedistributable = Join-Path $prerequisitesDir 'vc_redist.x64.exe'
+    if (-not [string]::IsNullOrWhiteSpace($VisualCppRedistributablePath)) {
+        $resolvedRedistributable = (Resolve-Path -LiteralPath $VisualCppRedistributablePath).Path
+        Copy-Item -LiteralPath $resolvedRedistributable -Destination $packagedVcRedistributable -Force
+    } else {
+        Write-Host 'Downloading latest Microsoft Visual C++ Redistributable...'
+        Invoke-WebRequest -UseBasicParsing -Uri $visualCppRedistributableUrl -OutFile $packagedVcRedistributable
+    }
+    Assert-MicrosoftAuthenticodeSignature $packagedVcRedistributable
+    $vcRedistributableVersion = (Get-Item -LiteralPath $packagedVcRedistributable).VersionInfo.FileVersion
+    Write-Host "Verified Microsoft signature: Visual C++ Redistributable $vcRedistributableVersion"
 
     $exe = Join-Path $stage 'simple_kiosk.exe'
     if (-not (Test-Path $exe)) { throw 'simple_kiosk.exe를 찾을 수 없습니다.' }

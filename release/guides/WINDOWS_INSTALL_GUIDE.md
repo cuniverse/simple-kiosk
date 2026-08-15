@@ -7,6 +7,11 @@
 Windows SmartScreen 확인이 한 번 표시될 수 있지만 설치 후 바로가기 실행과 앱 내부
 자동 업데이트에서는 다운로드한 실행 파일을 직접 열지 않습니다.
 
+installer는 앱 실행에 필요한 Visual C++ Runtime DLL을 앱 폴더에 함께 설치하고,
+Microsoft Visual C++ Redistributable을 자동 설치하거나 업데이트합니다. 또한
+Microsoft Edge WebView2 Runtime을 확인하고 누락된 PC에서 Microsoft 서명 Evergreen
+Bootstrapper를 자동 실행합니다. WebView2 자동 설치에는 인터넷 연결이 필요합니다.
+
 기본 설치 위치는 `%LOCALAPPDATA%\Programs\SimpleKiosk`이며 관리자 권한이 필요하지
 않습니다. ZIP은 포터블 설치나 복구가 필요한 운영자를 위한 보조 배포본입니다.
 
@@ -53,9 +58,14 @@ ZIP의 `simple_kiosk.exe`를 바로 실행하는 완전한 포터블 방식도 �
 설정과 로그는 압축을 푼 실행 파일 폴더에 저장됩니다. 포터블 폴더에서 자동 업데이트와
 롤백까지 사용하려면 PowerShell에서 다음을 한 번 실행합니다.
 
+포터블 ZIP에도 Visual C++ Runtime DLL과 Microsoft Visual C++ Redistributable이 포함되어 있습니다.
+새 PC에서는 `InstallPrerequisites.cmd`를 먼저 실행해 VC++ Runtime을 설치하거나 업데이트합니다. WebView2가 없는 경우에는
+먼저 ZIP 루트의 `InstallPrerequisites.cmd`를 실행하면 포함된 Microsoft 서명 Bootstrapper가
+WebView2 Runtime을 사용자별로 설치합니다. 인터넷 연결이 필요합니다.
+
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-.\updater\install-launcher.ps1 -PackageDirectory . -Version 1.2.8
+.\updater\install-launcher.ps1 -PackageDirectory . -Version <version>
 ```
 
 이후 압축을 푼 **프로그램 폴더의 `SimpleKiosk.cmd`**를 Windows 시작 프로그램이나
@@ -160,8 +170,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 ## 1. 패키지 구성
 
 - `simple_kiosk.exe`: 애플리케이션 실행 파일
-- `flutter_windows.dll` 및 기타 DLL: 실행에 필요한 라이브러리
+- `flutter_windows.dll`, `msvcp140.dll`, `vcruntime140*.dll` 및 기타 DLL: 실행에 필요한 라이브러리
 - `data/`: 앱 리소스와 설정 파일
+- `prerequisites/`: Microsoft 서명 VC++ Redistributable 및 WebView2 Evergreen Bootstrapper
+- `InstallPrerequisites.cmd`: 포터블 PC의 VC++ Runtime 및 WebView2 확인·설치 도구
 - `INSTALL_GUIDE.md`: 현재 설치 가이드
 - `MENU_CONFIG_GUIDE.md`: 메뉴·툴바·대기화면 설정 상세 가이드
 - `SHA256SUMS.txt`: 실행 파일 무결성 확인용 SHA-256 값
@@ -172,9 +184,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 - 표시할 웹사이트에 접속할 수 있는 네트워크
 - Microsoft Edge WebView2 Runtime
 
-Windows 11에는 WebView2 Runtime이 일반적으로 포함되어 있습니다. Windows 10이거나
-WebView 관련 오류가 발생하는 PC에서는 PowerShell 또는 터미널에서 다음 명령으로
-설치합니다.
+Visual C++ Runtime DLL은 installer와 포터블 ZIP에 포함됩니다. Windows 11에는 WebView2
+Runtime이 일반적으로 포함되어 있으며 installer는 누락된 경우 자동 설치합니다. 자동 설치가
+네트워크 또는 조직 정책으로 실패한 경우 PowerShell 또는 터미널에서 다음 명령으로 설치합니다.
 
 ```powershell
 winget install --id Microsoft.EdgeWebView2Runtime -e
@@ -191,7 +203,8 @@ Evergreen Standalone Installer(x64)를 내려받아 설치하세요.
    **적용**을 누릅니다.
 4. ZIP의 모든 파일을 `C:\SimpleKiosk` 같은 전용 폴더에 완전히 압축 해제합니다.
 5. 필요하면 아래 방법으로 실행 파일의 무결성을 확인합니다.
-6. `C:\SimpleKiosk\simple_kiosk.exe`를 실행합니다.
+6. 새 PC에서는 `InstallPrerequisites.cmd`를 먼저 실행해 VC++ Runtime과 WebView2를 준비합니다.
+7. `C:\SimpleKiosk\simple_kiosk.exe`를 실행합니다.
 
 ### SHA-256 무결성 확인
 
