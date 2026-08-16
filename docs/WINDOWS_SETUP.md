@@ -135,7 +135,7 @@ flutter run -d windows
 성공 시 출력 예:
 
 ```
-√ Built build\windows\x64\runner\Debug\simple_kiosk.exe
+√ Built build\windows\x64\runner\Debug\ysignage.exe
 ```
 
 ---

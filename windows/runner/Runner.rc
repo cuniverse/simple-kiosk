@@ -93,7 +93,7 @@ BEGIN
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "simple_kiosk" "\0"
             VALUE "Comments", "https://github.com/cuniverse/simple-kiosk" "\0"
-            VALUE "OriginalFilename", "simple_kiosk.exe" "\0"
+            VALUE "OriginalFilename", "ysignage.exe" "\0"
             VALUE "ProductName", "여의도성당Signage" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END

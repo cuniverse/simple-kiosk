@@ -96,7 +96,10 @@ try {
     Write-Host "Package version: $PackageVersion"
     # 태그/인수 버전을 앱 런타임 버전에도 적용한다. 빌드 후 원본은 복원한다.
     $buildPubspec = $originalPubspec -replace '(?m)^version:\s*.+$', "version: $PackageVersion"
-    Set-Content -Encoding UTF8 -NoNewline -Path $pubspecPath -Value $buildPubspec
+    [IO.File]::WriteAllText(
+        $pubspecPath,
+        $buildPubspec,
+        [Text.UTF8Encoding]::new($false))
     flutter pub get
     if ($LASTEXITCODE -ne 0) { throw 'flutter pub get 실패' }
 
@@ -130,6 +133,15 @@ try {
     }
     Write-Host "Bundled Visual C++ Runtime $($vcRuntime.Version): $vcRuntimeDir"
 
+    # 1.2.11 updater validates this legacy filename before extraction. Keep a
+    # compatibility copy while the actual app and new launchers use ysignage.exe.
+    $appExe = Join-Path $releaseDir 'ysignage.exe'
+    if (-not (Test-Path -LiteralPath $appExe)) {
+        throw 'ysignage.exe를 찾을 수 없습니다.'
+    }
+    Copy-Item -LiteralPath $appExe `
+        -Destination (Join-Path $releaseDir 'simple_kiosk.exe') -Force
+
     if (-not [string]::IsNullOrWhiteSpace($SigningCertificatePath)) {
         if (-not (Test-Path -LiteralPath $SigningCertificatePath)) {
             throw "코드 서명 인증서를 찾을 수 없습니다: $SigningCertificatePath"
@@ -143,12 +155,17 @@ try {
             Sort-Object FullName -Descending |
             Select-Object -First 1
         if (-not $signTool) { throw 'signtool.exe를 찾을 수 없습니다.' }
-        $targetExe = Join-Path $releaseDir 'simple_kiosk.exe'
-        & $signTool.FullName sign /fd SHA256 /td SHA256 /tr $TimestampServer `
-            /f $SigningCertificatePath /p $env:WINDOWS_SIGNING_CERT_PASSWORD $targetExe
-        if ($LASTEXITCODE -ne 0) { throw 'simple_kiosk.exe 코드 서명에 실패했습니다.' }
-        & $signTool.FullName verify /pa /v $targetExe
-        if ($LASTEXITCODE -ne 0) { throw 'simple_kiosk.exe 코드 서명 검증에 실패했습니다.' }
+        foreach ($targetName in @('ysignage.exe', 'simple_kiosk.exe', 'ysignage_launcher.exe')) {
+            $targetExe = Join-Path $releaseDir $targetName
+            if (-not (Test-Path -LiteralPath $targetExe)) {
+                throw "코드 서명 대상이 없습니다: $targetName"
+            }
+            & $signTool.FullName sign /fd SHA256 /td SHA256 /tr $TimestampServer `
+                /f $SigningCertificatePath /p $env:WINDOWS_SIGNING_CERT_PASSWORD $targetExe
+            if ($LASTEXITCODE -ne 0) { throw "$targetName 코드 서명에 실패했습니다." }
+            & $signTool.FullName verify /pa /v $targetExe
+            if ($LASTEXITCODE -ne 0) { throw "$targetName 코드 서명 검증에 실패했습니다." }
+        }
     }
 
     New-Item -ItemType Directory -Force -Path $stage, $distDir | Out-Null
@@ -200,10 +217,13 @@ try {
     $vcRedistributableVersion = (Get-Item -LiteralPath $packagedVcRedistributable).VersionInfo.FileVersion
     Write-Host "Verified Microsoft signature: Visual C++ Redistributable $vcRedistributableVersion"
 
-    $exe = Join-Path $stage 'simple_kiosk.exe'
-    if (-not (Test-Path $exe)) { throw 'simple_kiosk.exe를 찾을 수 없습니다.' }
-    $hash = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
-    "$hash  simple_kiosk.exe" | Set-Content -Encoding ascii (Join-Path $stage 'SHA256SUMS.txt')
+    $hashLines = foreach ($targetName in @('ysignage.exe', 'simple_kiosk.exe')) {
+        $exe = Join-Path $stage $targetName
+        if (-not (Test-Path -LiteralPath $exe)) { throw "$targetName를 찾을 수 없습니다." }
+        $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$hash  $targetName"
+    }
+    $hashLines | Set-Content -Encoding ascii (Join-Path $stage 'SHA256SUMS.txt')
 
     if (Test-Path $archive) { Remove-Item $archive -Force }
     Compress-Archive -Path $stage -DestinationPath $archive -CompressionLevel Optimal
@@ -246,6 +266,9 @@ try {
     }
 }
 finally {
-    Set-Content -Encoding UTF8 -NoNewline -Path $pubspecPath -Value $originalPubspec
+    [IO.File]::WriteAllText(
+        $pubspecPath,
+        $originalPubspec,
+        [Text.UTF8Encoding]::new($false))
     if (Test-Path $stageRoot) { Remove-Item $stageRoot -Recurse -Force }
 }

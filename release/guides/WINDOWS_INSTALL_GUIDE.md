@@ -28,7 +28,8 @@ installer는 자동 업데이트용 런처와 버전 포인터를 자동 구성�
 사용합니다. 설치 위치를 바꾸거나 자동 실행을 해제하면 이전 `Simple Kiosk` 및 `여의도성당Signage` 시작프로그램
 바로가기를 제거하고, 자동 실행을 선택한 경우에만 새 설치 경로로 다시 등록합니다.
 자동 업데이트가 새 버전을 설치해도 시작프로그램은 특정 버전의 EXE가 아닌 고정된
-`launcher.ps1`을 실행하므로 변경된 현재 버전이 다음 실행부터 자동 선택됩니다.
+`ysignage_launcher.exe`를 실행하므로 변경된 현재 버전이 다음 실행부터 자동 선택됩니다.
+일반 실행 과정에서는 PowerShell이나 CMD 스크립트를 사용하지 않습니다.
 
 사용자 매뉴얼은 설치 폴더의 `USER_MANUAL.html`과 시작 메뉴의 **여의도성당Signage 사용자
 매뉴얼**에서 기본 브라우저로 열 수 있습니다. 인터넷 연결이 필요 없는 단일 HTML이며,
@@ -54,7 +55,7 @@ Windows 설정의 **앱 > 설치된 앱 > 여의도성당Signage > 제거** 또�
 
 ## ZIP 수동 설치
 
-ZIP의 `simple_kiosk.exe`를 바로 실행하는 완전한 포터블 방식도 계속 지원합니다. 이 경우
+ZIP의 `ysignage.exe`를 바로 실행하는 완전한 포터블 방식도 계속 지원합니다. 이 경우
 설정과 로그는 압축을 푼 실행 파일 폴더에 저장됩니다. 포터블 폴더에서 자동 업데이트와
 롤백까지 사용하려면 PowerShell에서 다음을 한 번 실행합니다.
 
@@ -68,7 +69,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\updater\install-launcher.ps1 -PackageDirectory . -Version <version>
 ```
 
-이후 압축을 푼 **프로그램 폴더의 `SimpleKiosk.cmd`**를 Windows 시작 프로그램이나
+이후 압축을 푼 **프로그램 폴더의 `ysignage_launcher.exe`**를 Windows 시작 프로그램이나
 작업 스케줄러에 등록합니다. 설정·로그·업데이트 파일도 기본적으로 이 폴더 아래에
 저장됩니다. 별도 위치가 필요할 때만 `SIMPLE_KIOSK_DATA_DIR` 환경변수를 지정합니다.
 
@@ -164,7 +165,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 보관됩니다. 원본 기본 설정이 없다면 자동 추정하지 말고 수동 검토해야 합니다.
 
 ```text
-<simple_kiosk.exe가 들어 있는 프로그램 폴더>\
+<ysignage.exe가 들어 있는 프로그램 폴더>\
   current.json
   config\menu.override.json
   config\update-policy.json
@@ -178,7 +179,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
 
 ## 1. 패키지 구성
 
-- `simple_kiosk.exe`: 애플리케이션 실행 파일
+- `ysignage.exe`: 애플리케이션 실행 파일
+- `simple_kiosk.exe`: 1.2.11 자동 업데이트 검사용 호환 복사본
 - `flutter_windows.dll`, `msvcp140.dll`, `vcruntime140*.dll` 및 기타 DLL: 실행에 필요한 라이브러리
 - `data/`: 앱 리소스와 설정 파일
 - `prerequisites/`: Microsoft 서명 VC++ Redistributable 및 WebView2 Evergreen Bootstrapper
@@ -213,7 +215,7 @@ Evergreen Standalone Installer(x64)를 내려받아 설치하세요.
 4. ZIP의 모든 파일을 `C:\SimpleKiosk` 같은 전용 폴더에 완전히 압축 해제합니다.
 5. 필요하면 아래 방법으로 실행 파일의 무결성을 확인합니다.
 6. 새 PC에서는 `InstallPrerequisites.cmd`를 먼저 실행해 VC++ Runtime과 WebView2를 준비합니다.
-7. `C:\SimpleKiosk\simple_kiosk.exe`를 실행합니다.
+7. `C:\SimpleKiosk\ysignage.exe`를 실행합니다.
 
 ### SHA-256 무결성 확인
 
@@ -221,14 +223,14 @@ Evergreen Standalone Installer(x64)를 내려받아 설치하세요.
 
 ```powershell
 $expected = ((Get-Content .\SHA256SUMS.txt -Raw).Trim() -split '\s+')[0]
-$actual = (Get-FileHash .\simple_kiosk.exe -Algorithm SHA256).Hash.ToLower()
+$actual = (Get-FileHash .\ysignage.exe -Algorithm SHA256).Hash.ToLower()
 $actual -eq $expected
 ```
 
 결과가 `True`이면 패키지에 기록된 값과 일치합니다. `False`이면 파일을 실행하지
 말고 배포 담당자에게 새 패키지를 요청하세요.
 
-바탕화면 바로가기가 필요하면 `simple_kiosk.exe`를 마우스 오른쪽 버튼으로 클릭한
+바탕화면 바로가기가 필요하면 `ysignage.exe`를 마우스 오른쪽 버튼으로 클릭한
 후 **보내기 > 바탕 화면에 바로 가기 만들기**를 선택합니다.
 
 ## 4. 최초 실행 확인
@@ -274,7 +276,7 @@ $actual -eq $expected
 
 1. `Win + R`을 누릅니다.
 2. `shell:startup`을 입력하고 Enter를 누릅니다.
-3. 프로그램 폴더에 생성된 `SimpleKiosk.cmd`의 바로가기를 복사합니다.
+3. 프로그램 폴더에 생성된 `ysignage_launcher.exe`의 바로가기를 복사합니다.
 
 실행 파일 자체를 시작프로그램 폴더로 옮기면 안 됩니다. 반드시 설치 폴더의 실행
 파일을 가리키는 바로가기를 사용하세요.

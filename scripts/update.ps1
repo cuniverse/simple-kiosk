@@ -105,10 +105,13 @@ try {
 
     $packageRoot = Get-ChildItem -LiteralPath $tempRoot -Directory | Select-Object -First 1
     if (-not $packageRoot) { $packageRoot = Get-Item -LiteralPath $tempRoot }
-    $exe = Join-Path $packageRoot.FullName 'simple_kiosk.exe'
+    $exe = Join-Path $packageRoot.FullName 'ysignage.exe'
+    if (-not (Test-Path -LiteralPath $exe)) {
+        $exe = Join-Path $packageRoot.FullName 'simple_kiosk.exe'
+    }
     $data = Join-Path $packageRoot.FullName 'data'
     if (-not (Test-Path -LiteralPath $exe) -or -not (Test-Path -LiteralPath $data)) {
-        throw 'Package is missing simple_kiosk.exe or data.'
+        throw 'Package is missing ysignage.exe (or compatible simple_kiosk.exe) or data.'
     }
     if ($RequireAuthenticode) {
         $signature = Get-AuthenticodeSignature -LiteralPath $exe
@@ -139,6 +142,10 @@ try {
     if (Test-Path -LiteralPath $packagedCommand) {
         Copy-Item -LiteralPath $packagedCommand -Destination (Join-Path $DataRoot 'SimpleKiosk.cmd') -Force
     }
+    $packagedNativeLauncher = Join-Path $versionRoot 'ysignage_launcher.exe'
+    if (Test-Path -LiteralPath $packagedNativeLauncher) {
+        Copy-Item -LiteralPath $packagedNativeLauncher -Destination (Join-Path $DataRoot 'ysignage_launcher.exe') -Force
+    }
 
     $previous = ''
     if (Test-Path -LiteralPath $pointerPath) {
@@ -147,7 +154,14 @@ try {
     }
     Write-Pointer $Version $previous
     Remove-Item -LiteralPath (Join-Path $DataRoot 'state\app-state.json') -Force -ErrorAction SilentlyContinue
-    & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot -SkipUpdaterSync
+    $nativeLauncher = Join-Path $DataRoot 'ysignage_launcher.exe'
+    if (Test-Path -LiteralPath (Join-Path $DataRoot 'launcher.ps1')) {
+        & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot -SkipUpdaterSync
+    } elseif (Test-Path -LiteralPath $nativeLauncher) {
+        & $nativeLauncher --data-root $DataRoot --skip-updater-sync
+    } else {
+        throw 'No launcher is available after update installation.'
+    }
 
     $deadline = (Get-Date).AddSeconds(45)
     $ready = $false
@@ -163,7 +177,11 @@ try {
         Write-Log "Version $Version health check failed; rolling back to $previous"
         if ([string]::IsNullOrWhiteSpace($previous)) { throw 'Health check failed and no rollback version exists.' }
         Write-Pointer $previous $Version
-        & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot -SkipUpdaterSync
+        if (Test-Path -LiteralPath $nativeLauncher) {
+            & $nativeLauncher --data-root $DataRoot --skip-updater-sync
+        } else {
+            & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot -SkipUpdaterSync
+        }
         throw 'New version health check failed; rolled back.'
     }
     Write-State 'installed'

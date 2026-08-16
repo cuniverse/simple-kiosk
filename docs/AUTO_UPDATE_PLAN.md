@@ -70,7 +70,7 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
 ## 4. 목표 디렉터리 구조
 
 ```text
-<simple_kiosk.exe가 들어 있는 프로그램 폴더>\
+<ysignage.exe가 들어 있는 프로그램 폴더>\
   current.json                     # 현재/직전 정상 버전 포인터
   config\
     menu.override.json             # 운영자가 변경한 값만 저장
@@ -275,8 +275,10 @@ Manifest 초안:
 ### Kiosk Launcher
 
 - 항상 고정된 위치에서 실행된다.
-- `current.json`을 읽어 현재 버전의 `simple_kiosk.exe`를 시작한다.
+- `current.json`을 읽어 현재 버전의 `ysignage.exe`를 시작한다.
 - 현재 버전이 손상된 경우 직전 정상 버전을 시작한다.
+- Windows 네이티브 `ysignage_launcher.exe`로 제공하며 일반 실행 시 PowerShell이나
+  CMD 스크립트를 사용하지 않는다.
 
 ### Kiosk App
 

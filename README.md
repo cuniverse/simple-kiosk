@@ -86,7 +86,7 @@ bash scripts/package-macos.sh
 GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
 `v1.2.0` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.0.zip`과 최초
 설치용 `simple-kiosk-windows-setup-1.2.0.exe`를 생성합니다. ZIP 안의
-`simple_kiosk.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
+`ysignage.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
 `-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.
 
 macOS에서는 Windows 네이티브 앱을 직접 빌드할 수 없습니다. GitHub 저장소의
@@ -113,7 +113,7 @@ flutter pub get
 ## 메뉴 설정 변경 방법
 
 개발 기본값은 `assets/config/menu.defaults.json`에서 수정합니다. Windows 운영 설정은
-`<simple_kiosk.exe가 들어 있는 폴더>\config\menu.override.json`에 변경한 값만 기록합니다.
+`<ysignage.exe가 들어 있는 폴더>\config\menu.override.json`에 변경한 값만 기록합니다.
 최상위 구조는 `layout`, `idle`, `languages`를 사용합니다. 화면보호기를 해제하면
 등록된 언어를 큰 버튼으로 선택하고 해당 언어의 메뉴만 표시합니다.
 

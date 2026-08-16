@@ -86,7 +86,6 @@ jobs:
           .\scripts\create-update-manifest.ps1 `
             -Version $env:RELEASE_VERSION `
             -PackagePath "dist/simple-kiosk-windows-${{ steps.release-version.outputs.archive-version }}.zip" `
-            -ConfigSchemaVersion 2 `
             -RequireAuthenticode:$(-not [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)) `
             -SignerThumbprint $env:WINDOWS_SIGNING_CERT_THUMBPRINT
 

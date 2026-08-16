@@ -4,7 +4,9 @@ param(
     [Parameter(Mandatory=$true)][string]$PackagePath,
     [string]$OutputPath = 'dist\update-manifest.json',
     [string]$MinimumUpdaterVersion = '1.1.0',
-    [ValidateRange(1, 2147483647)][int]$ConfigSchemaVersion = 2,
+    # 이전 앱은 이 값을 자기 설정 스키마와 비교하므로, 업데이트 패키지 형식 자체가
+    # 달라지지 않는 한 최초 지원값 1을 유지해야 구버전에서 새 버전으로 올라올 수 있다.
+    [ValidateRange(1, 2147483647)][int]$ConfigSchemaVersion = 1,
     [switch]$RequireAuthenticode,
     [string]$SignerThumbprint
 )

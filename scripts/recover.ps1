@@ -29,7 +29,10 @@ if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$
     throw "올바르지 않은 버전 형식입니다: $Version"
 }
 $targetRoot = Join-Path $versionsRoot $Version
-$targetExe = Join-Path $targetRoot 'simple_kiosk.exe'
+$targetExe = Join-Path $targetRoot 'ysignage.exe'
+if (-not (Test-Path -LiteralPath $targetExe)) {
+    $targetExe = Join-Path $targetRoot 'simple_kiosk.exe'
+}
 $targetData = Join-Path $targetRoot 'data'
 if (-not (Test-Path -LiteralPath $targetExe) -or -not (Test-Path -LiteralPath $targetData)) {
     throw "복구 대상이 불완전합니다: $targetRoot"

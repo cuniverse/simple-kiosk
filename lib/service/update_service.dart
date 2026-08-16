@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../model/update_manifest.dart';
-import 'menu_config_merger.dart';
 import 'runtime_paths.dart';
 
 class AvailableUpdate {
@@ -43,12 +42,9 @@ class UpdateService {
         '(현재 $updaterVersion)',
       );
     }
-    if (manifest.configSchemaVersion > MenuConfigMerger.currentSchemaVersion) {
-      throw StateError(
-        '설정 스키마 ${manifest.configSchemaVersion}을 지원하지 않습니다. '
-        '(현재 ${MenuConfigMerger.currentSchemaVersion})',
-      );
-    }
+    // configSchemaVersion은 설치될 대상 앱의 설정 형식이다. 현재 앱의 설정
+    // 처리기와 비교하면 스키마를 올린 첫 릴리스를 모든 구버전이 거부하게 된다.
+    // 업데이트 실행기 자체의 호환성은 minimumUpdaterVersion으로만 판단한다.
   }
 
   Future<AvailableUpdate?> check({String? currentVersion}) async {

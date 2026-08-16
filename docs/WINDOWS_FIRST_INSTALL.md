@@ -24,15 +24,16 @@ winget install --id Microsoft.EdgeWebView2Runtime -e
 2. ZIP 파일을 마우스 오른쪽 버튼으로 클릭하고 **속성**을 엽니다.
 3. 속성 아래쪽에 **차단 해제**가 표시되면 체크하고 **적용**합니다.
 4. ZIP의 모든 파일을 예를 들어 `C:\SimpleKiosk`에 압축 해제합니다.
-5. `C:\SimpleKiosk\simple_kiosk.exe`를 실행합니다.
+5. `C:\SimpleKiosk\ysignage.exe`를 실행합니다.
 
 다음 항목은 항상 같은 폴더에 있어야 합니다.
 
-- `simple_kiosk.exe`
+- `ysignage.exe`
+- `simple_kiosk.exe` (1.2.11 자동 업데이트 호환용)
 - `flutter_windows.dll` 및 기타 DLL 파일
 - `data` 폴더 전체
 
-바탕화면에 바로가기가 필요하면 `simple_kiosk.exe`를 우클릭하고 **보내기 > 바탕 화면에 바로 가기 만들기**를 선택합니다.
+바탕화면에 바로가기가 필요하면 `ysignage.exe`를 우클릭하고 **보내기 > 바탕 화면에 바로 가기 만들기**를 선택합니다.
 
 ## 3. 최초 실행 확인
 
@@ -69,7 +70,7 @@ winget install --id Microsoft.EdgeWebView2Runtime -e
 
 1. `Win + R`을 누릅니다.
 2. `shell:startup`을 입력하고 Enter를 누릅니다.
-3. 시작프로그램 폴더에 `<프로그램 폴더>\SimpleKiosk.cmd`의 바로가기를 복사합니다.
+3. 시작프로그램 폴더에 `<프로그램 폴더>\ysignage_launcher.exe`의 바로가기를 복사합니다.
 
 실행 파일 자체를 시작프로그램 폴더로 옮기면 안 됩니다. 반드시 설치 폴더에 있는 실행 파일을 가리키는 바로가기를 사용하세요.
 

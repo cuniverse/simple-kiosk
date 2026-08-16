@@ -348,7 +348,7 @@ void main() {
     );
   });
 
-  test('unsupported updater and config schema versions are rejected', () {
+  test('업데이터 버전만 설치 호환성을 제한하고 대상 설정 스키마는 차단하지 않는다', () {
     UpdateManifest manifest({
       String minimumUpdaterVersion = '1.1.0',
       int configSchemaVersion = 1,
@@ -370,9 +370,9 @@ void main() {
     );
     expect(
       () => UpdateService.validateCompatibility(
-        manifest(configSchemaVersion: 3),
+        manifest(configSchemaVersion: 999),
       ),
-      throwsStateError,
+      returnsNormally,
     );
   });
 

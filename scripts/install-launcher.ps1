@@ -14,7 +14,11 @@ if ([string]::IsNullOrWhiteSpace($DataRoot)) {
 $resolvedPackage = (Resolve-Path -LiteralPath $PackageDirectory).Path
 $versionRoot = Join-Path $DataRoot "versions\$Version"
 New-Item -ItemType Directory -Force -Path $DataRoot, (Join-Path $DataRoot 'config'), (Join-Path $DataRoot 'media'), (Join-Path $DataRoot 'state'), (Join-Path $DataRoot 'logs'), (Join-Path $DataRoot 'downloads'), (Join-Path $DataRoot 'versions'), (Join-Path $DataRoot 'updater') | Out-Null
-if (-not (Test-Path -LiteralPath (Join-Path $resolvedPackage 'simple_kiosk.exe'))) { throw 'simple_kiosk.exe가 없습니다.' }
+$appExe = Join-Path $resolvedPackage 'ysignage.exe'
+if (-not (Test-Path -LiteralPath $appExe)) {
+    $appExe = Join-Path $resolvedPackage 'simple_kiosk.exe'
+}
+if (-not (Test-Path -LiteralPath $appExe)) { throw 'ysignage.exe 또는 호환 simple_kiosk.exe가 없습니다.' }
 if (Test-Path -LiteralPath $versionRoot) { Remove-Item -LiteralPath $versionRoot -Recurse -Force }
 if ([IO.Path]::GetFullPath($resolvedPackage).TrimEnd('\') -eq [IO.Path]::GetFullPath($DataRoot).TrimEnd('\')) {
     New-Item -ItemType Directory -Force -Path $versionRoot | Out-Null
@@ -25,8 +29,13 @@ if ([IO.Path]::GetFullPath($resolvedPackage).TrimEnd('\') -eq [IO.Path]::GetFull
 } else {
     Copy-Item -LiteralPath $resolvedPackage -Destination $versionRoot -Recurse
 }
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launcher.ps1') -Destination (Join-Path $DataRoot 'launcher.ps1') -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launcher.cmd') -Destination (Join-Path $DataRoot 'SimpleKiosk.cmd') -Force
+$nativeLauncher = Join-Path $resolvedPackage 'ysignage_launcher.exe'
+if (Test-Path -LiteralPath $nativeLauncher) {
+    Copy-Item -LiteralPath $nativeLauncher -Destination (Join-Path $DataRoot 'ysignage_launcher.exe') -Force
+} else {
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launcher.ps1') -Destination (Join-Path $DataRoot 'launcher.ps1') -Force
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'launcher.cmd') -Destination (Join-Path $DataRoot 'SimpleKiosk.cmd') -Force
+}
 $updaterDestination = Join-Path $DataRoot 'updater'
 if ([IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\') -ne [IO.Path]::GetFullPath($updaterDestination).TrimEnd('\')) {
     Get-ChildItem -LiteralPath $PSScriptRoot -File | Copy-Item -Destination $updaterDestination -Force
@@ -47,4 +56,9 @@ if (-not [string]::IsNullOrWhiteSpace($LegacyMenu)) {
 }
 [ordered]@{ schemaVersion=1; currentVersion=$Version; previousVersion=$null; updatedAt=(Get-Date).ToUniversalTime().ToString('o') } |
     ConvertTo-Json | Set-Content -Encoding UTF8 (Join-Path $DataRoot 'current.json')
-& (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot
+$installedNativeLauncher = Join-Path $DataRoot 'ysignage_launcher.exe'
+if (Test-Path -LiteralPath $installedNativeLauncher) {
+    & $installedNativeLauncher --data-root $DataRoot
+} else {
+    & (Join-Path $DataRoot 'launcher.ps1') -DataRoot $DataRoot
+}

@@ -9,7 +9,8 @@
 #endif
 
 #define AppName "여의도성당Signage"
-#define AppExeName "simple_kiosk.exe"
+#define AppExeName "ysignage.exe"
+#define LauncherExeName "ysignage_launcher.exe"
 
 [Setup]
 AppId={{6C95C054-1458-4B4C-9458-1420CA590CA6}
@@ -51,12 +52,13 @@ Name: "{app}\versions"
 Source: "{#SourceDir}\*"; DestDir: "{app}\versions\{#AppVersion}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#SourceDir}\prerequisites\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; AfterInstall: InstallVisualCppRuntime
 Source: "{#SourceDir}\prerequisites\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWebView2; AfterInstall: InstallWebView2
-Source: "{#SourceDir}\updater\launcher.ps1"; DestDir: "{app}"; DestName: "launcher.ps1"; Flags: ignoreversion
-Source: "{#SourceDir}\updater\launcher.cmd"; DestDir: "{app}"; DestName: "SimpleKiosk.cmd"; Flags: ignoreversion
+Source: "{#SourceDir}\{#LauncherExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\USER_MANUAL.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\updater\*"; DestDir: "{app}\updater"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [InstallDelete]
+Type: files; Name: "{app}\launcher.ps1"
+Type: files; Name: "{app}\SimpleKiosk.cmd"
 Type: files; Name: "{userstartup}\Simple Kiosk.lnk"
 Type: files; Name: "{userstartup}\SimpleKiosk.lnk"
 Type: files; Name: "{userstartup}\여의도성당Signage.lnk"
@@ -65,11 +67,11 @@ Type: filesandordirs; Name: "{userprograms}\Simple Kiosk"
 Type: files; Name: "{app}\USER_MANUAL.md"
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{app}"
 Name: "{group}\{#AppName} 사용자 매뉴얼"; Filename: "{app}\USER_MANUAL.html"
 Name: "{group}\{#AppName} 제거"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: desktopicon
-Name: "{userstartup}\{#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: startup
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{app}"; Tasks: startup
 
 [Tasks]
 Name: "startup"; Description: "Windows 로그인 시 {#AppName} 자동 실행"; GroupDescription: "자동 실행:"
@@ -77,7 +79,7 @@ Name: "desktopicon"; Description: "바탕 화면 바로가기 만들기"; GroupD
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\updater\configure-installer.ps1"" -InstallRoot ""{app}"" -Version ""{#AppVersion}"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; Description: "{#AppName} 실행"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{app}"; Description: "{#AppName} 실행"; Flags: nowait postinstall skipifsilent
 
 [Code]
 var
@@ -195,6 +197,7 @@ begin
   DelTree(AddBackslash(InstallRoot) + 'downloads', True, True, True);
   DeleteFile(AddBackslash(InstallRoot) + 'launcher.ps1');
   DeleteFile(AddBackslash(InstallRoot) + 'SimpleKiosk.cmd');
+  DeleteFile(AddBackslash(InstallRoot) + '{#LauncherExeName}');
   DeleteFile(AddBackslash(InstallRoot) + 'current.json');
 
   if DeleteUserData then
