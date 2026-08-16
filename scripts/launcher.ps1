@@ -40,8 +40,15 @@ function Migrate-LegacyShortcuts([string]$NativeLauncher) {
             [IO.Path]::GetFullPath($target).Equals($nativeLauncherPath, [StringComparison]::OrdinalIgnoreCase)
         $runsLegacyScript = $arguments.IndexOf($legacyScript, [StringComparison]::OrdinalIgnoreCase) -ge 0
         if ($targetsLegacyCommand -or $targetsNativeLauncher -or $runsLegacyScript) {
+            $isStartupShortcut = $link.DirectoryName.Equals(
+                [Environment]::GetFolderPath('Startup'),
+                [StringComparison]::OrdinalIgnoreCase)
+            $startupArguments = '--startup-mode signage'
+            if ($arguments -match '(?i)--startup-mode\s+hidden') {
+                $startupArguments = '--startup-mode hidden'
+            }
             $shortcut.TargetPath = $NativeLauncher
-            $shortcut.Arguments = ''
+            $shortcut.Arguments = if ($isStartupShortcut) { $startupArguments } else { '' }
             $shortcut.WorkingDirectory = $DataRoot
             $shortcut.IconLocation = "$NativeLauncher,0"
             $shortcut.Description = '여의도성당Signage'

@@ -7,6 +7,7 @@ import '../model/idle_config.dart';
 import '../model/layout_config.dart';
 import '../model/menu_config.dart';
 import '../model/menu_language.dart';
+import '../model/webview_data_policy.dart';
 import 'menu_config_merger.dart';
 import 'runtime_paths.dart';
 
@@ -24,6 +25,15 @@ class MenuConfigLoader {
 
   const MenuConfigLoader({this.assetPath = defaultAssetPath});
 
+  /// 앱에 포함된 기본 설정 원본을 반환한다.
+  Future<Map<String, dynamic>> readDefaults() async {
+    final decoded = json.decode(await rootBundle.loadString(assetPath));
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('menu.defaults.json: 최상위 객체 필요');
+    }
+    return decoded;
+  }
+
   Future<Map<String, dynamic>> readOverride() async {
     final path = RuntimePaths.menuOverride;
     if (path == null || !await File(path).exists()) return <String, dynamic>{};
@@ -39,11 +49,7 @@ class MenuConfigLoader {
   /// 오버라이드가 없으면 기본 설정 전체를 반환하며, 병합 설정이 유효하지
   /// 않으면 앱과 동일하게 마지막 정상 설정을 사용한다.
   Future<Map<String, dynamic>> readEffective() async {
-    final raw = await rootBundle.loadString(assetPath);
-    final defaults = json.decode(raw);
-    if (defaults is! Map<String, dynamic>) {
-      throw const FormatException('menu.defaults.json: 최상위 객체 필요');
-    }
+    final defaults = await readDefaults();
     try {
       final merged =
           MenuConfigMerger.merge(defaults, await readOverride()).json;
@@ -130,6 +136,7 @@ class MenuConfigLoader {
     String? requestedDefaultLanguage;
     var selectionTitle = '언어를 선택하세요';
     var selectionSubtitle = 'Please select your language';
+    var webViewDataPolicy = WebViewDataPolicy.defaults;
 
     if (decoded is List) {
       // 구버전: 배열 = items만 정의된 형식.
@@ -156,6 +163,14 @@ class MenuConfigLoader {
         throw const FormatException(
           'menu.json: "idle"은 객체여야 함',
         );
+      }
+
+      final webViewDataValue = decoded['webViewData'];
+      if (webViewDataValue != null) {
+        if (webViewDataValue is! Map<String, dynamic>) {
+          throw const FormatException('menu.json: "webViewData"는 객체여야 함');
+        }
+        webViewDataPolicy = WebViewDataPolicy.fromJson(webViewDataValue);
       }
 
       final languagesValue = decoded['languages'];
@@ -234,6 +249,7 @@ class MenuConfigLoader {
       defaultLanguageId: defaultLanguageId,
       languageSelectionTitle: selectionTitle,
       languageSelectionSubtitle: selectionSubtitle,
+      webViewDataPolicy: webViewDataPolicy,
     );
   }
 

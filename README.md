@@ -126,7 +126,7 @@ flutter pub get
     {
       "id": "ko",
       "label": "한국어",
-      "icon": "🇰🇷",
+      "icon": "assets/icons/languages/kr.png",
       "items": [
         { "id": "home", "title": "홈", "url": "https://example.com" }
       ]
@@ -144,8 +144,11 @@ flutter pub get
 
 언어를 추가하려면 `languages` 배열에 고유한 `id`, `label`, 독립된 `items` 배열을
 가진 객체를 추가합니다. 기존 최상위 `items` 형식도 단일 언어로 호환됩니다.
-선택 화면 아이콘은 `icon`에 국기 이모지, `icon:language`, `assets/...` 또는
-`https://...` 형식으로 지정합니다.
+선택 화면 아이콘은 `icon`에 함께 배포되는 국기 이미지
+(`assets/icons/languages/kr.png` 등), `icon:language`, 다른 `assets/...` 경로
+또는 `https://...` 형식으로 지정합니다.
+영어 기본 아이콘은 미국·영국 국기를 대각선으로 합성한
+`assets/icons/languages/en-us-gb.png`를 사용합니다.
 
 ### languages[].items[] — 메뉴 항목 필드
 
@@ -172,6 +175,7 @@ flutter pub get
 | `buttonAlignment` | `start`/`center`/`end`/`spaceBetween`/`spaceAround`/`spaceEvenly`/`stretch` | `stretch` | 정렬 방식 |
 | `showHistoryButtons` | bool | `false` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `false` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
+| `keyboardMode` | `windows`/`builtin` | `windows` | Windows 기본 화면 키보드 또는 앱 내장 키보드 선택 |
 | `keepStateOnTap` | bool | `false` | **기본 동작**: 같은 메뉴 단일 탭 시 상태 유지(아무 동작 없음), 더블 탭(300ms 이내) 시 강제 재로드. 항목별 `items[].keepStateOnTap` 으로 오버라이드 가능 |
 | `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 툴바를 감춘 상태로 표시 |
 | `toolbarAutoHideSec` | number | `10` | 툴바 복원 후 입력이 없을 때 다시 숨길 시간(초). `0`이면 자동 숨김 해제 |
@@ -244,24 +248,30 @@ HTTP URL을 사용해야 하는 경우, `AndroidManifest.xml`의 `<application>`
 
 ## 가상 키보드
 
-OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 모든 OS 에서
-동일한 디자인/동작을 제공합니다.
+Windows에서는 기본적으로 Windows 화상 키보드를 사용합니다. 설정의
+`layout.keyboardMode`를 `builtin`으로 바꾸면 Flutter 자체 가상 키보드를 사용합니다.
+Windows 키보드 실행이 불가능하면 내장 키보드로 자동 대체됩니다.
 
 - 한글(두벌식 자모 조합) / 영문(QWERTY) / 숫자·특수문자 모드 토글
 - Shift 단일/잠금
 - 화면 어디든 드래그 가능한 **플로팅 윈도우** 형태
-- 자동 호출: WebView 내 `<input>` / `<textarea>` / `[contenteditable]` 포커스 시
+- 자동 호출: 앱 설정 입력 폼과 WebView 내 `<input>` / `<textarea>` /
+  `[contenteditable]`(iframe 포함) 포커스 시
 - 수동 호출: 네비게이션 바의 키보드 토글 버튼(`showKeyboardToggle: true`)
 - 한글 조합 결과를 `input` / `change` 이벤트 디스패치로 페이지에 정상 전달
 
 | OS | 동작 |
 |---|---|
-| Windows / macOS / Linux | Flutter 가상 키보드 사용 |
-| Android / iOS | Flutter 가상 키보드 사용 (시스템 IME 대신) |
+| Windows | Windows 키보드(기본) 또는 Flutter 내장 키보드 |
+| Android / iOS / macOS / Linux | Flutter 내장 키보드 |
 
 > 향후 추가 언어 레이아웃은 [lib/widget/virtual_keyboard.dart](lib/widget/virtual_keyboard.dart) 의 `_KbMode` 와 `_rows` 에 추가하면 됩니다.
 
 ## Windows에서 실행 시 주의사항
+
+프로그램의 **설정 > Windows 시작프로그램**에서 현재 등록 상태를 확인하고 등록하거나
+삭제할 수 있습니다. 자동 실행 시 즉시 전체 화면을 표시하는 `사이니지 모드`와 창을
+숨기고 트레이에서만 실행하는 `숨김 모드`를 선택할 수 있습니다.
 
 - **새 Windows 환경에서 처음 빌드한다면 [docs/WINDOWS_SETUP.md](docs/WINDOWS_SETUP.md) 를 먼저 따라가세요.**
   개발자 모드 활성화, NuGet CLI 설치, WebView2 Runtime 설치를 한 번에 처리합니다.

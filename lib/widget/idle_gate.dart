@@ -52,18 +52,23 @@ class IdleGate extends StatefulWidget {
 }
 
 class _IdleGateState extends State<IdleGate> {
-  bool _idle = false;
+  late bool _idle;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    // 시작 화면보호기는 첫 프레임 뒤에 전환하지 않고 최초 프레임부터 표시한다.
+    // Windows 네이티브 WebView가 생성되는 도중 화면보호기 진입 콜백이 WebView를
+    // 교체하면 플랫폼 뷰 초기화가 dispose 된 State를 참조할 수 있다.
+    _idle = widget.config.isUsable && widget.config.startOnLaunch;
     widget.controller?._attach(_enterIdle);
-    if (widget.config.isUsable && widget.config.startOnLaunch) {
-      // 콜드 스타트 직후 한 프레임 뒤에 대기화면 진입.
+    if (_idle) {
+      // 부모의 세션 정리 작업만 첫 프레임 뒤에 알린다. 화면보호기 자체는 이미
+      // 표시 중이므로 _enterIdle()로 다시 상태를 바꾸지 않는다.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _enterIdle();
+        if (!mounted || !_idle) return;
+        widget.onEnterIdle?.call();
       });
     } else {
       _resetTimer();

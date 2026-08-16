@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../model/admin_api_settings.dart';
+import '../model/layout_config.dart';
 import '../model/update_policy.dart';
 import '../service/admin_api_controller.dart';
 import '../service/admin_pin_store.dart';
 import '../service/update_controller.dart';
+import '../service/windows_startup_service.dart';
 import 'admin_pin_keypad.dart';
 
 class UpdateAdminDialog {
@@ -17,6 +21,8 @@ class UpdateAdminDialog {
     UpdateController controller, {
     AdminApiController? adminApiController,
     Future<void> Function()? onExit,
+    KeyboardMode keyboardMode = KeyboardMode.windows,
+    Future<void> Function(KeyboardMode mode)? onKeyboardModeChanged,
   }) async {
     final pinController = TextEditingController();
     final authenticated = await showDialog<bool>(
@@ -58,6 +64,8 @@ class UpdateAdminDialog {
         pinStore: _pinStore,
         adminApiController: adminApiController,
         onExit: onExit,
+        keyboardMode: keyboardMode,
+        onKeyboardModeChanged: onKeyboardModeChanged,
       ),
     );
   }
@@ -68,12 +76,16 @@ class _UpdateAdminPanel extends StatefulWidget {
   final AdminPinStore pinStore;
   final AdminApiController? adminApiController;
   final Future<void> Function()? onExit;
+  final KeyboardMode keyboardMode;
+  final Future<void> Function(KeyboardMode mode)? onKeyboardModeChanged;
 
   const _UpdateAdminPanel({
     required this.controller,
     required this.pinStore,
     this.adminApiController,
     this.onExit,
+    required this.keyboardMode,
+    this.onKeyboardModeChanged,
   });
 
   @override
@@ -88,6 +100,11 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
   late int _logRetentionDays;
   late bool _adminApiEnabled;
   late bool _mdnsEnabled;
+  late KeyboardMode _keyboardMode;
+  final WindowsStartupService _startupService = WindowsStartupService();
+  WindowsStartupStatus? _startupStatus;
+  StartupLaunchMode _startupMode = StartupLaunchMode.signage;
+  bool _startupBusy = false;
   late final TextEditingController _startController;
   late final TextEditingController _endController;
   late final TextEditingController _adminApiPortController;
@@ -104,6 +121,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     _logRetentionDays = policy.logRetentionDays;
     _adminApiEnabled = widget.adminApiController?.settings.enabled ?? true;
     _mdnsEnabled = widget.adminApiController?.settings.mdnsEnabled ?? true;
+    _keyboardMode = widget.keyboardMode;
     _startController = TextEditingController(text: policy.installWindow.start);
     _endController = TextEditingController(text: policy.installWindow.end);
     _adminApiPortController = TextEditingController(
@@ -114,6 +132,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
       text:
           widget.adminApiController?.settings.mdnsHostname ?? 'ysignage.local',
     );
+    unawaited(_refreshStartupStatus());
   }
 
   @override
@@ -123,6 +142,86 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     _adminApiPortController.dispose();
     _mdnsHostnameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveKeyboardMode() async {
+    final callback = widget.onKeyboardModeChanged;
+    if (callback == null) return;
+    try {
+      await callback(_keyboardMode);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('키보드 방식을 저장했습니다.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('키보드 설정 저장 실패: $error')),
+      );
+    }
+  }
+
+  Future<void> _refreshStartupStatus() async {
+    if (!_startupService.supported) return;
+    try {
+      final status = await _startupService.getStatus();
+      if (!mounted) return;
+      setState(() {
+        _startupStatus = status;
+        _startupMode = status.mode;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('시작프로그램 상태 확인 실패: $error')),
+      );
+    }
+  }
+
+  Future<void> _registerStartup() async {
+    setState(() => _startupBusy = true);
+    try {
+      final status = await _startupService.register(_startupMode);
+      if (!mounted) return;
+      setState(() => _startupStatus = status);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Windows 시작프로그램에 등록했습니다.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('시작프로그램 등록 실패: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _startupBusy = false);
+    }
+  }
+
+  Future<void> _unregisterStartup() async {
+    setState(() => _startupBusy = true);
+    try {
+      final status = await _startupService.unregister();
+      if (!mounted) return;
+      setState(() => _startupStatus = status);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Windows 시작프로그램 등록을 삭제했습니다.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('시작프로그램 삭제 실패: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _startupBusy = false);
+    }
+  }
+
+  String get _startupStatusText {
+    final status = _startupStatus;
+    if (status == null) return '상태 확인 중…';
+    if (!status.registered) return '등록 안 됨';
+    final mode = status.mode == StartupLaunchMode.hidden ? '숨김 모드' : '사이니지 모드';
+    return status.targetMatches ? '등록됨 · $mode' : '기존 등록 발견 · 설치 위치 불일치';
   }
 
   bool _validTime(String value) {
@@ -444,6 +543,95 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                         child: const Text('PIN 변경'),
                       ),
                     ),
+                    const Divider(height: 28),
+                    DropdownButtonFormField<KeyboardMode>(
+                      initialValue: _keyboardMode,
+                      decoration: const InputDecoration(
+                        labelText: '가상 키보드 방식',
+                        helperText: '기본값은 Windows 키보드입니다.',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: KeyboardMode.windows,
+                          child: Text('Windows 키보드'),
+                        ),
+                        DropdownMenuItem(
+                          value: KeyboardMode.builtIn,
+                          child: Text('내장 키보드'),
+                        ),
+                      ],
+                      onChanged: (value) => setState(
+                        () => _keyboardMode = value!,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.tonal(
+                        onPressed: widget.onKeyboardModeChanged == null
+                            ? null
+                            : _saveKeyboardMode,
+                        child: const Text('키보드 설정 저장'),
+                      ),
+                    ),
+                    if (_startupService.supported) ...[
+                      const Divider(height: 28),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Windows 시작프로그램'),
+                        subtitle: Text(_startupStatusText),
+                        trailing: IconButton(
+                          tooltip: '상태 새로고침',
+                          onPressed:
+                              _startupBusy ? null : _refreshStartupStatus,
+                          icon: const Icon(Icons.refresh),
+                        ),
+                      ),
+                      DropdownButtonFormField<StartupLaunchMode>(
+                        key: ValueKey(_startupStatus?.mode),
+                        initialValue: _startupMode,
+                        decoration: const InputDecoration(
+                          labelText: '시작프로그램 실행 방식',
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: StartupLaunchMode.signage,
+                            child: Text('사이니지 모드로 표시'),
+                          ),
+                          DropdownMenuItem(
+                            value: StartupLaunchMode.hidden,
+                            child: Text('숨김 모드로 시작'),
+                          ),
+                        ],
+                        onChanged: _startupBusy
+                            ? null
+                            : (value) => setState(
+                                  () => _startupMode = value!,
+                                ),
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton.tonal(
+                            onPressed: _startupBusy ? null : _registerStartup,
+                            child: Text(
+                              _startupStatus?.registered == true
+                                  ? '등록 정보 저장'
+                                  : '시작프로그램 등록',
+                            ),
+                          ),
+                          OutlinedButton(
+                            onPressed: _startupBusy ||
+                                    _startupStatus?.registered != true
+                                ? null
+                                : _unregisterStartup,
+                            child: const Text('등록 삭제'),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (widget.adminApiController != null) ...[
                       const Divider(height: 28),
                       SwitchListTile(

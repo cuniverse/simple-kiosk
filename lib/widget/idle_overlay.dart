@@ -41,11 +41,17 @@ class IdleOverlay extends StatelessWidget {
           absorbTaps = false;
           break;
         case IdleMode.slideshow:
-          content = _IdleSlideshow(config: config.slideshow);
+          content = _IdleSlideshow(
+            config: config.slideshow,
+            onDismiss: onDismiss,
+          );
           absorbTaps = false;
           break;
         case IdleMode.folder:
-          content = _IdleFolderPlayer(config: config.folder);
+          content = _IdleFolderPlayer(
+            config: config.folder,
+            onDismiss: onDismiss,
+          );
           absorbTaps = false;
           break;
         case IdleMode.gallery:
@@ -96,8 +102,13 @@ class IdleOverlay extends StatelessWidget {
       ),
     );
 
-    // 갤러리는 내부에서 탭과 스와이프를 구분하고 방향키 입력도 처리한다.
-    if (config.mode == IdleMode.gallery || config.modes.length > 1) return body;
+    // 순환 콘텐츠는 내부에서 탭과 스와이프를 구분하고 방향키 입력도 처리한다.
+    if (config.modes.length > 1 ||
+        config.mode == IdleMode.slideshow ||
+        config.mode == IdleMode.folder ||
+        config.mode == IdleMode.gallery) {
+      return body;
+    }
 
     // 나머지 모드는 화면 어디든 누르면 dismiss.
     return Listener(
@@ -209,7 +220,9 @@ class _IdleMediaFallback extends StatelessWidget {
 /// 이미지 슬라이드쇼.
 class _IdleSlideshow extends StatefulWidget {
   final SlideshowConfig config;
-  const _IdleSlideshow({required this.config});
+  final VoidCallback onDismiss;
+
+  const _IdleSlideshow({required this.config, required this.onDismiss});
 
   @override
   State<_IdleSlideshow> createState() => _IdleSlideshowState();
@@ -218,6 +231,7 @@ class _IdleSlideshow extends StatefulWidget {
 class _IdleSlideshowState extends State<_IdleSlideshow> {
   int _index = 0;
   Timer? _timer;
+  double _horizontalDragDistance = 0;
 
   @override
   void initState() {
@@ -234,6 +248,39 @@ class _IdleSlideshowState extends State<_IdleSlideshow> {
       });
       _scheduleNext();
     });
+  }
+
+  void _move(int offset) {
+    if (widget.config.images.length < 2) return;
+    _timer?.cancel();
+    setState(() {
+      _index = (_index + offset) % widget.config.images.length;
+    });
+    _scheduleNext();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _move(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _move(1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _finishHorizontalDrag(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final distance = _horizontalDragDistance;
+    _horizontalDragDistance = 0;
+    if (distance.abs() >= 40) {
+      _move(distance < 0 ? 1 : -1);
+    } else if (velocity.abs() >= 250) {
+      _move(velocity < 0 ? 1 : -1);
+    }
   }
 
   @override
@@ -260,14 +307,27 @@ class _IdleSlideshowState extends State<_IdleSlideshow> {
             errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
           );
 
-    if (widget.config.transition == SlideshowTransition.none) {
-      return SizedBox.expand(child: image);
-    }
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 600),
-      child: SizedBox.expand(
-        key: ValueKey(path),
-        child: image,
+    final content = widget.config.transition == SlideshowTransition.none
+        ? SizedBox.expand(child: image)
+        : AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            child: SizedBox.expand(
+              key: ValueKey(path),
+              child: image,
+            ),
+          );
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _handleKey,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onDismiss,
+        onHorizontalDragStart: (_) => _horizontalDragDistance = 0,
+        onHorizontalDragUpdate: (details) {
+          _horizontalDragDistance += details.delta.dx;
+        },
+        onHorizontalDragEnd: _finishHorizontalDrag,
+        child: content,
       ),
     );
   }
@@ -1088,7 +1148,12 @@ class _IdleUrl extends StatelessWidget {
 /// 폴더 순회 플레이어: 이미지와 동영상이 섞인 폴더를 자동 재생.
 class _IdleFolderPlayer extends StatefulWidget {
   final FolderConfig config;
-  const _IdleFolderPlayer({required this.config});
+  final VoidCallback onDismiss;
+
+  const _IdleFolderPlayer({
+    required this.config,
+    required this.onDismiss,
+  });
 
   @override
   State<_IdleFolderPlayer> createState() => _IdleFolderPlayerState();
@@ -1102,6 +1167,7 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
   Timer? _imageTimer;
   VideoPlayerController? _videoController;
   bool _videoListenerAttached = false;
+  double _horizontalDragDistance = 0;
 
   @override
   void initState() {
@@ -1159,11 +1225,56 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
   }
 
   void _next() {
+    _move(1);
+  }
+
+  void _move(int offset) {
     final items = _items;
     if (items == null || items.isEmpty) return;
-    setState(() => _index = (_index + 1) % items.length);
+    _imageTimer?.cancel();
+    _disposeVideo();
+    setState(() => _index = (_index + offset) % items.length);
     _playCurrent();
   }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _move(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _move(1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _finishHorizontalDrag(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final distance = _horizontalDragDistance;
+    _horizontalDragDistance = 0;
+    if (distance.abs() >= 40) {
+      _move(distance < 0 ? 1 : -1);
+    } else if (velocity.abs() >= 250) {
+      _move(velocity < 0 ? 1 : -1);
+    }
+  }
+
+  Widget _withInput(Widget child) => Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onDismiss,
+          onHorizontalDragStart: (_) => _horizontalDragDistance = 0,
+          onHorizontalDragUpdate: (details) {
+            _horizontalDragDistance += details.delta.dx;
+          },
+          onHorizontalDragEnd: _finishHorizontalDrag,
+          child: child,
+        ),
+      );
 
   void _playCurrent() {
     _imageTimer?.cancel();
@@ -1251,16 +1362,20 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
-      return _FolderErrorView(message: _error!);
+      return _withInput(_FolderErrorView(message: _error!));
     }
     final items = _items;
     if (items == null) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white70),
+      return _withInput(
+        const Center(
+          child: CircularProgressIndicator(color: Colors.white70),
+        ),
       );
     }
     if (items.isEmpty) {
-      return const _FolderErrorView(message: '표시할 미디어가 없습니다.');
+      return _withInput(
+        const _FolderErrorView(message: '표시할 미디어가 없습니다.'),
+      );
     }
 
     final cur = items[_index];
@@ -1289,22 +1404,27 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
       } else {
         img = SizedBox.expand(child: img);
       }
-      return Container(color: Colors.black, child: img);
+      return _withInput(Container(color: Colors.black, child: img));
     }
 
     // 비디오.
     final c = _videoController;
     if (c == null || !c.value.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white70),
+      return _withInput(
+        const Center(
+          child: CircularProgressIndicator(color: Colors.white70),
+        ),
       );
     }
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: AspectRatio(
-          aspectRatio: c.value.aspectRatio == 0 ? 16 / 9 : c.value.aspectRatio,
-          child: VideoPlayer(c),
+    return _withInput(
+      Container(
+        color: Colors.black,
+        child: Center(
+          child: AspectRatio(
+            aspectRatio:
+                c.value.aspectRatio == 0 ? 16 / 9 : c.value.aspectRatio,
+            child: VideoPlayer(c),
+          ),
         ),
       ),
     );

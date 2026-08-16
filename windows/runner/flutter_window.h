@@ -32,6 +32,10 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       shortcut_channel_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      system_keyboard_channel_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      windows_startup_channel_;
   HHOOK keyboard_hook_ = nullptr;
 };
 

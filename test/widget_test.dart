@@ -13,19 +13,61 @@ import 'package:simple_kiosk/model/menu_language.dart';
 import 'package:simple_kiosk/model/menu_item.dart';
 import 'package:simple_kiosk/model/update_manifest.dart';
 import 'package:simple_kiosk/model/update_policy.dart';
+import 'package:simple_kiosk/model/webview_slot_id.dart';
+import 'package:simple_kiosk/model/webview_data_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/widget/admin_pin_keypad.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/service/menu_config_loader.dart';
+import 'package:simple_kiosk/service/keyboard_controller.dart';
+import 'package:simple_kiosk/service/system_keyboard.dart';
 import 'package:simple_kiosk/service/update_service.dart';
+import 'package:simple_kiosk/service/windows_startup_service.dart';
+import 'package:simple_kiosk/widget/idle_gate.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
 import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
 import 'package:simple_kiosk/widget/kiosk_webview.dart';
 import 'package:simple_kiosk/widget/language_selection.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
+import 'package:simple_kiosk/widget/webview_loading_overlay.dart';
 
 void main() {
+  test('WebView 슬롯은 언어 ID와 메뉴 ID로 순서와 무관하게 식별된다', () {
+    const koreanHome = WebViewSlotId(languageId: 'ko', menuId: 'home');
+    const sameAfterReorder = WebViewSlotId(languageId: 'ko', menuId: 'home');
+    const englishHome = WebViewSlotId(languageId: 'en', menuId: 'home');
+    final controllers = <WebViewSlotId, String>{koreanHome: 'controller'};
+
+    expect(controllers[sameAfterReorder], 'controller');
+    expect(englishHome, isNot(koreanHome));
+    expect(controllers[englishHome], isNull);
+  });
+
+  test('WebView 세대가 바뀌면 이전 세대 콜백은 무효가 된다', () {
+    final generation = WebViewGeneration();
+    final first = generation.value;
+
+    expect(generation.isCurrent(first), isTrue);
+
+    final second = generation.next();
+    expect(generation.isCurrent(first), isFalse);
+    expect(generation.isCurrent(second), isTrue);
+  });
+
+  test('웹 관리자에 전체·섹션·필드·메뉴 기본값 복원 기능이 포함된다', () {
+    final page = File('assets/admin/index.html').readAsStringSync();
+
+    expect(page, contains('/api/config/defaults'));
+    expect(page, contains('전체 기본값 복원'));
+    expect(page, contains('이 섹션 기본값 복원'));
+    expect(page, contains('이 값 복원'));
+    expect(page, contains('이 메뉴 복원'));
+    expect(page, contains('언어 선택 후 첫 메뉴'));
+    expect(page, contains("webViewData.idlePolicy"));
+    expect(page, contains('Local Storage'));
+  });
+
   testWidgets('관리자 PIN 키패드로 숫자 입력과 삭제를 수행한다', (tester) async {
     final controller = TextEditingController();
     addTearDown(controller.dispose);
@@ -123,6 +165,7 @@ void main() {
         {
           'id': 'en',
           'label': 'English',
+          'defaultMenu': 'news',
           'items': [
             {'id': 'home', 'title': 'Home', 'url': 'https://en.example'},
             {'id': 'news', 'title': 'News', 'url': 'https://news.example'},
@@ -135,6 +178,45 @@ void main() {
     expect(config.language('ko').icon, '🇰🇷');
     expect(config.defaultLanguageId, 'en');
     expect(config.items.map((item) => item.title), ['Home', 'News']);
+    expect(config.language('en').defaultItem.id, 'news');
+    expect(config.language('ko').defaultItem.id, 'home');
+  });
+
+  test('등록되지 않은 defaultMenu는 설정 오류로 거부한다', () {
+    expect(
+      () => MenuConfigLoader.parse({
+        'languages': [
+          {
+            'id': 'ko',
+            'label': '한국어',
+            'defaultMenu': 'missing',
+            'items': [
+              {'id': 'home', 'title': '홈', 'url': 'https://example.com'},
+            ],
+          },
+        ],
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('WebView 데이터 정책과 로그인 유지 하위 도메인을 파싱한다', () {
+    final config = MenuConfigLoader.parse({
+      'webViewData': {
+        'idlePolicy': 'allSiteData',
+        'preserveDomains': ['https://Catholic.or.kr/path'],
+      },
+      'items': [
+        {'id': 'home', 'title': '홈', 'url': 'https://example.com'},
+      ],
+    });
+
+    expect(
+      config.webViewDataPolicy.idlePolicy,
+      IdleWebDataPolicy.allSiteData,
+    );
+    expect(config.webViewDataPolicy.preserves('www.catholic.or.kr'), isTrue);
+    expect(config.webViewDataPolicy.preserves('notcatholic.or.kr'), isFalse);
   });
 
   test('기본 메뉴 설정은 한국어와 English 메뉴를 제공한다', () {
@@ -149,6 +231,11 @@ void main() {
       containsAll(['ko', 'en']),
     );
     expect(config.languages.length, greaterThanOrEqualTo(2));
+    expect(config.language('ko').icon, 'assets/icons/languages/kr.png');
+    expect(
+      config.language('en').icon,
+      'assets/icons/languages/en-us-gb.png',
+    );
     expect(config.language('ko').items.first.title, 'WYD 서울 2027');
     expect(
       config.language('en').items.firstWhere((item) => item.id == 'aos').title,
@@ -188,6 +275,7 @@ void main() {
 
   testWidgets('언어 선택 화면은 큰 버튼으로 언어를 표시한다', (tester) async {
     var selected = -1;
+    var returnCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: LanguageSelection(
@@ -197,23 +285,131 @@ void main() {
             MenuLanguage(
               id: 'ko',
               label: '한국어',
-              icon: '🇰🇷',
+              icon: 'assets/icons/languages/kr.png',
               items: [
                 MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
               ],
             ),
           ],
           onSelected: (index) => selected = index,
+          onReturnToIdle: () => returnCount += 1,
         ),
       ),
     );
 
     final button = find.byKey(const ValueKey('language-ko'));
     expect(button, findsOneWidget);
-    expect(find.text('🇰🇷'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(tester.getSize(button), const Size(360, 176));
     await tester.tap(button);
     expect(selected, 0);
+
+    await tester.tap(find.byKey(const ValueKey('return-to-idle')));
+    expect(returnCount, 1);
+  });
+
+  testWidgets('언어 선택 화면에서 입력이 없으면 화면 보호기로 돌아간다', (tester) async {
+    const idle = IdleConfig(
+      enabled: true,
+      timeoutSec: 1,
+      startOnLaunch: false,
+      modes: [IdleMode.image],
+      image: 'assets/icons/app_icon.png',
+    );
+    final controller = IdleGateController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IdleGate(
+          config: idle,
+          controller: controller,
+          child: LanguageSelection(
+            title: '언어를 선택하세요',
+            subtitle: '',
+            languages: const [
+              MenuLanguage(
+                id: 'ko',
+                label: '한국어',
+                items: [
+                  MenuItem(
+                    id: 'home',
+                    title: '홈',
+                    url: 'https://example.com',
+                  ),
+                ],
+              ),
+            ],
+            onSelected: (_) {},
+            onReturnToIdle: controller.enterIdle,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(LanguageSelection), findsOneWidget);
+    expect(find.byType(IdleOverlay), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(IdleOverlay), findsOneWidget);
+  });
+
+  testWidgets('슬라이드쇼는 방향키와 스와이프로 이전·다음 항목을 이동한다', (tester) async {
+    const first = 'assets/icons/languages/kr.png';
+    const second = 'assets/icons/languages/en-us-gb.png';
+    const config = IdleConfig(
+      enabled: true,
+      modes: [IdleMode.slideshow],
+      slideshow: SlideshowConfig(
+        intervalSec: 60,
+        transition: SlideshowTransition.none,
+        images: [first, second],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IdleOverlay(config: config, onDismiss: () {}),
+      ),
+    );
+    expect(find.byKey(const ValueKey(first)), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(find.byKey(const ValueKey(second)), findsOneWidget);
+
+    await tester.dragFrom(const Offset(500, 300), const Offset(160, 0));
+    await tester.pump();
+    expect(find.byKey(const ValueKey(first)), findsOneWidget);
+  });
+
+  testWidgets('WebView 로딩 오버레이는 메뉴와 시간 초과 작업을 표시한다', (tester) async {
+    var cancelCount = 0;
+    var retryCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WebViewLoadingOverlay(
+            title: '굿뉴스',
+            timedOut: true,
+            onCancel: () => cancelCount += 1,
+            onRetry: () => retryCount += 1,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('굿뉴스'), findsOneWidget);
+    expect(find.text('페이지 응답이 늦어지고 있습니다.'), findsOneWidget);
+    await tester.tap(find.text('취소'));
+    await tester.tap(find.text('다시 시도'));
+    expect(cancelCount, 1);
+    expect(retryCount, 1);
+  });
+
+  test('WebView는 페이지가 표시 가능한 커밋 시점에 초기 화면을 전환한다', () {
+    final source = File('lib/widget/kiosk_webview.dart').readAsStringSync();
+    expect(source, contains('onPageCommitVisible:'));
+    expect(source, contains('_reportInitialLoadReady();'));
   });
 
   testWidgets('웹 확대 컨트롤은 배율과 조절 버튼을 표시하고 더블클릭으로 초기화한다', (tester) async {
@@ -705,15 +901,79 @@ void main() {
   test('툴바는 기본적으로 숨김이며 자동 숨김 시간을 파싱한다', () {
     expect(LayoutConfig.defaults.toolbarInitiallyHidden, isTrue);
     expect(LayoutConfig.defaults.toolbarAutoHideSec, 10);
+    expect(LayoutConfig.defaults.keyboardMode, KeyboardMode.windows);
 
     final config = LayoutConfig.fromJson({
       'toolbarInitiallyHidden': false,
       'toolbarAutoHideSec': 25,
       'barColor': '#123456',
+      'keyboardMode': 'builtin',
     });
     expect(config.toolbarInitiallyHidden, isFalse);
     expect(config.toolbarAutoHideSec, 25);
     expect(config.barColor, const Color(0xFF123456));
+    expect(config.keyboardMode, KeyboardMode.builtIn);
+    expect(
+      () => LayoutConfig.fromJson({'keyboardMode': 'unknown'}),
+      throwsFormatException,
+    );
+  });
+
+  test('Windows 키보드 토글은 실제 창 상태를 확인해 반복 동작한다', () async {
+    const channel = MethodChannel('simple_kiosk/system_keyboard');
+    final calls = <String>[];
+    var nativeVisible = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      calls.add(call.method);
+      switch (call.method) {
+        case 'isVisible':
+          return nativeVisible;
+        case 'show':
+          nativeVisible = true;
+          return true;
+        case 'hide':
+          nativeVisible = false;
+          return true;
+      }
+      return null;
+    });
+    addTearDown(() async {
+      await SystemKeyboard.hide();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    SystemKeyboard.configure(KeyboardMode.windows);
+    await SystemKeyboard.toggle();
+    expect(KeyboardController.instance.visible.value, isTrue);
+    await SystemKeyboard.toggle();
+    expect(KeyboardController.instance.visible.value, isFalse);
+    await SystemKeyboard.toggle();
+    expect(KeyboardController.instance.visible.value, isTrue);
+    expect(calls, [
+      'isVisible',
+      'show',
+      'isVisible',
+      'hide',
+      'isVisible',
+      'show',
+    ]);
+  });
+
+  test('Windows 시작프로그램 상태와 시작 모드를 파싱한다', () {
+    final status = WindowsStartupStatus.fromMap({
+      'supported': true,
+      'registered': true,
+      'targetMatches': true,
+      'mode': 'hidden',
+      'shortcutPath': r'C:\Startup\여의도성당Signage.lnk',
+    });
+
+    expect(status.supported, isTrue);
+    expect(status.registered, isTrue);
+    expect(status.targetMatches, isTrue);
+    expect(status.mode, StartupLaunchMode.hidden);
   });
 
   testWidgets('접힌 툴바 오버레이에 필수 컨트롤을 표시한다', (tester) async {
@@ -856,6 +1116,34 @@ void main() {
     expect(enterCount, 1);
   });
 
+  testWidgets('시작 화면 보호기는 첫 프레임부터 표시하고 진입 콜백은 한 번만 호출한다', (tester) async {
+    var enterCount = 0;
+    const config = IdleConfig(
+      enabled: true,
+      startOnLaunch: true,
+      modes: [IdleMode.image],
+      image: 'assets/icons/app_icon.png',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: IdleGate(
+          config: config,
+          onEnterIdle: () => enterCount += 1,
+          child: const ColoredBox(
+            key: ValueKey('normal-screen'),
+            color: Colors.red,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(IdleOverlay), findsOneWidget);
+    expect(enterCount, 1);
+    await tester.pump();
+    expect(enterCount, 1);
+  });
+
   testWidgets('화면 보호기와 툴바 감추기를 순서대로 더블클릭한다', (tester) async {
     var enterCount = 0;
     var prepareCount = 0;
@@ -905,6 +1193,7 @@ void main() {
 
   testWidgets('오른쪽 툴바에서 감추기를 포함한 모든 기능 아이콘을 표시한다', (tester) async {
     var hideCount = 0;
+    var languageCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -920,6 +1209,7 @@ void main() {
                 orientation: NavigationOrientation.side,
                 sideWidth: 220,
                 showKeyboardToggle: true,
+                onSelectLanguage: () => languageCount += 1,
                 onOpenAdmin: () {},
                 onEnterIdle: () {},
                 onHideKiosk: () {},
@@ -932,6 +1222,11 @@ void main() {
     );
 
     expect(find.byIcon(Icons.keyboard), findsOneWidget);
+    expect(find.byIcon(Icons.translate), findsOneWidget);
+    final languageButton = find.byTooltip('언어 선택');
+    expect(languageButton, findsOneWidget);
+    await tester.tap(languageButton);
+    expect(languageCount, 1);
     expect(find.byIcon(Icons.admin_panel_settings_outlined), findsOneWidget);
     expect(find.byTooltip('설정'), findsOneWidget);
     expect(find.byIcon(Icons.wallpaper_outlined), findsOneWidget);
@@ -942,6 +1237,63 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(hideCount, 1);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('세로 툴바는 메뉴 버튼을 축소하고 부족할 때만 스크롤바를 표시한다', (tester) async {
+    final manyItems = List.generate(
+      10,
+      (index) => MenuItem(
+        id: 'menu$index',
+        title: '메뉴 $index',
+        url: 'https://example.com/$index',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: 220,
+              height: 500,
+              child: NavigationMenu(
+                items: manyItems,
+                selectedIndex: 0,
+                onSelected: (_) {},
+                orientation: NavigationOrientation.side,
+                sideWidth: 220,
+                showHistoryButtons: true,
+                showKeyboardToggle: true,
+                onOpenAdmin: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(Scrollbar), findsOneWidget);
+    expect(find.byTooltip('설정'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 220,
+            height: 500,
+            child: NavigationMenu(
+              items: manyItems.take(2).toList(),
+              selectedIndex: 0,
+              onSelected: (_) {},
+              orientation: NavigationOrientation.side,
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(Scrollbar), findsNothing);
   });
 
   testWidgets('F1, F12, F9 기능키를 전역 단축키로 처리한다', (tester) async {

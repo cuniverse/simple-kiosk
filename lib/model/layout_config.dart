@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 /// - [top] / [bottom]: 항상 상/하단 가로 바.
 enum NavPosition { auto, left, right, top, bottom }
 
+/// Windows에서 사용할 화면 키보드 종류.
+enum KeyboardMode { windows, builtIn }
+
 /// 네비게이션 바 내부에서 버튼들을 배치할 정렬 방식.
 ///
 /// - [start]: 시작(위/왼쪽)에 모음
@@ -73,6 +76,23 @@ NavAlignment _parseAlignment(Object? raw, NavAlignment fallback) {
   }
 }
 
+KeyboardMode _parseKeyboardMode(Object? raw) {
+  if (raw == null) return KeyboardMode.windows;
+  if (raw is! String) {
+    throw const FormatException('menu.json layout.keyboardMode: 문자열 필요');
+  }
+  switch (raw.toLowerCase()) {
+    case 'windows':
+    case 'system':
+      return KeyboardMode.windows;
+    case 'builtin':
+    case 'built-in':
+      return KeyboardMode.builtIn;
+    default:
+      throw FormatException('menu.json: 알 수 없는 keyboardMode 값 "$raw"');
+  }
+}
+
 /// 네비게이션 바 레이아웃 설정.
 ///
 /// `menu.json`의 선택적 `layout` 섹션에서 로드된다.
@@ -120,6 +140,9 @@ class LayoutConfig {
   /// 표시할지 여부. 운영자가 수동으로 키보드를 띄울 수 있게 해준다.
   final bool showKeyboardToggle;
 
+  /// Windows 기본 화면 키보드 또는 앱 내장 키보드 선택.
+  final KeyboardMode keyboardMode;
+
   /// 메뉴 버튼을 한 번 누를 때 설정된 URL 로 강제 초기화하지 않고, 현재
   /// 페이지 상태(스크롤/내부 네비 등)를 유지할지 여부.
   ///
@@ -162,6 +185,7 @@ class LayoutConfig {
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
     this.showKeyboardToggle = false,
+    this.keyboardMode = KeyboardMode.windows,
     this.keepStateOnTap = false,
     this.toolbarInitiallyHidden = true,
     this.toolbarAutoHideSec = 10,
@@ -228,6 +252,7 @@ class LayoutConfig {
           'menu.json layout.showKeyboardToggle: bool 필요',
         );
       }(),
+      keyboardMode: _parseKeyboardMode(json['keyboardMode']),
       keepStateOnTap: () {
         final v = json['keepStateOnTap'];
         if (v == null) return defaults.keepStateOnTap;

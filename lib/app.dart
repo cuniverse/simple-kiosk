@@ -15,6 +15,8 @@ import 'model/layout_config.dart';
 import 'model/menu_config.dart';
 import 'model/menu_item.dart';
 import 'model/menu_language.dart';
+import 'model/webview_slot_id.dart';
+import 'model/webview_data_policy.dart';
 import 'service/admin_api_controller.dart';
 import 'service/configuration_backup_service.dart';
 import 'service/menu_config_loader.dart';
@@ -23,9 +25,11 @@ import 'widget/idle_gate.dart';
 import 'widget/kiosk_webview.dart';
 import 'widget/navigation_menu.dart';
 import 'widget/virtual_keyboard.dart';
+import 'widget/webview_loading_overlay.dart';
 import 'service/keyboard_controller.dart';
 import 'service/kiosk_tray_controller.dart';
 import 'service/system_keyboard.dart';
+import 'service/webview_data_service.dart';
 import 'service/app_health_signal.dart';
 import 'service/update_controller.dart';
 import 'service/update_service.dart';
@@ -55,10 +59,17 @@ class KioskApp extends StatelessWidget {
           children: [
             if (child != null) child,
             ValueListenableBuilder<bool>(
-              valueListenable: KeyboardController.instance.visible,
-              builder: (context, visible, _) {
-                if (!visible) return const SizedBox.shrink();
-                return const VirtualKeyboardOverlay();
+              valueListenable: SystemKeyboard.builtInEnabled,
+              builder: (context, builtInEnabled, _) {
+                return ValueListenableBuilder<bool>(
+                  valueListenable: KeyboardController.instance.visible,
+                  builder: (context, visible, _) {
+                    if (!builtInEnabled || !visible) {
+                      return const SizedBox.shrink();
+                    }
+                    return const VirtualKeyboardOverlay();
+                  },
+                );
               },
             ),
           ],
@@ -193,6 +204,7 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
           languageSelectionSubtitle: snapshot.data!.languageSelectionSubtitle,
           layout: snapshot.data!.layout,
           idle: snapshot.data!.idle,
+          webViewDataPolicy: snapshot.data!.webViewDataPolicy,
           onReloadConfig: _retry,
         );
       },
@@ -216,6 +228,7 @@ class _KioskHome extends StatefulWidget {
   final String languageSelectionSubtitle;
   final LayoutConfig layout;
   final IdleConfig idle;
+  final WebViewDataPolicy webViewDataPolicy;
   final VoidCallback onReloadConfig;
   const _KioskHome({
     required this.languages,
@@ -224,6 +237,7 @@ class _KioskHome extends StatefulWidget {
     required this.languageSelectionSubtitle,
     required this.layout,
     required this.idle,
+    required this.webViewDataPolicy,
     required this.onReloadConfig,
   });
 
@@ -232,9 +246,10 @@ class _KioskHome extends StatefulWidget {
 }
 
 class _KioskHomeState extends State<_KioskHome> {
-  int _selectedIndex = 0;
-  late int _selectedLanguageIndex;
+  late String _selectedLanguageId;
+  late String _selectedMenuId;
   bool _showLanguageSelection = false;
+  bool _languageSelectionTransitioning = false;
   final IdleGateController _idleGateController = IdleGateController();
   late final UpdateController _updateController;
   late final KioskTrayController _trayController;
@@ -244,9 +259,15 @@ class _KioskHomeState extends State<_KioskHome> {
   bool _manualDialogOpen = false;
   bool _manualUpdateRunning = false;
 
-  /// 최초 방문 메뉴가 백그라운드에서 준비되는 동안 선택 표시할 인덱스.
-  /// 실제 화면은 준비가 끝날 때까지 [_selectedIndex]를 유지한다.
-  int? _pendingIndex;
+  /// 최초 방문 메뉴가 백그라운드에서 준비되는 동안 선택 표시할 슬롯.
+  /// 언어와 메뉴 ID를 함께 사용해 순서 변경에도 동일 WebView를 추적한다.
+  WebViewSlotId? _pendingSlot;
+  Timer? _pendingOverlayTimer;
+  Timer? _pendingTimeoutTimer;
+  bool _showPendingOverlay = false;
+  bool _pendingTimedOut = false;
+  static const Duration _pendingOverlayDelay = Duration(milliseconds: 200);
+  static const Duration _pendingTimeout = Duration(seconds: 12);
 
   /// 네비게이션 툴바를 감추었는지 여부.
   ///
@@ -257,35 +278,91 @@ class _KioskHomeState extends State<_KioskHome> {
   DateTime? _hideSignageGestureExpiresAt;
   static const Duration _hideSignageGestureWindow = Duration(seconds: 5);
 
-  /// 메뉴 인덱스별 컨트롤러. 한 번이라도 mount 된 항목에 대해서만 채워진다.
-  final Map<int, KioskWebViewController> _controllers = {};
+  /// 언어 ID + 메뉴 ID별 컨트롤러.
+  final Map<WebViewSlotId, KioskWebViewController> _controllers = {};
 
   /// 한 번이라도 방문한(=WebView 가 mount 된) 메뉴 인덱스 집합.
   ///
   /// IndexedStack 의 자식 중 mount 안 된 항목은 [SizedBox.shrink] 로 두어
   /// 메모리(WebView2 인스턴스) 를 절약한다. 첫 항목은 앱 시작 시 자동 mount.
-  final Set<int> _mountedIndices = {0};
+  final Set<WebViewSlotId> _mountedSlots = {};
 
   /// 최초 페이지 로드가 끝나 즉시 화면 전환할 수 있는 메뉴 인덱스 집합.
-  final Set<int> _readyIndices = {};
+  final Set<WebViewSlotId> _readySlots = {};
+
+  /// WebView 트리를 명시적으로 교체할 때 증가한다. 이전 세대에서 늦게 도착한
+  /// onReady/onInitialLoadReady 콜백은 현재 상태를 변경할 수 없다.
+  final WebViewGeneration _webViewGeneration = WebViewGeneration();
 
   /// 더블 탭 감지를 위한 마지막 탭 시점/대상 메뉴.
   ///
   /// `keepStateOnTap` 옵션이 켜진 경우, 같은 메뉴를 짧은 시간(300ms) 내에 두
   /// 번 누르면 강제 reload 하도록 한다.
   DateTime? _lastTapAt;
-  int? _lastTapIndex;
+  WebViewSlotId? _lastTapSlot;
   static const Duration _doubleTapWindow = Duration(milliseconds: 300);
+
+  int get _selectedLanguageIndex {
+    final index = widget.languages.indexWhere(
+      (language) => language.id == _selectedLanguageId,
+    );
+    return index >= 0 ? index : 0;
+  }
 
   MenuLanguage get _selectedLanguage =>
       widget.languages[_selectedLanguageIndex];
 
   List<MenuItem> get _items => _selectedLanguage.items;
 
+  MenuItem get _defaultMenu => _selectedLanguage.defaultItem;
+
+  int get _selectedIndex {
+    final index = _items.indexWhere((item) => item.id == _selectedMenuId);
+    return index >= 0 ? index : 0;
+  }
+
+  int? get _pendingIndex {
+    final pending = _pendingSlot;
+    if (pending == null || pending.languageId != _selectedLanguage.id) {
+      return null;
+    }
+    final index = _items.indexWhere((item) => item.id == pending.menuId);
+    return index >= 0 ? index : null;
+  }
+
+  WebViewSlotId _slotFor(MenuItem item) => WebViewSlotId(
+        languageId: _selectedLanguage.id,
+        menuId: item.id,
+      );
+
+  WebViewSlotId get _selectedSlot => WebViewSlotId(
+        languageId: _selectedLanguage.id,
+        menuId: _selectedMenuId,
+      );
+
+  MenuItem? get _pendingItem {
+    final pending = _pendingSlot;
+    if (pending == null || pending.languageId != _selectedLanguage.id) {
+      return null;
+    }
+    for (final item in _items) {
+      if (item.id == pending.menuId) return item;
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
-    _selectedLanguageIndex = _defaultLanguageIndex();
+    SystemKeyboard.configure(widget.layout.keyboardMode);
+    _selectedLanguageId = _defaultLanguageId();
+    _selectedMenuId = _defaultMenu.id;
+    // 시작 화면보호기가 켜진 경우 첫 WebView를 즉시 만들지 않는다. IdleGate의
+    // 초기 진입 콜백에서 화면보호기 뒤에 한 번만 mount해 Windows 플랫폼 뷰가
+    // 생성 도중 교체되는 시작 경합을 피한다.
+    if (!(widget.idle.isUsable && widget.idle.startOnLaunch)) {
+      _mountedSlots.add(_selectedSlot);
+    }
     _toolbarHidden = widget.layout.toolbarInitiallyHidden;
     _updateController = UpdateController();
     _updateController.initialize();
@@ -299,6 +376,7 @@ class _KioskHomeState extends State<_KioskHome> {
       actionHandler: _handleAdminAction,
       configReader: configLoader.readOverride,
       effectiveConfigReader: configLoader.readEffective,
+      defaultConfigReader: configLoader.readDefaults,
       configWriter: _saveExternalConfig,
       backupService: const ConfigurationBackupService(),
       onConfigurationImported: () async => widget.onReloadConfig(),
@@ -309,6 +387,8 @@ class _KioskHomeState extends State<_KioskHome> {
 
   @override
   void dispose() {
+    _pendingOverlayTimer?.cancel();
+    _pendingTimeoutTimer?.cancel();
     unawaited(_trayController.dispose());
     unawaited(_adminApiController.close());
     _adminApiController.dispose();
@@ -344,6 +424,15 @@ class _KioskHomeState extends State<_KioskHome> {
       'uptimeSeconds': DateTime.now().difference(_startedAt).inSeconds,
       'selectedLanguage': _selectedLanguage.id,
       'selectedMenu': _items[_selectedIndex].id,
+      'webViewData': {
+        'sharing': {
+          'cookies': true,
+          'cache': true,
+          'localStorage': true,
+        },
+        'idlePolicy': widget.webViewDataPolicy.idlePolicy.name,
+        'preserveDomains': widget.webViewDataPolicy.preserveDomains,
+      },
       'update': {
         'status': _updateController.status,
         'busy': _updateController.busy,
@@ -412,45 +501,113 @@ class _KioskHomeState extends State<_KioskHome> {
   @override
   void didUpdateWidget(covariant _KioskHome oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.layout.keyboardMode != widget.layout.keyboardMode) {
+      SystemKeyboard.configure(widget.layout.keyboardMode);
+    }
     if (oldWidget.layout.toolbarInitiallyHidden !=
         widget.layout.toolbarInitiallyHidden) {
       _toolbarHidden = widget.layout.toolbarInitiallyHidden;
     }
-    final previousLanguageId = oldWidget.languages[_selectedLanguageIndex].id;
+    final previousLanguageId = _selectedLanguageId;
+    final definitionsChanged = _webViewDefinitionsChanged(oldWidget, widget);
     final matchingIndex = widget.languages.indexWhere(
       (language) => language.id == previousLanguageId,
     );
-    _selectedLanguageIndex =
-        matchingIndex >= 0 ? matchingIndex : _defaultLanguageIndex();
-    if (_selectedIndex >= _items.length) {
+    _selectedLanguageId =
+        matchingIndex >= 0 ? previousLanguageId : _defaultLanguageId();
+    if (matchingIndex < 0 || definitionsChanged) {
+      _resetWebViewsForLanguage();
+      return;
+    }
+
+    final validSlots = <WebViewSlotId>{
+      for (final language in widget.languages)
+        for (final item in language.items)
+          WebViewSlotId(languageId: language.id, menuId: item.id),
+    };
+    _mountedSlots.removeWhere((slot) => !validSlots.contains(slot));
+    _readySlots.removeWhere((slot) => !validSlots.contains(slot));
+    _controllers.removeWhere((slot, _) => !validSlots.contains(slot));
+    if (!_items.any((item) => item.id == _selectedMenuId)) {
       _resetWebViewsForLanguage();
     }
   }
 
-  int _defaultLanguageIndex() {
-    final index = widget.languages.indexWhere(
+  bool _webViewDefinitionsChanged(_KioskHome oldWidget, _KioskHome newWidget) {
+    final oldUrls = <WebViewSlotId, String>{
+      for (final language in oldWidget.languages)
+        for (final item in language.items)
+          WebViewSlotId(languageId: language.id, menuId: item.id): item.url,
+    };
+    final newUrls = <WebViewSlotId, String>{
+      for (final language in newWidget.languages)
+        for (final item in language.items)
+          WebViewSlotId(languageId: language.id, menuId: item.id): item.url,
+    };
+    // 순서만 바뀐 경우에는 슬롯과 WebView 상태를 그대로 유지한다.
+    if (!setEquals(oldUrls.keys.toSet(), newUrls.keys.toSet())) return true;
+    for (final entry in oldUrls.entries) {
+      if (newUrls[entry.key] != entry.value) return true;
+    }
+    return false;
+  }
+
+  String _defaultLanguageId() {
+    final language = widget.languages.where(
       (language) => language.id == widget.defaultLanguageId,
     );
-    return index >= 0 ? index : 0;
+    return language.isNotEmpty ? language.first.id : widget.languages.first.id;
   }
 
   void _resetWebViewsForLanguage() {
-    _selectedIndex = 0;
-    _pendingIndex = null;
-    _mountedIndices
+    _webViewGeneration.next();
+    _selectedMenuId = _defaultMenu.id;
+    _pendingSlot = null;
+    _clearPendingFeedback();
+    _mountedSlots
       ..clear()
-      ..add(0);
-    _readyIndices.clear();
+      ..add(_selectedSlot);
+    _readySlots.clear();
     _controllers.clear();
+    _lastTapAt = null;
+    _lastTapSlot = null;
   }
 
   void _selectLanguage(int index) {
-    if (index < 0 || index >= widget.languages.length) return;
+    if (index < 0 ||
+        index >= widget.languages.length ||
+        _languageSelectionTransitioning) {
+      return;
+    }
+    final selectedLanguageId = widget.languages[index].id;
+    final languageChanged = selectedLanguageId != _selectedLanguageId;
+    _languageSelectionTransitioning = true;
+
+    // 언어 선택 화면을 한 프레임 더 유지한 상태에서 WebView와 툴바 배치를 먼저
+    // 완성한다. 네이티브 WebView 크기 변경이 사용자에게 노출되지 않아 툴바가
+    // 번쩍이는 현상을 막는다.
     setState(() {
-      _selectedLanguageIndex = index;
-      _showLanguageSelection = false;
+      _selectedLanguageId = selectedLanguageId;
       _toolbarHidden = widget.layout.toolbarInitiallyHidden;
-      _resetWebViewsForLanguage();
+      if (languageChanged) {
+        _resetWebViewsForLanguage();
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _showLanguageSelection = false;
+        _languageSelectionTransitioning = false;
+      });
+    });
+  }
+
+  void _showLanguageSelectionScreen() {
+    if (_showLanguageSelection || _languageSelectionTransitioning) return;
+    setState(() {
+      _pendingSlot = null;
+      _clearPendingFeedback();
+      _showLanguageSelection = true;
     });
   }
 
@@ -479,26 +636,94 @@ class _KioskHomeState extends State<_KioskHome> {
     _hideToolbar();
   }
 
-  KioskWebViewController? get _currentController =>
-      _controllers[_selectedIndex];
+  KioskWebViewController? get _currentController => _controllers[_selectedSlot];
+
+  void _clearPendingFeedback() {
+    _pendingOverlayTimer?.cancel();
+    _pendingTimeoutTimer?.cancel();
+    _pendingOverlayTimer = null;
+    _pendingTimeoutTimer = null;
+    _showPendingOverlay = false;
+    _pendingTimedOut = false;
+  }
+
+  void _startPendingFeedback(
+    WebViewSlotId slot, {
+    bool showImmediately = false,
+  }) {
+    _clearPendingFeedback();
+    final generation = _webViewGeneration.value;
+    _showPendingOverlay = showImmediately;
+    if (!showImmediately) {
+      _pendingOverlayTimer = Timer(_pendingOverlayDelay, () {
+        if (!mounted ||
+            _pendingSlot != slot ||
+            !_webViewGeneration.isCurrent(generation)) {
+          return;
+        }
+        setState(() => _showPendingOverlay = true);
+      });
+    }
+    _pendingTimeoutTimer = Timer(_pendingTimeout, () {
+      if (!mounted ||
+          _pendingSlot != slot ||
+          !_webViewGeneration.isCurrent(generation)) {
+        return;
+      }
+      setState(() {
+        _showPendingOverlay = true;
+        _pendingTimedOut = true;
+      });
+    });
+  }
+
+  void _cancelPendingSelection() {
+    if (_pendingSlot == null) return;
+    setState(() {
+      _pendingSlot = null;
+      _clearPendingFeedback();
+    });
+  }
+
+  void _retryPendingSelection() {
+    final slot = _pendingSlot;
+    final item = _pendingItem;
+    if (slot == null || item == null) return;
+    final controller = _controllers[slot];
+    setState(() {
+      _startPendingFeedback(slot, showImmediately: true);
+      if (controller == null) _mountedSlots.remove(slot);
+    });
+    if (controller != null) {
+      controller.loadUrl(item.url);
+      return;
+    }
+    // 컨트롤러 생성 자체가 지연된 경우 해당 슬롯만 한 프레임 언mount한 뒤
+    // 다시 생성한다. 현재 보이는 WebView는 그대로 유지된다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _pendingSlot != slot) return;
+      setState(() => _mountedSlots.add(slot));
+    });
+  }
 
   void _onSelect(int index) {
     if (index < 0 || index >= _items.length) return;
+    final item = _items[index];
+    final slot = _slotFor(item);
 
     // 이미 백그라운드에서 준비 중인 메뉴를 다시 눌러도 빈 WebView로 먼저
     // 전환하지 않는다.
-    if (_pendingIndex == index) return;
+    if (_pendingSlot == slot) return;
 
-    final item = _items[index];
     final url = item.url;
     final now = DateTime.now();
 
     // 더블 탭 판정: 같은 메뉴를 윈도우 내에 다시 누른 경우.
-    final isDoubleTap = _lastTapIndex == index &&
+    final isDoubleTap = _lastTapSlot == slot &&
         _lastTapAt != null &&
         now.difference(_lastTapAt!) <= _doubleTapWindow;
     _lastTapAt = now;
-    _lastTapIndex = index;
+    _lastTapSlot = slot;
 
     // 항목별 설정이 있으면 우선, 없으면 layout 기본값.
     final keepState = item.keepStateOnTap ?? widget.layout.keepStateOnTap;
@@ -507,24 +732,27 @@ class _KioskHomeState extends State<_KioskHome> {
       debugPrint(
         '[KioskHome] _onSelect '
         'index=$index id="${item.id}" '
-        'currentSelected=$_selectedIndex '
+        'currentSelected=$_selectedMenuId '
         'keepState=$keepState (item=${item.keepStateOnTap}, layout=${widget.layout.keepStateOnTap}) '
         'isDoubleTap=$isDoubleTap '
-        'mounted=${_mountedIndices.contains(index)}',
+        'mounted=${_mountedSlots.contains(slot)}',
       );
     }
 
-    final wasMounted = _mountedIndices.contains(index);
-    final isReady = _readyIndices.contains(index);
+    final wasMounted = _mountedSlots.contains(slot);
+    final isReady = _readySlots.contains(slot);
 
-    if (index == _selectedIndex) {
+    if (slot == _selectedSlot) {
       // 준비 중이던 다른 메뉴 선택만 취소한다. 현재 메뉴가 상태 유지 모드면
       // 부모 전체를 다시 그릴 필요가 없다.
-      if (_pendingIndex != null) {
-        setState(() => _pendingIndex = null);
+      if (_pendingSlot != null) {
+        setState(() {
+          _pendingSlot = null;
+          _clearPendingFeedback();
+        });
       }
       if (isDoubleTap || !keepState) {
-        _controllers[index]?.loadUrl(url);
+        _controllers[slot]?.loadUrl(url);
       }
       return;
     }
@@ -533,33 +761,40 @@ class _KioskHomeState extends State<_KioskHome> {
       // 최초 방문 메뉴는 기존 화면 뒤에서 먼저 mount/load 한다. 페이지가 준비되면
       // [_onInitialLoadReady]가 실제 선택 인덱스를 바꿔 빈 화면 노출을 막는다.
       setState(() {
-        _pendingIndex = index;
-        _mountedIndices.add(index);
+        _pendingSlot = slot;
+        _mountedSlots.add(slot);
+        _startPendingFeedback(slot);
       });
       return;
     }
 
     setState(() {
-      _pendingIndex = null;
-      _selectedIndex = index;
+      _pendingSlot = null;
+      _selectedMenuId = item.id;
+      _clearPendingFeedback();
     });
 
     // 이미 mount 되어 있는 항목.
     if (wasMounted && (isDoubleTap || !keepState)) {
       // 강제 재로드: keepState=false 이거나 더블 탭.
-      _controllers[index]?.loadUrl(url);
+      _controllers[slot]?.loadUrl(url);
     }
     // keepState=true & 단일 탭 & 이미 mount 됨 → 아무 것도 안 함(상태 유지).
   }
 
-  void _onInitialLoadReady(int index) {
-    if (!mounted) return;
-    final shouldSelect = _pendingIndex == index;
+  void _onInitialLoadReady(WebViewSlotId slot, int generation) {
+    if (!mounted ||
+        !_webViewGeneration.isCurrent(generation) ||
+        !_mountedSlots.contains(slot)) {
+      return;
+    }
+    final shouldSelect = _pendingSlot == slot;
     setState(() {
-      _readyIndices.add(index);
+      _readySlots.add(slot);
       if (shouldSelect) {
-        _selectedIndex = index;
-        _pendingIndex = null;
+        _selectedMenuId = slot.menuId;
+        _pendingSlot = null;
+        _clearPendingFeedback();
       }
     });
   }
@@ -583,29 +818,35 @@ class _KioskHomeState extends State<_KioskHome> {
     if (kDebugMode) {
       debugPrint(
         '[KioskHome] 대기화면 진입 → WebView 정리 '
-        '(mounted=${_mountedIndices.toList()..sort()})',
+        '(mounted=${_mountedSlots.map((slot) => '${slot.languageId}/${slot.menuId}').toList()..sort()})',
       );
     }
     setState(() {
       _toolbarHidden = true;
-      _selectedIndex = 0;
-      _pendingIndex = null;
+      _webViewGeneration.next();
+      _selectedMenuId = _defaultMenu.id;
+      _pendingSlot = null;
+      _clearPendingFeedback();
+      final homeSlot = _selectedSlot;
       // 홈만 남기고 모두 언mount.
-      _mountedIndices
+      _mountedSlots
         ..clear()
-        ..add(0);
-      _readyIndices
-        ..clear()
-        ..add(0);
-      // 언mount 되는 항목의 컨트롤러 참조도 정리(위젯이 dispose 되면 무효).
-      _controllers.removeWhere((index, _) => index != 0);
+        ..add(homeSlot);
+      _readySlots.clear();
+      // 새 세대로 교체되므로 이전 WebView 컨트롤러는 모두 무효다.
+      _controllers.clear();
     });
     // 쿠키 삭제 후 홈을 초기 URL 로 리셋. 순서 보장을 위해 await.
     () async {
       // idle 진입 시 떠 있던 OS 가상 키보드도 함께 닫는다.
       await SystemKeyboard.hide();
       try {
-        await CookieManager.instance().deleteAllCookies();
+        await WebViewDataService.applyIdlePolicy(
+          widget.webViewDataPolicy,
+          knownUrls: widget.languages.expand(
+            (language) => language.items.map((item) => item.url),
+          ),
+        );
       } catch (e) {
         if (kDebugMode) {
           debugPrint('[KioskHome] 쿠키 삭제 실패: $e');
@@ -614,7 +855,7 @@ class _KioskHomeState extends State<_KioskHome> {
       if (!mounted) return;
       if (_selectedLanguage.id == languageIdAtEntry &&
           !_showLanguageSelection) {
-        _controllers[0]?.loadUrl(_items.first.url);
+        _controllers[_selectedSlot]?.loadUrl(_defaultMenu.url);
       }
     }();
   }
@@ -626,7 +867,7 @@ class _KioskHomeState extends State<_KioskHome> {
     _updateController.setIdle(false);
     if (_items.isEmpty) return;
     setState(() {
-      _selectedIndex = 0;
+      _selectedMenuId = _defaultMenu.id;
       _showLanguageSelection = true;
     });
   }
@@ -639,8 +880,8 @@ class _KioskHomeState extends State<_KioskHome> {
       return false;
     }
     // 홈(첫 번째) 메뉴가 아니면 홈으로 이동.
-    if (_selectedIndex != 0) {
-      _onSelect(0);
+    if (_selectedMenuId != _defaultMenu.id) {
+      _onSelect(_items.indexWhere((item) => item.id == _defaultMenu.id));
       return false;
     }
     // 그 외에는 그대로(앱 종료하지 않도록 false 유지).
@@ -817,7 +1058,23 @@ class _KioskHomeState extends State<_KioskHome> {
       _updateController,
       adminApiController: _adminApiController,
       onExit: _exitApplication,
+      keyboardMode: widget.layout.keyboardMode,
+      onKeyboardModeChanged: _saveKeyboardMode,
     );
+  }
+
+  Future<void> _saveKeyboardMode(KeyboardMode mode) async {
+    const loader = MenuConfigLoader();
+    final config = await loader.readEffective();
+    final layout = Map<String, dynamic>.from(
+      config['layout'] as Map<String, dynamic>? ?? const {},
+    );
+    layout['keyboardMode'] =
+        mode == KeyboardMode.windows ? 'windows' : 'builtin';
+    config['layout'] = layout;
+    await loader.saveOverride(config);
+    SystemKeyboard.configure(mode);
+    Timer(const Duration(milliseconds: 500), widget.onReloadConfig);
   }
 
   Future<void> _exitApplication() async {
@@ -989,31 +1246,47 @@ class _KioskHomeState extends State<_KioskHome> {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final position = _effectivePosition(constraints.maxWidth);
+                    final languageId = _selectedLanguage.id;
+                    final generation = _webViewGeneration.value;
 
                     // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
                     // 한 번이라도 방문한 항목만 실제 KioskWebView 로 mount 된다.
                     final webViewStack = IndexedStack(
                       index: _selectedIndex,
                       children: List<Widget>.generate(_items.length, (i) {
-                        if (!_mountedIndices.contains(i)) {
-                          return const SizedBox.shrink();
-                        }
                         final item = _items[i];
+                        final slot = WebViewSlotId(
+                          languageId: languageId,
+                          menuId: item.id,
+                        );
+                        if (!_mountedSlots.contains(slot)) {
+                          return SizedBox.shrink(
+                            key: ValueKey(
+                              'empty-${slot.languageId}-${slot.menuId}-$generation',
+                            ),
+                          );
+                        }
                         return KioskWebView(
                           key: ValueKey(
-                            'kiosk-webview-${_selectedLanguage.id}-${item.id}',
+                            'kiosk-webview-${slot.languageId}-${slot.menuId}-$generation',
                           ),
                           initialUrl: item.url,
-                          active: i == _selectedIndex,
+                          active: slot == _selectedSlot,
                           onShowVersion: _showVersionInfo,
                           onCheckUpdate: _checkUpdateFromShortcut,
                           onReady: (c) {
-                            _controllers[i] = c;
+                            if (!mounted ||
+                                !_webViewGeneration.isCurrent(generation) ||
+                                !_mountedSlots.contains(slot)) {
+                              return;
+                            }
+                            _controllers[slot] = c;
                             // 현재 화면의 history 컨트롤만 새 컨트롤러를 받도록 리빌드.
                             // 백그라운드 준비 메뉴는 완료 콜백에서 함께 갱신된다.
-                            if (mounted && i == _selectedIndex) setState(() {});
+                            if (slot == _selectedSlot) setState(() {});
                           },
-                          onInitialLoadReady: () => _onInitialLoadReady(i),
+                          onInitialLoadReady: () =>
+                              _onInitialLoadReady(slot, generation),
                         );
                       }),
                     );
@@ -1053,6 +1326,7 @@ class _KioskHomeState extends State<_KioskHome> {
                         onOpenAdmin: UpdateAdminDialog.isConfigured
                             ? _showAdminSettings
                             : null,
+                        onSelectLanguage: _showLanguageSelectionScreen,
                         onPrepareHideKiosk: _prepareHideSignageGesture,
                         onHideKiosk: _completeHideSignageGesture,
                       ),
@@ -1078,6 +1352,17 @@ class _KioskHomeState extends State<_KioskHome> {
                     );
                   },
                 ),
+                if (_showPendingOverlay &&
+                    _pendingItem != null &&
+                    !_showLanguageSelection)
+                  Positioned.fill(
+                    child: WebViewLoadingOverlay(
+                      title: _pendingItem!.title,
+                      timedOut: _pendingTimedOut,
+                      onCancel: _cancelPendingSelection,
+                      onRetry: _retryPendingSelection,
+                    ),
+                  ),
                 if (_showLanguageSelection)
                   Positioned.fill(
                     child: LanguageSelection(
@@ -1085,6 +1370,7 @@ class _KioskHomeState extends State<_KioskHome> {
                       title: widget.languageSelectionTitle,
                       subtitle: widget.languageSelectionSubtitle,
                       onSelected: _selectLanguage,
+                      onReturnToIdle: _idleGateController.enterIdle,
                     ),
                   ),
               ],

@@ -1,7 +1,7 @@
 name: simple_kiosk
 description: 성당 로비용 Flutter 디지털 사이니지 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.15
+version: 1.2.16
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -42,4 +42,5 @@ flutter:
     - assets/admin/
     - assets/config/menu.defaults.json
     - assets/icons/
+    - assets/icons/languages/
     - assets/idle/

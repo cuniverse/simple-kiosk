@@ -72,7 +72,7 @@ Name: "{group}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{
 Name: "{group}\{#AppName} 사용자 매뉴얼"; Filename: "{app}\USER_MANUAL.html"
 Name: "{group}\{#AppName} 제거"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
-Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{app}"; Tasks: startup
+Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; Parameters: "--startup-mode signage"; WorkingDir: "{app}"; Tasks: startup
 
 [Tasks]
 Name: "startup"; Description: "Windows 로그인 시 {#AppName} 자동 실행"; GroupDescription: "자동 실행:"

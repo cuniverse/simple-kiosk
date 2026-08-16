@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert' show jsonEncode;
 
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,65 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../service/keyboard_controller.dart';
 import '../service/app_logger.dart';
 import '../service/system_keyboard.dart';
+
+const _keyboardFocusScript = r'''
+  (function () {
+    if (window.__kioskKbHookStarted) return;
+    window.__kioskKbHookStarted = true;
+
+    var NON_EDIT_INPUT_TYPES = {
+      button: 1, submit: 1, reset: 1, checkbox: 1, radio: 1,
+      range: 1, color: 1, file: 1, hidden: 1, image: 1
+    };
+    var lastShowAt = 0;
+
+    function isEditable(el) {
+      if (!el) return false;
+      if (el.isContentEditable) return true;
+      var tag = el.tagName;
+      if (tag === 'TEXTAREA') return true;
+      if (tag === 'INPUT') {
+        var t = (el.type || 'text').toLowerCase();
+        return !NON_EDIT_INPUT_TYPES[t];
+      }
+      return false;
+    }
+
+    function editableFromEvent(e) {
+      if (isEditable(e.target)) return e.target;
+      var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+      for (var i = 0; i < path.length; i++) {
+        if (isEditable(path[i])) return path[i];
+      }
+      return null;
+    }
+
+    function requestShow() {
+      var now = Date.now();
+      if (now - lastShowAt < 200) return;
+      lastShowAt = now;
+      try {
+        window.flutter_inappwebview.callHandler('kioskKeyboardShow');
+      } catch (_) { /* 무시 */ }
+    }
+
+    document.addEventListener('pointerdown', function (e) {
+      if (editableFromEvent(e)) requestShow();
+    }, true);
+
+    document.addEventListener('focusin', function (e) {
+      if (editableFromEvent(e)) requestShow();
+    }, true);
+
+    document.addEventListener('focusout', function (e) {
+      if (editableFromEvent(e)) {
+        try {
+          window.flutter_inappwebview.callHandler('kioskKeyboardHide');
+        } catch (_) { /* 무시 */ }
+      }
+    }, true);
+  })();
+''';
 
 /// 사이니지용 WebView 위젯.
 ///
@@ -239,7 +299,9 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// 웹 타겟의 cross-origin iframe) 로딩 표시가 영원히 남는 것을 방지하는
   /// 안전망 타이머.
   Timer? _loadingFallback;
-  static const Duration _loadingTimeout = Duration(seconds: 8);
+  // 앱의 메뉴 전환 오버레이가 먼저 시간 초과(12초)를 안내하고 취소·재시도를
+  // 제공할 수 있도록, WebView 자체 최종 안전망은 더 길게 둔다.
+  static const Duration _loadingTimeout = Duration(seconds: 30);
 
   /// 에러 화면에서 자동 재시도까지 남은 시간 카운트다운 타이머.
   Timer? _autoRetryTimer;
@@ -383,8 +445,9 @@ class _KioskWebViewState extends State<KioskWebView> {
 
   void _requestHideSystemKeyboard() {
     _keyboardHideDebounce?.cancel();
+    final showGeneration = SystemKeyboard.showGeneration;
     _keyboardHideDebounce = Timer(_keyboardHideDelay, () {
-      SystemKeyboard.hide();
+      SystemKeyboard.hideIfShowGeneration(showGeneration);
     });
   }
 
@@ -604,45 +667,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     final controller = _webController;
     if (controller == null) return;
     try {
-      await controller.evaluateJavascript(source: r'''
-        (function () {
-          if (window.__kioskKbHookStarted) return;
-          window.__kioskKbHookStarted = true;
-
-          var NON_EDIT_INPUT_TYPES = {
-            button: 1, submit: 1, reset: 1, checkbox: 1, radio: 1,
-            range: 1, color: 1, file: 1, hidden: 1, image: 1
-          };
-
-          function isEditable(el) {
-            if (!el) return false;
-            if (el.isContentEditable) return true;
-            var tag = el.tagName;
-            if (tag === 'TEXTAREA') return true;
-            if (tag === 'INPUT') {
-              var t = (el.type || 'text').toLowerCase();
-              return !NON_EDIT_INPUT_TYPES[t];
-            }
-            return false;
-          }
-
-          document.addEventListener('focusin', function (e) {
-            if (isEditable(e.target)) {
-              try {
-                window.flutter_inappwebview.callHandler('kioskKeyboardShow');
-              } catch (_) { /* 무시 */ }
-            }
-          }, true);
-
-          document.addEventListener('focusout', function (e) {
-            if (isEditable(e.target)) {
-              try {
-                window.flutter_inappwebview.callHandler('kioskKeyboardHide');
-              } catch (_) { /* 무시 */ }
-            }
-          }, true);
-        })();
-      ''');
+      await controller.evaluateJavascript(source: _keyboardFocusScript);
     } catch (_) {
       // 주입 실패는 무시. 다음 onLoadStop 에서 다시 시도.
     }
@@ -847,6 +872,14 @@ class _KioskWebViewState extends State<KioskWebView> {
               url: WebUri(_lastGoodUrl ?? widget.initialUrl),
             ),
             initialSettings: _settings,
+            // 문서 로드 완료 전 클릭과 iframe 내부 입력 요소도 감지한다.
+            initialUserScripts: UnmodifiableListView([
+              UserScript(
+                source: _keyboardFocusScript,
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                forMainFrameOnly: false,
+              ),
+            ]),
             onWebViewCreated: (controller) {
               if (!mounted) return;
               _webController = controller;
@@ -918,6 +951,12 @@ class _KioskWebViewState extends State<KioskWebView> {
               // 응답이 도착했으므로 메뉴 클릭 watchdog 해제.
               _cancelLoadResponseWatchdog();
               _kioskController?._noteNavigationStart(url?.toString());
+            },
+            // 기본 문서가 WebView에 커밋되어 실제 표시 가능한 순간 바로 전환한다.
+            // 이미지·스크립트 등 나머지 리소스는 표시된 화면에서 계속 로드된다.
+            onPageCommitVisible: (controller, url) {
+              if (!mounted || url?.toString() == 'about:blank') return;
+              _reportInitialLoadReady();
             },
             onLoadStop: (controller, url) {
               if (!mounted) return;

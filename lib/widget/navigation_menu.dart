@@ -86,6 +86,9 @@ class NavigationMenu extends StatelessWidget {
   /// PIN 보호된 설정 화면을 여는 콜백.
   final VoidCallback? onOpenAdmin;
 
+  /// 언어 선택 화면으로 돌아가는 콜백.
+  final VoidCallback? onSelectLanguage;
+
   /// 화면 보호기 더블클릭으로 사이니지 감추기 순서를 시작하는 콜백.
   final VoidCallback? onPrepareHideKiosk;
 
@@ -115,6 +118,7 @@ class NavigationMenu extends StatelessWidget {
     this.onHide,
     this.onEnterIdle,
     this.onOpenAdmin,
+    this.onSelectLanguage,
     this.onPrepareHideKiosk,
     this.onHideKiosk,
   });
@@ -129,46 +133,11 @@ class NavigationMenu extends StatelessWidget {
 
   Widget _buildSide(BuildContext context) {
     final theme = Theme.of(context);
-    // 사이드 모드 기본 정렬은 start(위에서부터). stretch는 의미가 없으므로 start로.
     final align = buttonAlignment == NavAlignment.stretch
         ? NavAlignment.start
         : buttonAlignment;
     final mainAxisAlign = _toMainAxisAlignment(align);
-
-    // 버튼들 사이 간격 처리.
-    // space* 계열은 자체적으로 간격을 분배하므로 gap을 추가하지 않는다.
     final useSeparator = !_isSpaceAlignment(align);
-
-    final children = <Widget>[];
-    if (showHistoryButtons && historyController != null) {
-      children.add(_HistoryControls(
-        controller: historyController!,
-        orientation: NavigationOrientation.side,
-      ));
-      if (items.isNotEmpty) {
-        children.add(SizedBox(height: buttonGap + 4));
-      }
-    }
-    for (var i = 0; i < items.length; i++) {
-      if (useSeparator && i > 0) {
-        children.add(SizedBox(height: buttonGap));
-      }
-      children.add(
-        _NavButton(
-          title: items[i].title,
-          iconPath: items[i].icon,
-          showTitle: items[i].showTitle,
-          selected: i == selectedIndex,
-          orientation: NavigationOrientation.side,
-          fixedHeight: buttonHeight > 0 ? buttonHeight : null,
-          buttonColor: buttonColor,
-          buttonForegroundColor: buttonForegroundColor,
-          selectedButtonColor: selectedButtonColor,
-          selectedButtonForegroundColor: selectedButtonForegroundColor,
-          onPressed: () => onSelected(i),
-        ),
-      );
-    }
 
     return Material(
       color: barColor ?? theme.colorScheme.surfaceContainerHighest,
@@ -180,27 +149,84 @@ class NavigationMenu extends StatelessWidget {
           // 메뉴 영역(스크롤) + 하단 푸터(고정) 구조로 나눈다.
           child: Column(
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                  child: ConstrainedBox(
-                    // 항목 수가 적으면 정렬이 동작하도록 최소 높이 확보.
-                    // 항목이 많아 넘치면 자연스럽게 스크롤 가능.
-                    constraints: BoxConstraints(
-                      minHeight: MediaQuery.of(context).size.height -
-                          MediaQuery.of(context).padding.vertical -
-                          24, // 상하 padding 근사치
-                    ),
-                    child: Column(
-                      mainAxisAlignment: mainAxisAlign,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: children,
-                    ),
+              if (showHistoryButtons)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                  child: _HistoryControls(
+                    controller: historyController,
+                    orientation: NavigationOrientation.side,
                   ),
+                ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    const verticalPadding = 24.0;
+                    const minimumButtonHeight = 56.0;
+                    const automaticButtonHeight = 88.0;
+                    final available = (constraints.maxHeight - verticalPadding)
+                        .clamp(0.0, double.infinity);
+                    final gapCount = useSeparator
+                        ? (items.length - 1).clamp(0, items.length)
+                        : 0;
+                    final gaps = gapCount * buttonGap;
+                    final preferred =
+                        buttonHeight > 0 ? buttonHeight : automaticButtonHeight;
+                    final fitted = items.isEmpty
+                        ? preferred
+                        : ((available - gaps) / items.length)
+                            .clamp(minimumButtonHeight, preferred);
+                    final overflow =
+                        items.length * minimumButtonHeight + gaps > available;
+
+                    Widget menuColumn(double height) {
+                      final children = <Widget>[];
+                      for (var i = 0; i < items.length; i++) {
+                        if (useSeparator && i > 0) {
+                          children.add(SizedBox(height: buttonGap));
+                        }
+                        children.add(
+                          _NavButton(
+                            title: items[i].title,
+                            iconPath: items[i].icon,
+                            showTitle: items[i].showTitle,
+                            selected: i == selectedIndex,
+                            orientation: NavigationOrientation.side,
+                            fixedHeight: height,
+                            buttonColor: buttonColor,
+                            buttonForegroundColor: buttonForegroundColor,
+                            selectedButtonColor: selectedButtonColor,
+                            selectedButtonForegroundColor:
+                                selectedButtonForegroundColor,
+                            onPressed: () => onSelected(i),
+                          ),
+                        );
+                      }
+                      return Column(
+                        mainAxisAlignment: mainAxisAlign,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: children,
+                      );
+                    }
+
+                    final content = Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 8,
+                      ),
+                      child: menuColumn(
+                        overflow ? minimumButtonHeight : fitted,
+                      ),
+                    );
+                    if (!overflow) return content;
+                    return _ExplicitScrollViewport(
+                      axis: Axis.vertical,
+                      child: content,
+                    );
+                  },
                 ),
               ),
               if (showKeyboardToggle ||
+                  onSelectLanguage != null ||
                   onEnterIdle != null ||
                   onOpenAdmin != null ||
                   onHide != null)
@@ -211,6 +237,12 @@ class NavigationMenu extends StatelessWidget {
                     spacing: buttonGap,
                     runSpacing: buttonGap,
                     children: [
+                      if (onSelectLanguage != null)
+                        _ToolbarVisibilityButton(
+                          icon: Icons.translate,
+                          tooltip: '언어 선택',
+                          onPressed: onSelectLanguage!,
+                        ),
                       if (showKeyboardToggle)
                         const _KeyboardToggle(
                           orientation: NavigationOrientation.side,
@@ -247,197 +279,53 @@ class NavigationMenu extends StatelessWidget {
 
   Widget _buildBottom(BuildContext context) {
     final theme = Theme.of(context);
-    // 하단 모드 기본은 stretch(Expanded로 균등 분배).
     final align = buttonAlignment;
-    final useStretch = align == NavAlignment.stretch && buttonWidth <= 0;
-
-    Widget buildButton(int i) => _NavButton(
-          title: items[i].title,
-          iconPath: items[i].icon,
-          showTitle: items[i].showTitle,
-          selected: i == selectedIndex,
-          orientation: NavigationOrientation.bottom,
-          fixedHeight: buttonHeight > 0 ? buttonHeight : null,
-          buttonColor: buttonColor,
-          buttonForegroundColor: buttonForegroundColor,
-          selectedButtonColor: selectedButtonColor,
-          selectedButtonForegroundColor: selectedButtonForegroundColor,
-          onPressed: () => onSelected(i),
-        );
-
-    final children = <Widget>[];
-
-    // 하단 모드 공통: 좌측에 뒤/앞 버튼 삽입.
-    if (showHistoryButtons && historyController != null) {
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: _HistoryControls(
-            controller: historyController!,
-            orientation: NavigationOrientation.bottom,
-          ),
-        ),
-      );
-      children.add(SizedBox(width: buttonGap));
+    final controls = <Widget>[];
+    void addControl(Widget control) {
+      if (controls.isNotEmpty) controls.add(SizedBox(width: buttonGap));
+      controls.add(control);
     }
 
-    if (useStretch) {
-      // 기존 동작: 모든 버튼이 균등하게 공간을 차지.
-      for (var i = 0; i < items.length; i++) {
-        children.add(
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: buttonGap / 2,
-                vertical: 8,
-              ),
-              child: buildButton(i),
-            ),
-          ),
-        );
-      }
-      if (showKeyboardToggle) {
-        children.add(SizedBox(width: buttonGap));
-        children.add(
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: _KeyboardToggle(
-              orientation: NavigationOrientation.bottom,
-            ),
-          ),
-        );
-      }
-      if (onHide != null) {
-        children.add(SizedBox(width: buttonGap));
-        children.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: _ToolbarVisibilityButton(
-              icon: Icons.keyboard_arrow_down,
-              tooltip: '툴바 감추기',
-              onPressed: onHide!,
-              onDoublePressed: onHideKiosk,
-            ),
-          ),
-        );
-      }
-      if (onEnterIdle != null) {
-        children.add(SizedBox(width: buttonGap));
-        children.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: _ToolbarVisibilityButton(
-              icon: Icons.wallpaper_outlined,
-              tooltip: '화면 보호기 시작',
-              onPressed: onEnterIdle!,
-              onDoublePressed: onPrepareHideKiosk,
-            ),
-          ),
-        );
-      }
-      if (onOpenAdmin != null) {
-        children.add(SizedBox(width: buttonGap));
-        children.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: _ToolbarVisibilityButton(
-              icon: Icons.admin_panel_settings_outlined,
-              tooltip: '설정',
-              onPressed: onOpenAdmin!,
-            ),
-          ),
-        );
-      }
-      return Material(
-        color: barColor ?? theme.colorScheme.surfaceContainerHighest,
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: barHeight,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: buttonGap / 2),
-              child: Row(children: children),
-            ),
-          ),
-        ),
-      );
-    }
-
-    // 고정 폭 버튼 + 정렬 적용.
-    // 버튼 폭이 지정되지 않은 경우는 메뉴 수와 상관없이 고정값을 쓸 수 있도록 120dp 사용.
-    final btnW = buttonWidth > 0 ? buttonWidth : 120.0;
-    final useSeparator = !_isSpaceAlignment(align);
-
-    for (var i = 0; i < items.length; i++) {
-      if (useSeparator && i > 0) {
-        children.add(SizedBox(width: buttonGap));
-      }
-      children.add(
-        SizedBox(
-          width: btnW,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: buildButton(i),
-          ),
+    if (onSelectLanguage != null) {
+      addControl(
+        _ToolbarVisibilityButton(
+          icon: Icons.translate,
+          tooltip: '언어 선택',
+          onPressed: onSelectLanguage!,
         ),
       );
     }
     if (showKeyboardToggle) {
-      // 고정폭/space 정렬 모드 모두에서 토글을 오른쪽 끝에 고정시키기 위해
-      // 가변 공간(Spacer)을 끼우고 마지막에 배치.
-      children.add(const Spacer());
-      children.add(
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: _KeyboardToggle(
-            orientation: NavigationOrientation.bottom,
-          ),
-        ),
+      addControl(
+        const _KeyboardToggle(orientation: NavigationOrientation.bottom),
       );
     }
     if (onHide != null) {
-      if (!showKeyboardToggle) children.add(const Spacer());
-      children.add(SizedBox(width: buttonGap));
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: _ToolbarVisibilityButton(
-            icon: Icons.keyboard_arrow_down,
-            tooltip: '툴바 감추기',
-            onPressed: onHide!,
-            onDoublePressed: onHideKiosk,
-          ),
+      addControl(
+        _ToolbarVisibilityButton(
+          icon: Icons.keyboard_arrow_down,
+          tooltip: '툴바 감추기',
+          onPressed: onHide!,
+          onDoublePressed: onHideKiosk,
         ),
       );
     }
     if (onEnterIdle != null) {
-      if (!showKeyboardToggle && onHide == null) children.add(const Spacer());
-      children.add(SizedBox(width: buttonGap));
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: _ToolbarVisibilityButton(
-            icon: Icons.wallpaper_outlined,
-            tooltip: '화면 보호기 시작',
-            onPressed: onEnterIdle!,
-            onDoublePressed: onPrepareHideKiosk,
-          ),
+      addControl(
+        _ToolbarVisibilityButton(
+          icon: Icons.wallpaper_outlined,
+          tooltip: '화면 보호기 시작',
+          onPressed: onEnterIdle!,
+          onDoublePressed: onPrepareHideKiosk,
         ),
       );
     }
     if (onOpenAdmin != null) {
-      if (!showKeyboardToggle && onHide == null && onEnterIdle == null) {
-        children.add(const Spacer());
-      }
-      children.add(SizedBox(width: buttonGap));
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: _ToolbarVisibilityButton(
-            icon: Icons.admin_panel_settings_outlined,
-            tooltip: '설정',
-            onPressed: onOpenAdmin!,
-          ),
+      addControl(
+        _ToolbarVisibilityButton(
+          icon: Icons.admin_panel_settings_outlined,
+          tooltip: '설정',
+          onPressed: onOpenAdmin!,
         ),
       );
     }
@@ -451,11 +339,127 @@ class NavigationMenu extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
-              mainAxisAlignment: _toMainAxisAlignment(align),
-              children: children,
+              children: [
+                if (showHistoryButtons) ...[
+                  _HistoryControls(
+                    controller: historyController,
+                    orientation: NavigationOrientation.bottom,
+                  ),
+                  SizedBox(width: buttonGap),
+                ],
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const minimumWidth = 72.0;
+                      const preferredWidth = 120.0;
+                      final gaps =
+                          (items.length - 1).clamp(0, items.length) * buttonGap;
+                      final requested =
+                          buttonWidth > 0 ? buttonWidth : preferredWidth;
+                      final fitted = items.isEmpty
+                          ? requested
+                          : ((constraints.maxWidth - gaps) / items.length)
+                              .clamp(minimumWidth, requested);
+                      final overflow = items.length * minimumWidth + gaps >
+                          constraints.maxWidth;
+                      final width = overflow ? preferredWidth : fitted;
+                      final menuButtons = <Widget>[];
+                      for (var i = 0; i < items.length; i++) {
+                        if (i > 0) {
+                          menuButtons.add(SizedBox(width: buttonGap));
+                        }
+                        menuButtons.add(
+                          SizedBox(
+                            width: width,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: _NavButton(
+                                title: items[i].title,
+                                iconPath: items[i].icon,
+                                showTitle: items[i].showTitle,
+                                selected: i == selectedIndex,
+                                orientation: NavigationOrientation.bottom,
+                                fixedHeight: buttonHeight > 0
+                                    ? buttonHeight
+                                    : barHeight - 16,
+                                buttonColor: buttonColor,
+                                buttonForegroundColor: buttonForegroundColor,
+                                selectedButtonColor: selectedButtonColor,
+                                selectedButtonForegroundColor:
+                                    selectedButtonForegroundColor,
+                                onPressed: () => onSelected(i),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      final row = Row(
+                        mainAxisSize:
+                            overflow ? MainAxisSize.min : MainAxisSize.max,
+                        mainAxisAlignment: overflow
+                            ? MainAxisAlignment.start
+                            : _toMainAxisAlignment(align),
+                        children: menuButtons,
+                      );
+                      return overflow
+                          ? _ExplicitScrollViewport(
+                              axis: Axis.horizontal,
+                              child: row,
+                            )
+                          : row;
+                    },
+                  ),
+                ),
+                if (controls.isNotEmpty) ...[
+                  SizedBox(width: buttonGap),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: controls,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 공간이 실제로 부족할 때만 명시적인 스크롤바와 스크롤 동작을 제공한다.
+class _ExplicitScrollViewport extends StatefulWidget {
+  final Axis axis;
+  final Widget child;
+
+  const _ExplicitScrollViewport({required this.axis, required this.child});
+
+  @override
+  State<_ExplicitScrollViewport> createState() =>
+      _ExplicitScrollViewportState();
+}
+
+class _ExplicitScrollViewportState extends State<_ExplicitScrollViewport> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scrollbar(
+      controller: _controller,
+      thumbVisibility: true,
+      interactive: true,
+      child: SingleChildScrollView(
+        controller: _controller,
+        scrollDirection: widget.axis,
+        child: widget.child,
       ),
     );
   }
@@ -595,7 +599,10 @@ class _ToolbarHostState extends State<ToolbarHost> {
             bottom: position == NavPosition.top ? null : 0,
             child: Offstage(
               offstage: widget.hidden,
-              child: toolbarWithDivider,
+              child: RepaintBoundary(
+                key: const ValueKey('persistent-toolbar-layer'),
+                child: toolbarWithDivider,
+              ),
             ),
           ),
           Positioned.fill(
@@ -888,7 +895,7 @@ bool _isSpaceAlignment(NavAlignment a) =>
 ///
 /// [KioskWebViewController.navState] 를 구독해 활성/비활성 상태를 자동 갱신.
 class _HistoryControls extends StatelessWidget {
-  final KioskWebViewController controller;
+  final KioskWebViewController? controller;
   final NavigationOrientation orientation;
 
   const _HistoryControls({
@@ -898,32 +905,41 @@ class _HistoryControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = this.controller;
+    if (controller == null) {
+      return _buildButtons(WebNavState.empty, null);
+    }
     return ValueListenableBuilder<WebNavState>(
       valueListenable: controller.navState,
-      builder: (context, state, _) {
-        final back = _HistoryButton(
-          icon: Icons.arrow_back,
-          tooltip: '뒤로',
-          enabled: state.canGoBack,
-          onPressed: () => controller.goBack(),
-        );
-        final forward = _HistoryButton(
-          icon: Icons.arrow_forward,
-          tooltip: '앞으로',
-          enabled: state.canGoForward,
-          onPressed: () => controller.goForward(),
-        );
-        // 사이드/하단 모두 가로로 두 버튼을 나란히 배치.
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            back,
-            const SizedBox(width: 8),
-            forward,
-          ],
-        );
-      },
+      builder: (context, state, _) => _buildButtons(state, controller),
+    );
+  }
+
+  Widget _buildButtons(
+    WebNavState state,
+    KioskWebViewController? controller,
+  ) {
+    final back = _HistoryButton(
+      icon: Icons.arrow_back,
+      tooltip: '뒤로',
+      enabled: controller != null && state.canGoBack,
+      onPressed: () => controller?.goBack(),
+    );
+    final forward = _HistoryButton(
+      icon: Icons.arrow_forward,
+      tooltip: '앞으로',
+      enabled: controller != null && state.canGoForward,
+      onPressed: () => controller?.goForward(),
+    );
+    // 컨트롤러 준비 전에도 같은 크기의 비활성 버튼을 유지해 메뉴가 움직이지 않는다.
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        back,
+        const SizedBox(width: 8),
+        forward,
+      ],
     );
   }
 }
@@ -971,8 +987,7 @@ class _HistoryButton extends StatelessWidget {
 
 /// OS 가상 키보드 호출/닫기 토글 버튼.
 ///
-/// 키보드의 실제 표시 상태를 OS 로부터 알 수 없으므로 내부적으로 토글 상태를
-/// 추적한다. 사용자가 직접 키보드를 닫더라도 다시 누르면 다시 호출된다.
+/// 실제 Windows 키보드 창 상태를 확인해 표시/감춤을 전환한다.
 class _KeyboardToggle extends StatefulWidget {
   final NavigationOrientation orientation;
 
@@ -995,13 +1010,7 @@ class _KeyboardToggleState extends State<_KeyboardToggle> {
           return Tooltip(
             message: shown ? '키보드 닫기' : '키보드 열기',
             child: ElevatedButton(
-              onPressed: () {
-                if (shown) {
-                  SystemKeyboard.hide();
-                } else {
-                  SystemKeyboard.show();
-                }
-              },
+              onPressed: SystemKeyboard.toggle,
               style: ElevatedButton.styleFrom(
                 backgroundColor: shown ? scheme.primary : scheme.surface,
                 foregroundColor: shown ? scheme.onPrimary : scheme.onSurface,

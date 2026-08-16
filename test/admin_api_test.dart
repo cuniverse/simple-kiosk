@@ -70,6 +70,10 @@ void main() {
         'schemaVersion': 2,
         'layout': {'barHeight': 96},
       },
+      defaultConfigReader: () async => {
+        'schemaVersion': 2,
+        'layout': {'barHeight': 88},
+      },
       configWriter: (value) async => config = value,
     );
     final client = http.Client();
@@ -114,6 +118,13 @@ void main() {
       );
       expect(effectiveConfig.statusCode, 200);
       expect(json.decode(effectiveConfig.body)['layout']['barHeight'], 96);
+
+      final defaultConfig = await client.get(
+        Uri.parse('http://127.0.0.1:$port/api/config/defaults'),
+        headers: headers,
+      );
+      expect(defaultConfig.statusCode, 200);
+      expect(json.decode(defaultConfig.body)['layout']['barHeight'], 88);
 
       final save = await client.put(
         Uri.parse('http://127.0.0.1:$port/api/config'),

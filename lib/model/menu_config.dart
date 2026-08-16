@@ -2,6 +2,7 @@ import 'menu_item.dart';
 import 'menu_language.dart';
 import 'layout_config.dart';
 import 'idle_config.dart';
+import 'webview_data_policy.dart';
 
 /// `menu.json` 전체를 표현하는 설정.
 ///
@@ -28,6 +29,7 @@ class MenuConfig {
   final String defaultLanguageId;
   final String languageSelectionTitle;
   final String languageSelectionSubtitle;
+  final WebViewDataPolicy webViewDataPolicy;
 
   /// 기존 단일 메뉴 소비 코드와 설정을 위한 기본 언어 메뉴.
   List<MenuItem> get items => language(defaultLanguageId).items;
@@ -42,5 +44,6 @@ class MenuConfig {
     required this.defaultLanguageId,
     this.languageSelectionTitle = '언어를 선택하세요',
     this.languageSelectionSubtitle = 'Please select your language',
+    this.webViewDataPolicy = WebViewDataPolicy.defaults,
   });
 }

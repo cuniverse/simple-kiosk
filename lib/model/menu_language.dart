@@ -7,14 +7,21 @@ class MenuLanguage {
   final String? subtitle;
   final String? icon;
   final List<MenuItem> items;
+  final String? _defaultMenuId;
+
+  String get defaultMenuId => _defaultMenuId ?? items.first.id;
+
+  MenuItem get defaultItem =>
+      items.firstWhere((item) => item.id == defaultMenuId);
 
   const MenuLanguage({
     required this.id,
     required this.label,
     required this.items,
+    String? defaultMenuId,
     this.subtitle,
     this.icon,
-  });
+  }) : _defaultMenuId = defaultMenuId;
 
   factory MenuLanguage.fromJson(Map<String, dynamic> json, int index) {
     final id = json['id'];
@@ -22,6 +29,7 @@ class MenuLanguage {
     final subtitle = json['subtitle'];
     final icon = json['icon'];
     final rawItems = json['items'];
+    final defaultMenu = json['defaultMenu'];
     if (id is! String || id.trim().isEmpty) {
       throw FormatException('menu.json languages[$index].id: 비어있지 않은 문자열 필요');
     }
@@ -38,6 +46,12 @@ class MenuLanguage {
     }
     if (rawItems is! List || rawItems.isEmpty) {
       throw FormatException('menu.json languages[$index].items: 한 개 이상 필요');
+    }
+    if (defaultMenu != null &&
+        (defaultMenu is! String || defaultMenu.trim().isEmpty)) {
+      throw FormatException(
+        'menu.json languages[$index].defaultMenu: 비어있지 않은 문자열 필요',
+      );
     }
 
     final items = <MenuItem>[];
@@ -58,6 +72,14 @@ class MenuLanguage {
       items.add(item);
     }
 
+    final defaultMenuId =
+        defaultMenu is String ? defaultMenu.trim() : items.first.id;
+    if (!itemIds.contains(defaultMenuId)) {
+      throw FormatException(
+        'menu.json languages[$index].defaultMenu: 등록되지 않은 메뉴 ($defaultMenuId)',
+      );
+    }
+
     return MenuLanguage(
       id: id.trim(),
       label: label.trim(),
@@ -66,6 +88,7 @@ class MenuLanguage {
           : null,
       icon: icon is String && icon.trim().isNotEmpty ? icon.trim() : null,
       items: List.unmodifiable(items),
+      defaultMenuId: defaultMenuId,
     );
   }
 }

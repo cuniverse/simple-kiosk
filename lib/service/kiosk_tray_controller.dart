@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -35,11 +36,15 @@ class KioskTrayController with TrayListener, WindowListener {
 
     var listenersAdded = false;
     try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final versionLabel = '$appDisplayName v${packageInfo.version}';
       await trayManager.setIcon(iconPath);
-      await trayManager.setToolTip(appDisplayName);
+      await trayManager.setToolTip(versionLabel);
       await trayManager.setContextMenu(
         Menu(
           items: [
+            MenuItem(label: versionLabel, disabled: true),
+            MenuItem.separator(),
             MenuItem(key: 'show', label: '사이니지 보이기'),
             MenuItem(key: 'hide', label: '사이니지 감추기'),
             MenuItem.separator(),

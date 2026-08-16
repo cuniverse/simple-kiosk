@@ -11,6 +11,7 @@
     "buttonAlignment": "stretch",
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
+    "keyboardMode": "windows",
     "toolbarInitiallyHidden": false,
     "toolbarAutoHideSec": 0,
     "barColor": "#1f2937",
@@ -63,12 +64,17 @@
     "title": "언어를 선택하세요",
     "subtitle": "Please select your language"
   },
+  "webViewData": {
+    "idlePolicy": "cookiesOnly",
+    "preserveDomains": []
+  },
   "languages": [
     {
       "id": "ko",
-      "icon": "🇰🇷",
+      "icon": "assets/icons/languages/kr.png",
       "label": "한국어",
       "subtitle": "Korean",
+      "defaultMenu": "home",
       "items": [
         {
           "id": "home",
@@ -82,7 +88,7 @@
           "title": "굿뉴스",
           "url": "https://www.catholic.or.kr/",
           "icon": "assets/icons/goodnews-white.png",
-          "showTitle": false
+          "showTitle": true
         },
         {
           "id": "aos",
@@ -119,9 +125,10 @@
     },
     {
       "id": "en",
-      "icon": "🇺🇸",
+      "icon": "assets/icons/languages/en-us-gb.png",
       "label": "English",
       "subtitle": "영어",
+      "defaultMenu": "home",
       "items": [
         {
           "id": "home",
@@ -153,9 +160,10 @@
     },
     {
       "id": "es",
-      "icon": "🇪🇸",
+      "icon": "assets/icons/languages/es.png",
       "label": "Español",
       "subtitle": "스페인어",
+      "defaultMenu": "home",
       "items": [
         {
           "id": "home",
@@ -187,9 +195,10 @@
     },
     {
       "id": "fr",
-      "icon": "🇫🇷",
+      "icon": "assets/icons/languages/fr.png",
       "label": "Français",
       "subtitle": "프랑스어",
+      "defaultMenu": "home",
       "items": [
         {
           "id": "home",
@@ -221,9 +230,10 @@
     },
     {
       "id": "pt",
-      "icon": "🇵🇹",
+      "icon": "assets/icons/languages/pt.png",
       "label": "Português",
       "subtitle": "포르투갈어",
+      "defaultMenu": "home",
       "items": [
         {
           "id": "home",
@@ -255,9 +265,10 @@
     },
     {
       "id": "it",
-      "icon": "🇮🇹",
+      "icon": "assets/icons/languages/it.png",
       "label": "Italiano",
       "subtitle": "이탈리아어",
+      "defaultMenu": "home",
       "items": [
         {
           "id": "home",

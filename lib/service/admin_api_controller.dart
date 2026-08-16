@@ -29,6 +29,7 @@ class AdminApiController extends ChangeNotifier {
     required this.configReader,
     required this.configWriter,
     AdminConfigReader? effectiveConfigReader,
+    AdminConfigReader? defaultConfigReader,
     AdminPinStore? pinStore,
     AdminApiSettingsStore? settingsStore,
     Future<String> Function()? pageLoader,
@@ -37,6 +38,8 @@ class AdminApiController extends ChangeNotifier {
     DiagnosticsService? diagnosticsService,
     Future<void> Function()? onConfigurationImported,
   })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
+        _defaultConfigReader =
+            defaultConfigReader ?? effectiveConfigReader ?? configReader,
         _pinStore = pinStore ?? AdminPinStore(),
         _settingsStore = settingsStore ?? const AdminApiSettingsStore(),
         _pageLoader = pageLoader ?? _loadDefaultPage,
@@ -55,6 +58,7 @@ class AdminApiController extends ChangeNotifier {
   final AdminConfigReader configReader;
   final AdminConfigWriter configWriter;
   final AdminConfigReader _effectiveConfigReader;
+  final AdminConfigReader _defaultConfigReader;
   final AdminPinStore _pinStore;
   final AdminApiSettingsStore _settingsStore;
   final Future<String> Function() _pageLoader;
@@ -210,6 +214,13 @@ class AdminApiController extends ChangeNotifier {
           request.response,
           200,
           await _effectiveConfigReader(),
+        );
+      }
+      if (request.method == 'GET' && path == '/api/config/defaults') {
+        return await _sendJson(
+          request.response,
+          200,
+          await _defaultConfigReader(),
         );
       }
       if (request.method == 'PUT' && path == '/api/config') {

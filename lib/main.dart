@@ -2,10 +2,9 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui' show PlatformDispatcher;
 
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
@@ -24,8 +23,9 @@ Future<void> main(List<String> arguments) async {
     await Future<void>.delayed(const Duration(seconds: 1));
   }
   WidgetsFlutterBinding.ensureInitialized();
+  final startupMode = _startupMode(arguments);
   await AppLogger.initialize();
-  AppLogger.info(LogCategory.app, 'Application starting');
+  AppLogger.info(LogCategory.app, 'Application starting ($startupMode)');
   final previousFlutterErrorHandler = FlutterError.onError;
   FlutterError.onError = (details) {
     AppLogger.error(LogCategory.app, details.exception, details.stack);
@@ -57,7 +57,11 @@ Future<void> main(List<String> arguments) async {
       titleBarStyle: TitleBarStyle.hidden,
     );
     await windowManager.waitUntilReadyToShow(options, () async {
-      if (windowed) {
+      if (startupMode == 'hidden') {
+        if (!windowed) await windowManager.setFullScreen(true);
+        await windowManager.setSkipTaskbar(true);
+        await windowManager.hide();
+      } else if (windowed) {
         await windowManager.show();
         await windowManager.focus();
       } else {
@@ -68,17 +72,15 @@ Future<void> main(List<String> arguments) async {
     });
   }
 
-  // 매 시작마다 이전 세션의 쿠키(=로그인 상태)를 폐기한다. 사이니지 운영에서
-  // 이전 사용자의 세션이 다음 부팅에 이어지지 않게 하기 위함.
-  // 캐시는 유지되므로 다음 로딩 성능 손해는 없다.
-  try {
-    await CookieManager.instance().deleteAllCookies();
-  } catch (e) {
-    AppLogger.warning(LogCategory.app, 'Cookie cleanup failed: $e');
-    if (kDebugMode) {
-      debugPrint('[main] 쿠키 삭제 실패: $e');
-    }
-  }
-
   runApp(const KioskApp());
+}
+
+String _startupMode(List<String> arguments) {
+  final index = arguments.indexOf('--startup-mode');
+  if (index >= 0 && index + 1 < arguments.length) {
+    return arguments[index + 1].toLowerCase() == 'hidden'
+        ? 'hidden'
+        : 'signage';
+  }
+  return 'signage';
 }
