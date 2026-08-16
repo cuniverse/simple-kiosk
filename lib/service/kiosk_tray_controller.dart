@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../app_identity.dart';
+
 class KioskTrayController with TrayListener, WindowListener {
   KioskTrayController({
     required this.onOpenSettings,
@@ -34,12 +36,12 @@ class KioskTrayController with TrayListener, WindowListener {
     var listenersAdded = false;
     try {
       await trayManager.setIcon(iconPath);
-      await trayManager.setToolTip('Simple Kiosk');
+      await trayManager.setToolTip(appDisplayName);
       await trayManager.setContextMenu(
         Menu(
           items: [
-            MenuItem(key: 'show', label: '키오스크 보이기'),
-            MenuItem(key: 'hide', label: '키오스크 감추기'),
+            MenuItem(key: 'show', label: '사이니지 보이기'),
+            MenuItem(key: 'hide', label: '사이니지 감추기'),
             MenuItem.separator(),
             MenuItem(key: 'settings', label: '설정'),
             MenuItem(key: 'manual', label: '사용자 매뉴얼'),

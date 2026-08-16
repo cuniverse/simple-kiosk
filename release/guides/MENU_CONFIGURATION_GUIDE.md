@@ -1,4 +1,4 @@
-# Simple Kiosk 메뉴 설정 상세 가이드
+# 여의도성당Signage 메뉴 설정 상세 가이드
 
 이 문서는 기본 설정과 `menu.override.json`을 이용해 메뉴, 툴바, 색상 및 대기화면을 구성하는 방법을
 설명합니다. JSON을 수정하기 전에 원본 파일을 반드시 백업하세요.
@@ -59,7 +59,7 @@ C:\SimpleKiosk\config\menu.override.json
 
 ## 2. 안전하게 수정하는 순서
 
-1. Simple Kiosk를 완전히 종료합니다.
+1. 여의도성당Signage를 완전히 종료합니다.
 2. 기존 `menu.json`을 `menu.backup.json` 같은 이름으로 복사합니다.
 3. UTF-8을 지원하는 편집기로 `menu.json`을 엽니다.
 4. JSON 문법을 지키면서 필요한 값만 수정합니다.
@@ -294,8 +294,9 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `showHistoryButtons` | bool | `false` | 뒤로·앞으로 버튼 표시 |
 | `showKeyboardToggle` | bool | `false` | 가상 키보드 켜기·끄기 버튼 표시 |
 | `keepStateOnTap` | bool | `false` | 모든 메뉴의 기본 상태 유지 동작 |
-| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 하단 툴바를 숨김 상태로 표시 |
+| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 툴바를 감춘 상태로 표시 |
 | `toolbarAutoHideSec` | 0 이상의 숫자 | `10` | 펼친 툴바를 입력 없이 표시할 시간(초). `0`이면 자동 숨김 해제 |
+| `barColor` | 색상 문자열 | `#1f2937` | 툴바 배경색. `#RGB`, `#RRGGBB`, `#AARRGGBB`, `transparent` 지원 |
 
 툴바는 기본적으로 숨김 상태로 시작합니다. 오버레이의 복원 버튼으로 툴바를 표시한
 뒤 `toolbarAutoHideSec` 동안 화면 터치, 드래그 또는 스크롤 입력이 없으면 다시
@@ -303,8 +304,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 
 툴바를 숨겨도 같은 WebView가 유지되므로 현재 페이지, 입력 내용과 스크롤 위치가
 바뀌지 않습니다. 숨김 상태에서는 뒤로, 앞으로, 툴바 복원, 가상 키보드 버튼이
-오버레이로 표시되며 드래그 후 가까운 화면 모서리에 정렬됩니다. 이 두 설정은 현재
-숨김 기능을 지원하는 하단 툴바에 적용됩니다.
+오버레이로 표시되며 드래그 후 가까운 화면 모서리에 정렬됩니다. 툴바 감추기·복원과
+자동 숨김은 좌·우·상·하 모든 툴바 배치에 적용됩니다.
 
 ### 버튼 정렬 예
 

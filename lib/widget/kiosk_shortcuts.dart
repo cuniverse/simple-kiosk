@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// WebView가 포커스를 가진 상태에서도 키오스크 전역 기능키를 처리한다.
+/// WebView가 포커스를 가진 상태에서도 사이니지 전역 기능키를 처리한다.
 class KioskShortcuts extends StatefulWidget {
   final Widget child;
   final VoidCallback onShowManual;

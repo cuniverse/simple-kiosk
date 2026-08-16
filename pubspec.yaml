@@ -1,7 +1,7 @@
-﻿name: simple_kiosk
-description: 성당 로비/디지털 사이니지용 Flutter 키오스크 WebView 앱 (Windows / Android 공용).
+name: simple_kiosk
+description: 성당 로비용 Flutter 디지털 사이니지 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.12
+version: 1.2.13
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -23,10 +23,12 @@ dependencies:
   # Windows는 video_player_win이 같은 VideoPlayerController API를 제공한다.
   video_player: ^2.9.2
   video_player_win: ^3.1.1
-  # 데스크톱(Windows/macOS/Linux) 키오스크 전체화면 제어.
+  # 데스크톱(Windows/macOS/Linux) 사이니지 전체화면 제어.
   window_manager: ^0.4.3
   # 데스크톱 시스템 트레이 아이콘과 메뉴.
   tray_manager: ^0.5.3
+  # 관리 API의 .local 호스트 이름과 HTTP 서비스를 mDNS로 광고.
+  mdns_dart: ^2.2.2
 
 dev_dependencies:
   flutter_test:

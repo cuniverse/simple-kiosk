@@ -1,4 +1,4 @@
-# Simple Kiosk Windows 최초 설치 가이드
+# 여의도성당Signage Windows 최초 설치 가이드
 
 현재 배포본은 installer EXE와 ZIP을 함께 제공합니다. 일반 설치는
 `release/guides/WINDOWS_INSTALL_GUIDE.md`를 따르십시오. ZIP은 계속 포터블 실행을

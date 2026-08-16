@@ -8,14 +8,15 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'app_identity.dart';
 
 /// 앱 진입점.
 ///
 /// - 가로 방향 사이니지를 가정하므로 가로 방향을 우선 권장한다.
-/// - Android 등 모바일은 immersive(시스템 UI 숨김) 키오스크 모드로 진입한다.
+/// - Android 등 모바일은 immersive(시스템 UI 숨김) 사이니지 모드로 진입한다.
 /// - Windows/macOS/Linux 데스크톱은 [window_manager] 로 borderless fullscreen 표시.
 /// - 개발 중 일반 창 모드는 환경변수 `SIMPLE_KIOSK_WINDOWED=1` 로 전환.
-/// - 키오스크 운영 시에는 별도 디바이스 설정(잠금/킥아웃 등)을 함께 적용한다.
+/// - 사이니지 운영 시에는 별도 디바이스 설정(잠금/킥아웃 등)을 함께 적용한다.
 Future<void> main(List<String> arguments) async {
   if (arguments.contains('--restart-delay')) {
     await Future<void>.delayed(const Duration(seconds: 1));
@@ -29,7 +30,7 @@ Future<void> main(List<String> arguments) async {
     DeviceOrientation.portraitUp,
   ]);
 
-  // 모바일: 시스템 UI(상태바/네비게이션 바)를 숨겨 키오스크 모드.
+  // 모바일: 시스템 UI(상태바/네비게이션 바)를 숨겨 사이니지 모드.
   // immersiveSticky: 가장자리 스와이프 시 일시적으로 보였다가 자동 복귀.
   // 데스크톱 플랫폼에서는 no-op.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -39,7 +40,7 @@ Future<void> main(List<String> arguments) async {
     final windowed = Platform.environment['SIMPLE_KIOSK_WINDOWED'] == '1';
     await windowManager.ensureInitialized();
     const options = WindowOptions(
-      title: 'Simple Kiosk',
+      title: appDisplayName,
       titleBarStyle: TitleBarStyle.hidden,
     );
     await windowManager.waitUntilReadyToShow(options, () async {
@@ -54,7 +55,7 @@ Future<void> main(List<String> arguments) async {
     });
   }
 
-  // 매 시작마다 이전 세션의 쿠키(=로그인 상태)를 폐기한다. 키오스크 운영에서
+  // 매 시작마다 이전 세션의 쿠키(=로그인 상태)를 폐기한다. 사이니지 운영에서
   // 이전 사용자의 세션이 다음 부팅에 이어지지 않게 하기 위함.
   // 캐시는 유지되므로 다음 로딩 성능 손해는 없다.
   try {

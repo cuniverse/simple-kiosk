@@ -15,15 +15,39 @@ import 'package:simple_kiosk/model/update_manifest.dart';
 import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
+import 'package:simple_kiosk/widget/admin_pin_keypad.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/service/menu_config_loader.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
 import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
+import 'package:simple_kiosk/widget/kiosk_webview.dart';
 import 'package:simple_kiosk/widget/language_selection.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 
 void main() {
+  testWidgets('관리자 PIN 키패드로 숫자 입력과 삭제를 수행한다', (tester) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: AdminPinKeypad(controller: controller)),
+      ),
+    );
+
+    await tester.tap(find.text('1'));
+    await tester.tap(find.text('2'));
+    await tester.tap(find.text('0'));
+    expect(controller.text, '120');
+
+    await tester.tap(find.byTooltip('한 자리 삭제'));
+    expect(controller.text, '12');
+
+    await tester.tap(find.text('전체 삭제'));
+    expect(controller.text, isEmpty);
+  });
+
   test('관리자 PIN은 기본값, 변경 파일, 파일 삭제 순서로 동작한다', () async {
     final directory = await Directory.systemTemp.createTemp('admin-pin-test-');
     final file =
@@ -183,9 +207,70 @@ void main() {
 
     final button = find.byKey(const ValueKey('language-ko'));
     expect(button, findsOneWidget);
-    expect(tester.getSize(button), const Size(300, 140));
+    expect(tester.getSize(button), const Size(360, 176));
     await tester.tap(button);
     expect(selected, 0);
+  });
+
+  testWidgets('웹 확대 컨트롤은 배율과 조절 버튼을 표시하고 더블클릭으로 초기화한다', (tester) async {
+    var zoomInCount = 0;
+    var zoomOutCount = 0;
+    var resetCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WebZoomControls(
+            scale: 1.25,
+            canZoomOut: true,
+            canZoomIn: true,
+            onZoomOut: () => zoomOutCount += 1,
+            onZoomIn: () => zoomInCount += 1,
+            onReset: () => resetCount += 1,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('125%'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('web-zoom-out')));
+    await tester.tap(find.byKey(const ValueKey('web-zoom-in')));
+    await tester.tap(find.byKey(const ValueKey('web-zoom-reset')));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const ValueKey('web-zoom-reset')));
+    await tester.pumpAndSettle();
+
+    expect(zoomOutCount, 1);
+    expect(zoomInCount, 1);
+    expect(resetCount, 1);
+  });
+
+  testWidgets('툴바 제목은 최대 두 줄로 줄바꿈하고 이후 내용을 생략한다', (tester) async {
+    const title = '표시 공간보다 긴 메뉴 항목 제목입니다';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NavigationMenu(
+            items: const [
+              MenuItem(
+                id: 'long-title',
+                title: title,
+                url: 'https://example.com',
+                icon: 'icon:home',
+              ),
+            ],
+            selectedIndex: 0,
+            onSelected: (_) {},
+            orientation: NavigationOrientation.bottom,
+            buttonWidth: 120,
+          ),
+        ),
+      ),
+    );
+
+    final titleWidget = tester.widget<Text>(find.text(title));
+    expect(titleWidget.maxLines, 2);
+    expect(titleWidget.softWrap, isTrue);
+    expect(titleWidget.overflow, TextOverflow.ellipsis);
   });
 
   test('semantic versions and overnight install windows are handled', () {
@@ -620,9 +705,11 @@ void main() {
     final config = LayoutConfig.fromJson({
       'toolbarInitiallyHidden': false,
       'toolbarAutoHideSec': 25,
+      'barColor': '#123456',
     });
     expect(config.toolbarInitiallyHidden, isFalse);
     expect(config.toolbarAutoHideSec, 25);
+    expect(config.barColor, const Color(0xFF123456));
   });
 
   testWidgets('접힌 툴바 오버레이에 필수 컨트롤을 표시한다', (tester) async {
@@ -643,7 +730,7 @@ void main() {
 
     expect(find.byIcon(Icons.arrow_back), findsOneWidget);
     expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
-    expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
+    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     expect(find.byIcon(Icons.keyboard), findsOneWidget);
   });
 
@@ -669,7 +756,7 @@ void main() {
       ),
     );
 
-    final restoreIcon = find.byIcon(Icons.keyboard_arrow_up);
+    final restoreIcon = find.byIcon(Icons.visibility_outlined);
     final initial = tester.getCenter(restoreIcon);
     expect(initial.dx, greaterThan(400));
     expect(initial.dy, greaterThan(300));
@@ -687,11 +774,13 @@ void main() {
 
     Widget buildHost(bool hidden) => MaterialApp(
           home: Scaffold(
-            body: BottomToolbarHost(
+            body: ToolbarHost(
               hidden: hidden,
+              position: NavPosition.right,
+              sideWidth: 220,
               toolbarHeight: 96,
               webView: _LifecycleProbe(key: probeKey),
-              toolbar: const SizedBox(height: 96),
+              toolbar: const SizedBox(width: 220),
               overlay: const SizedBox.shrink(),
             ),
           ),
@@ -715,7 +804,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: BottomToolbarHost(
+          body: ToolbarHost(
             hidden: false,
             toolbarHeight: 96,
             autoHideDuration: const Duration(seconds: 2),
@@ -763,8 +852,11 @@ void main() {
     expect(enterCount, 1);
   });
 
-  testWidgets('메뉴바의 키오스크 감추기 버튼을 표시하고 실행한다', (tester) async {
-    var hideCount = 0;
+  testWidgets('화면 보호기와 툴바 감추기를 순서대로 더블클릭한다', (tester) async {
+    var enterCount = 0;
+    var prepareCount = 0;
+    var completeCount = 0;
+    var toolbarHideCount = 0;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -773,17 +865,79 @@ void main() {
             selectedIndex: 0,
             onSelected: (_) {},
             orientation: NavigationOrientation.bottom,
-            onHideKiosk: () => hideCount += 1,
+            onEnterIdle: () => enterCount += 1,
+            onHide: () => toolbarHideCount += 1,
+            onPrepareHideKiosk: () => prepareCount += 1,
+            onHideKiosk: () => completeCount += 1,
           ),
         ),
       ),
     );
 
-    final button = find.byTooltip('키오스크 감추기');
-    expect(button, findsOneWidget);
-    await tester.tap(button);
-    await tester.pump();
+    final idleButton = find.byTooltip('화면 보호기 시작');
+    final hideButton = find.byTooltip('툴바 감추기');
+    expect(idleButton, findsOneWidget);
+    expect(hideButton, findsOneWidget);
+
+    await tester.tap(idleButton);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(idleButton);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(prepareCount, 1);
+    expect(completeCount, 0);
+    expect(enterCount, 0);
+
+    await tester.tap(hideButton);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(hideButton);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(completeCount, 1);
+    expect(toolbarHideCount, 0);
+
+    await tester.tap(idleButton);
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(enterCount, 1);
+  });
+
+  testWidgets('오른쪽 툴바에서 감추기를 포함한 모든 기능 아이콘을 표시한다', (tester) async {
+    var hideCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: 220,
+              height: 600,
+              child: NavigationMenu(
+                items: const [],
+                selectedIndex: 0,
+                onSelected: (_) {},
+                orientation: NavigationOrientation.side,
+                sideWidth: 220,
+                showKeyboardToggle: true,
+                onOpenAdmin: () {},
+                onEnterIdle: () {},
+                onHideKiosk: () {},
+                onHide: () => hideCount += 1,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.keyboard), findsOneWidget);
+    expect(find.byIcon(Icons.admin_panel_settings_outlined), findsOneWidget);
+    expect(find.byTooltip('설정'), findsOneWidget);
+    expect(find.byIcon(Icons.wallpaper_outlined), findsOneWidget);
+    final hideButton = find.byTooltip('툴바 감추기');
+    expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+    expect(hideButton, findsOneWidget);
+    await tester.tap(hideButton);
+    await tester.pump(const Duration(milliseconds: 350));
     expect(hideCount, 1);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('F1, F12, F9 기능키를 전역 단축키로 처리한다', (tester) async {

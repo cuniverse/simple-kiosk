@@ -66,7 +66,7 @@ String _htmlDocument(String body) => '''<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>Simple Kiosk 사용자 매뉴얼</title>
+  <title>여의도성당Signage 사용자 매뉴얼</title>
   <style>
     :root { color-scheme: light dark; font-family: "Malgun Gothic", "Segoe UI", sans-serif; }
     body { max-width: 980px; margin: 0 auto; padding: 32px 40px 72px; line-height: 1.72; color: #1f2937; background: #fff; }

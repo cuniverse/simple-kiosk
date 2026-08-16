@@ -3,83 +3,128 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Simple Kiosk 관리자</title>
+  <title>여의도성당Signage 관리자</title>
   <link rel="icon" href="/favicon.ico">
   <style>
-    :root { color-scheme:dark; font-family:system-ui,sans-serif; background:#111827; color:#f9fafb }
-    * { box-sizing:border-box } body { margin:0; padding:24px } main { max-width:980px; margin:auto }
-    h1 { margin:0 0 20px; font-size:26px } .card { background:#1f2937; border:1px solid #374151; border-radius:14px; padding:18px; margin-bottom:16px }
-    .hidden { display:none } label { display:block; margin:10px 0 6px; color:#d1d5db }
-    input,select,textarea { width:100%; color:#f9fafb; background:#111827; border:1px solid #4b5563; border-radius:8px; padding:11px }
-    textarea { min-height:330px; font:13px ui-monospace,monospace; resize:vertical }
-    button { border:0; border-radius:8px; padding:10px 15px; color:white; background:#2563eb; cursor:pointer; font-weight:600 }
-    button.secondary { background:#4b5563 } button.danger { background:#b91c1c } button:disabled { opacity:.5; cursor:wait }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end } .row>label { flex:1 1 160px }
-    pre { white-space:pre-wrap; word-break:break-word; background:#111827; padding:12px; border-radius:8px; min-height:90px }
-    #message { min-height:24px; color:#93c5fd } .warning { color:#fbbf24; font-size:13px }
-    .brand { display:flex; align-items:center; gap:12px; margin-bottom:20px } .brand img { width:54px; height:54px } .brand h1 { margin:0 }
+    :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0f1113;color:#f3f4f6;--panel:#181a1d;--line:#34373c;--muted:#a9adb5;--input:#242629;--blue:#3b82f6}
+    *{box-sizing:border-box}body{margin:0;padding:22px}main{max-width:1180px;margin:auto}.hidden{display:none!important}
+    h1,h2,h3{margin-top:0}.brand{display:flex;align-items:center;gap:12px;margin-bottom:18px}.brand img{width:48px;height:48px}.brand h1{margin:0;font-size:25px}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+    .admin-tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--line)}.admin-tabs button{background:transparent;color:#b9bdc5;border-radius:6px 6px 0 0;padding:11px 18px}.admin-tabs button.active{color:white;background:#25282d;border-bottom:3px solid var(--blue)}
+    label{display:block;color:#d7d9dd}input,select,textarea{width:100%;color:#f3f4f6;background:var(--input);border:1px solid #484b50;border-radius:6px;padding:10px;font:inherit}
+    input:focus,select:focus,textarea:focus{outline:1px solid var(--blue);border-color:var(--blue)}textarea{resize:vertical}
+    button{border:0;border-radius:6px;padding:9px 14px;color:white;background:#2563eb;cursor:pointer;font-weight:600}button:hover{filter:brightness(1.1)}button.secondary{background:#464950}button.danger{background:#a72d2d}button.ghost{background:transparent;border:1px solid #4b4e53}button:disabled{opacity:.5;cursor:wait}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.row>label{flex:1 1 160px}.grow{flex:1}.warning{color:#fbbf24;font-size:13px}.muted{color:var(--muted)}
+    pre{white-space:pre-wrap;word-break:break-word;background:#101214;padding:12px;border-radius:7px;min-height:80px}#message{position:sticky;bottom:10px;min-height:22px;padding:10px 14px;background:#182235;border-radius:7px;color:#93c5fd;box-shadow:0 4px 18px #0008}
+    .settings-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.settings-head h2{margin:0}.badge{font-size:12px;border:1px solid #4b5563;border-radius:20px;padding:4px 9px;color:#cbd5e1}.badge.override{border-color:#2563eb;color:#93c5fd}
+    .search{max-width:360px;margin:0 0 12px}.settings-shell{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:580px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+    .settings-nav{background:#131517;border-right:1px solid var(--line);padding:10px 0}.settings-nav button{display:block;width:100%;text-align:left;border-radius:0;background:transparent;color:#c8cbd0;padding:11px 18px;font-weight:500}.settings-nav button.active{color:white;background:#292c31;border-left:3px solid var(--blue);padding-left:15px}
+    .settings-content{padding:22px 28px;min-width:0}.category-title{font-size:25px;margin-bottom:5px}.category-desc{color:var(--muted);margin:0 0 24px}.setting-row{padding:0 0 22px;margin-bottom:20px;border-bottom:1px solid #292c31}.setting-row:last-child{border-bottom:0}.setting-name{font-weight:650;margin-bottom:5px}.setting-path{color:#8ab4f8;font-size:12px}.setting-desc{color:var(--muted);margin:5px 0 10px;line-height:1.45}.setting-control{max-width:520px}.check-control{display:flex;align-items:center;gap:9px}.check-control input{width:20px;height:20px}
+    .multi-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;background:#202225;border:1px solid #484b50;border-radius:6px;padding:8px}.multi-checks label{display:flex;align-items:center;gap:9px;padding:7px;border-radius:4px}.multi-checks label:hover{background:#303338}.multi-checks input{width:18px;height:18px}
+    .color-control{display:grid;grid-template-columns:56px minmax(0,1fr);gap:8px}.color-control input[type=color]{height:42px;padding:3px;cursor:pointer}
+    .editor-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin-bottom:16px}.editor-toolbar label{min-width:220px}.item-card{border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px;background:#141619}.item-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}.item-head strong{flex:1}.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field-grid label span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}.wide{grid-column:1/-1}
+    #rawEditor{min-height:430px;font:13px ui-monospace,Consolas,monospace}.empty{padding:35px;text-align:center;color:var(--muted);border:1px dashed #484b50;border-radius:8px}
+    @media(max-width:760px){body{padding:10px}.settings-shell{grid-template-columns:1fr}.settings-nav{display:flex;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}.settings-nav button{width:auto;white-space:nowrap}.settings-nav button.active{border-left:0;border-bottom:3px solid var(--blue);padding-left:18px}.settings-content{padding:18px 14px}.field-grid{grid-template-columns:1fr}.wide{grid-column:auto}}
   </style>
 </head>
 <body>
 <main>
-  <div class="brand"><img src="/favicon.ico" alt=""><h1>Simple Kiosk 관리자</h1></div>
+  <div class="brand"><img src="/favicon.ico" alt=""><h1>여의도성당Signage 관리자</h1></div>
   <section id="loginCard" class="card">
-    <h2>로그인</h2>
-    <p>프로그램 설정에서 사용하는 관리자 PIN과 동일합니다.</p>
-    <form id="loginForm">
-      <label>관리자 PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label>
-      <button type="submit">로그인</button>
-    </form>
+    <h2>로그인</h2><p>프로그램 설정에서 사용하는 관리자 PIN과 동일합니다.</p>
+    <form id="loginForm"><label>관리자 PIN<input id="pin" type="password" inputmode="numeric" autocomplete="current-password" required></label><br><button type="submit">로그인</button></form>
   </section>
 
   <div id="admin" class="hidden">
-    <section class="card">
-      <div class="row"><h2 style="flex:1">실행 상태</h2><button class="secondary" id="refresh">새로고침</button><button class="secondary" id="logout">로그아웃</button></div>
+    <nav class="admin-tabs"><button data-admin-tab="status" class="active">실행 상태</button><button data-admin-tab="api">관리 API 설정</button><button data-admin-tab="menu">외부 메뉴 설정</button></nav>
+    <section id="adminTabStatus" class="card admin-panel">
+      <div class="row"><h2 class="grow">실행 상태</h2><button class="secondary" id="refresh">새로고침</button><button class="secondary" id="logout">로그아웃</button></div>
       <pre id="status">불러오는 중…</pre>
-      <div class="row">
-        <button data-action="show">키오스크 보이기</button>
-        <button data-action="hide" class="secondary">키오스크 감추기</button>
-        <button data-action="update">업데이트</button>
-        <button data-action="restart" class="secondary">재시작</button>
-        <button data-action="shutdown" class="danger">완전 종료</button>
-      </div>
+      <div class="row"><button data-action="show">사이니지 보이기</button><button data-action="hide" class="secondary">사이니지 감추기</button><button data-action="update">업데이트</button><button data-action="restart" class="secondary">재시작</button><button data-action="shutdown" class="danger">완전 종료</button></div>
     </section>
 
-    <section class="card">
-      <h2>관리 API 설정</h2>
-      <p class="warning">HTTP PIN 인증이므로 신뢰할 수 있는 내부망에서만 사용하고 Windows 방화벽으로 접근 대상을 제한하세요.</p>
-      <div class="row">
-        <label>사용 여부<select id="apiEnabled"><option value="true">사용</option><option value="false">사용 안 함</option></select></label>
-        <label>포트<input id="apiPort" type="number" min="1" max="65535"></label>
-        <button id="saveServer">저장</button>
-      </div>
+    <section id="adminTabApi" class="card admin-panel hidden">
+      <h2>관리 API 설정</h2><p class="warning">HTTP PIN 인증이므로 신뢰할 수 있는 내부망에서만 사용하고 Windows 방화벽으로 접근 대상을 제한하세요.</p>
+      <div class="row"><label>사용 여부<select id="apiEnabled"><option value="true">사용</option><option value="false">사용 안 함</option></select></label><label>포트<input id="apiPort" type="number" min="1" max="65535"></label></div>
+      <div class="row"><label>mDNS<select id="mdnsEnabled"><option value="true">사용</option><option value="false">사용 안 함</option></select></label><label>mDNS 호스트 이름<input id="mdnsHostname" placeholder="ysignage.local"></label><button id="saveServer">저장</button></div>
+      <p class="muted">같은 로컬 네트워크에서 <code>http://ysignage.local</code>로 접속할 수 있습니다. 여러 대를 운영하면 각 장치의 이름을 다르게 설정하세요.</p>
     </section>
 
-    <section class="card">
-      <h2>외부 메뉴 설정</h2>
-      <p><code>menu.override.json</code> 내용을 JSON 객체로 편집합니다. 저장 전에 기본 설정과 병합 검증합니다.</p>
-      <textarea id="config" spellcheck="false"></textarea>
-      <div class="row"><button id="saveConfig">저장 후 즉시 적용</button><button class="secondary" id="loadConfig">다시 불러오기</button></div>
+    <section id="adminTabMenu" class="card admin-panel hidden">
+      <div class="settings-head"><h2>외부 메뉴 설정</h2><span id="configSource" class="badge">확인 중</span><span class="grow"></span><button class="ghost" id="loadConfig">다시 불러오기</button><button class="secondary" id="resetConfig">기본값 사용</button><button id="saveConfig">저장 후 즉시 적용</button></div>
+      <p class="muted">현재 사이니지에 실제 적용 중인 설정을 불러옵니다. 저장하면 전체 구성이 <code>menu.override.json</code>에 기록됩니다.</p>
+      <input id="settingsSearch" class="search" type="search" placeholder="설정 검색">
+      <div class="settings-shell">
+        <nav class="settings-nav">
+          <button data-section="layout" class="active">레이아웃</button>
+          <button data-section="idle">화면 보호기</button>
+          <button data-section="languages">언어</button>
+          <button data-section="menus">메뉴 항목</button>
+          <button data-section="advanced">고급 JSON</button>
+        </nav>
+        <div class="settings-content"><div id="settingsPanel" class="empty">설정을 불러오는 중…</div></div>
+      </div>
     </section>
   </div>
-  <p id="message"></p>
+  <p id="message">준비되었습니다.</p>
 </main>
 <script>
-const $=id=>document.getElementById(id); let token=sessionStorage.getItem('simpleKioskAdminToken')||'';
+const $=id=>document.getElementById(id);let token=sessionStorage.getItem('simpleKioskAdminToken')||'',workingConfig=null,activeSection='layout',languageIndex=0,menuLanguageIndex=0,dirty=false;
 const message=(text,error=false)=>{$('message').textContent=text;$('message').style.color=error?'#fca5a5':'#93c5fd'};
+const clone=value=>JSON.parse(JSON.stringify(value));
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(token)headers.Authorization=`Bearer ${token}`;const response=await fetch(path,{...options,headers});const body=await response.json().catch(()=>({}));if(response.status===401){logout(false);throw new Error(body.message||'인증이 만료되었습니다.')}if(!response.ok)throw new Error(body.message||body.error||`HTTP ${response.status}`);return body}
+function node(tag,className,text){const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el}
+function markDirty(){dirty=true;$('configSource').textContent='저장되지 않은 변경';$('configSource').classList.add('override')}
+function ensureShape(){workingConfig.layout??={};workingConfig.idle??={};workingConfig.languageSelection??={title:'언어를 선택하세요',subtitle:'Please select your language'};if(!Array.isArray(workingConfig.languages))workingConfig.languages=[];if(!workingConfig.languages.length&&Array.isArray(workingConfig.items)){workingConfig.languages=[{id:'default',label:'시작',subtitle:'',items:workingConfig.items}];workingConfig.defaultLanguage='default';delete workingConfig.items}if(workingConfig.languages.length&&!workingConfig.defaultLanguage)workingConfig.defaultLanguage=workingConfig.languages[0].id}
+function pathGet(path){return path.split('.').reduce((value,key)=>value?.[key],workingConfig)}
+function pathSet(path,value){const keys=path.split('.');let target=workingConfig;keys.slice(0,-1).forEach(key=>target=target[key]??={});target[keys.at(-1)]=value;markDirty()}
+function pickerColor(value){let hex=String(value??'').trim().replace(/^#/,'');if(/^[0-9a-f]{3}$/i.test(hex))hex=hex.split('').map(v=>v+v).join('');if(/^[0-9a-f]{8}$/i.test(hex))hex=hex.slice(2);return /^[0-9a-f]{6}$/i.test(hex)?`#${hex}`:null}
+function makeColorControl(def){const wrap=node('div','setting-control color-control'),picker=node('input'),text=node('input');picker.type='color';text.type='text';text.value=pathGet(def.path)??def.default??'';text.placeholder='#1f2937';const syncPicker=()=>{const color=pickerColor(text.value);if(color)picker.value=color};const commitText=()=>{const value=text.value.trim(),valid=/^(?:transparent|#?(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8}))$/i.test(value);text.setCustomValidity(valid?'':'#RGB, #RRGGBB, #AARRGGBB 또는 transparent 형식으로 입력하세요.');if(valid){syncPicker();pathSet(def.path,value)}};picker.oninput=()=>{text.value=picker.value;text.setCustomValidity('');pathSet(def.path,picker.value)};text.oninput=commitText;syncPicker();wrap.append(picker,text);return wrap}
+function makeControl(def){if(def.type==='color')return makeColorControl(def);const wrap=node('div','setting-control');let input;if(def.type==='bool'){const label=node('label','check-control');input=node('input');input.type='checkbox';input.checked=Boolean(pathGet(def.path));label.append(input,node('span','',def.onLabel||'사용'));wrap.append(label);input.onchange=()=>pathSet(def.path,input.checked);return wrap}if(def.type==='multi'){const options=node('div','multi-checks'),special=new Set(def.exclusive||[]),boxes=[];let selected=new Set(pathGet(def.path)||[]);const sync=()=>boxes.forEach(({value,box})=>box.checked=selected.has(value));def.options.forEach(([value,labelText])=>{const label=node('label'),box=node('input');box.type='checkbox';boxes.push({value,box});box.onchange=()=>{if(box.checked){if(special.has(value))selected=new Set([value]);else{special.forEach(v=>selected.delete(v));selected.add(value)}}else if(selected.size>1)selected.delete(value);pathSet(def.path,[...selected]);sync()};label.append(box,node('span','',labelText));options.append(label)});sync();wrap.append(options);return wrap}if(def.options){input=node('select');def.options.forEach(([value,label])=>{const option=node('option','',label);option.value=value;input.append(option)});input.value=String(pathGet(def.path)??def.default??'');input.onchange=()=>pathSet(def.path,input.value)}else if(def.type==='lines'){input=node('textarea');input.rows=4;input.value=(pathGet(def.path)||[]).join('\n');input.onchange=()=>pathSet(def.path,input.value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean))}else{input=node('input');input.type=def.type==='number'?'number':'text';if(def.min!==undefined)input.min=def.min;input.value=pathGet(def.path)??def.default??'';input.onchange=()=>pathSet(def.path,def.type==='number'?Number(input.value):input.value)}wrap.append(input);return wrap}
+function setting(def){const row=node('div','setting-row');row.dataset.search=`${def.label} ${def.path} ${def.desc||''}`.toLowerCase();const title=node('div','setting-name',def.label);title.append(' ',node('span','setting-path',def.path));row.append(title);if(def.desc)row.append(node('div','setting-desc',def.desc));row.append(makeControl(def));return row}
+function panelHeader(title,desc){const f=document.createDocumentFragment();f.append(node('h2','category-title',title),node('p','category-desc',desc));return f}
+const layoutFields=[
+ {path:'layout.navPosition',label:'툴바 위치',desc:'화면에서 메뉴 툴바가 표시될 위치입니다.',options:[['auto','자동'],['left','왼쪽'],['right','오른쪽'],['top','위'],['bottom','아래']]},
+ {path:'layout.sideWidth',label:'세로 툴바 너비',desc:'왼쪽 또는 오른쪽 툴바의 너비입니다.',type:'number',min:80},
+ {path:'layout.barHeight',label:'가로 툴바 높이',type:'number',min:48},{path:'layout.breakpoint',label:'화면 전환 기준 너비',type:'number',min:320},
+ {path:'layout.buttonHeight',label:'버튼 높이',desc:'0이면 콘텐츠에 맞게 자동 결정합니다.',type:'number',min:0},{path:'layout.buttonWidth',label:'버튼 너비',desc:'0이면 사용 가능한 폭을 균등 분배합니다.',type:'number',min:0},{path:'layout.buttonGap',label:'버튼 간격',type:'number',min:0},
+ {path:'layout.buttonAlignment',label:'버튼 정렬',options:[['stretch','늘이기'],['start','시작'],['center','가운데'],['end','끝'],['spaceBetween','사이 균등'],['spaceAround','둘레 균등'],['spaceEvenly','전체 균등']]},
+ {path:'layout.showHistoryButtons',label:'이전·다음 버튼',type:'bool',onLabel:'표시'},{path:'layout.showKeyboardToggle',label:'가상 키보드 버튼',type:'bool',onLabel:'표시'},
+ {path:'layout.toolbarInitiallyHidden',label:'시작할 때 툴바 숨김',type:'bool'},{path:'layout.toolbarAutoHideSec',label:'툴바 자동 숨김 시간',desc:'0이면 자동으로 숨기지 않습니다.',type:'number',min:0},
+ {path:'layout.barColor',label:'툴바 배경색',desc:'색상 선택기를 사용하거나 #RRGGBB 형식으로 직접 입력합니다.',type:'color'},{path:'layout.buttonColor',label:'버튼 색상'},{path:'layout.buttonForegroundColor',label:'버튼 글자 색상'},{path:'layout.selectedButtonColor',label:'선택 버튼 색상'},{path:'layout.selectedButtonForegroundColor',label:'선택 버튼 글자 색상'}
+];
+const idleFields=[
+ {path:'idle.enabled',label:'화면 보호기',type:'bool',onLabel:'사용'},{path:'idle.timeoutSec',label:'진입 대기 시간',desc:'마지막 입력 후 화면 보호기가 시작될 때까지의 초입니다.',type:'number',min:1},{path:'idle.startOnLaunch',label:'실행 직후 시작',type:'bool'},
+ {path:'idle.modes',label:'표시 모드',desc:'슬라이드·폴더·갤러리는 복수 선택할 수 있습니다. 단일 이미지·웹 화면·사용 안 함은 단독으로 적용됩니다.',type:'multi',exclusive:['none','image','url'],options:[['none','사용 안 함'],['image','단일 이미지'],['slideshow','슬라이드쇼'],['folder','미디어 폴더'],['gallery','웹 갤러리'],['url','웹 화면']]},{path:'idle.showHint',label:'안내 문구 표시',type:'bool'},{path:'idle.hintText',label:'안내 문구'},
+ {path:'idle.image',label:'기본 이미지 경로'},{path:'idle.url',label:'웹 화면 주소'},{path:'idle.slideshow.intervalSec',label:'슬라이드 간격',type:'number',min:1},{path:'idle.slideshow.transition',label:'슬라이드 전환 효과',options:[['fade','페이드'],['none','효과 없음']]},{path:'idle.slideshow.images',label:'슬라이드 이미지',desc:'한 줄에 하나의 경로를 입력합니다.',type:'lines'},
+ {path:'idle.folder.paths',label:'미디어 폴더',desc:'한 줄에 하나의 경로를 입력합니다.',type:'lines'},{path:'idle.folder.intervalSec',label:'폴더 콘텐츠 간격',type:'number',min:1},{path:'idle.folder.shuffle',label:'폴더 콘텐츠 무작위 순서',type:'bool'},{path:'idle.folder.includeImages',label:'이미지 포함',type:'bool'},{path:'idle.folder.includeVideos',label:'동영상 포함',type:'bool'},{path:'idle.folder.transition',label:'폴더 이미지 전환 효과',options:[['fade','페이드'],['none','효과 없음']]},
+ {path:'idle.gallery.urls',label:'갤러리 주소',desc:'한 줄에 하나의 게시판 주소를 입력합니다.',type:'lines'},{path:'idle.gallery.intervalSec',label:'갤러리 이미지 간격',type:'number',min:1},{path:'idle.gallery.lookbackDays',label:'게시물 조회 기간(일)',type:'number',min:1},{path:'idle.gallery.minPosts',label:'최소 게시물 수',type:'number',min:1},{path:'idle.gallery.maxPosts',label:'최대 게시물 수',type:'number',min:1},{path:'idle.gallery.refreshIntervalMin',label:'갤러리 갱신 주기(분)',type:'number',min:1},{path:'idle.gallery.shuffle',label:'갤러리 무작위 순서',type:'bool'},{path:'idle.gallery.transition',label:'갤러리 전환 효과',options:[['fade','페이드'],['none','효과 없음']]},{path:'idle.gallery.maxImages',label:'최대 이미지 수',type:'number',min:1}
+];
+function renderFieldSection(title,desc,fields){const panel=$('settingsPanel');panel.className='';panel.replaceChildren(panelHeader(title,desc));fields.forEach(def=>panel.append(setting(def)));filterSettings()}
+function languageSelect(selected,onChange){const select=node('select');workingConfig.languages.forEach((language,index)=>{const option=node('option','',`${language.label||language.id} (${language.id})`);option.value=index;select.append(option)});select.value=Math.min(selected,workingConfig.languages.length-1);select.onchange=()=>onChange(Number(select.value));return select}
+function simpleField(label,value,onChange,type='text'){const holder=node('label');holder.append(node('span','',label));const input=node('input');input.type=type;input.value=value??'';input.onchange=()=>{onChange(type==='number'?Number(input.value):input.value);markDirty()};holder.append(input);return holder}
+function renderLanguages(){ensureShape();const panel=$('settingsPanel');panel.className='';panel.replaceChildren(panelHeader('언어','언어 선택 화면과 언어별 기본 정보를 관리합니다.'));if(!workingConfig.languages.length){panel.append(node('div','empty','등록된 언어가 없습니다.'));return}languageIndex=Math.min(languageIndex,workingConfig.languages.length-1);const toolbar=node('div','editor-toolbar');const chooser=languageSelect(languageIndex,index=>{languageIndex=index;renderLanguages()});const chooseLabel=node('label');chooseLabel.append(node('span','setting-name','편집할 언어'),chooser);const add=node('button','secondary','언어 추가');add.onclick=()=>{let n=workingConfig.languages.length+1,id=`lang${n}`;while(workingConfig.languages.some(v=>v.id===id))id=`lang${++n}`;workingConfig.languages.push({id,label:'새 언어',subtitle:'',items:[]});languageIndex=workingConfig.languages.length-1;markDirty();renderLanguages()};const remove=node('button','danger','언어 삭제');remove.disabled=workingConfig.languages.length<=1;remove.onclick=()=>{if(!confirm('선택한 언어와 메뉴를 삭제할까요?'))return;const removed=workingConfig.languages.splice(languageIndex,1)[0];if(workingConfig.defaultLanguage===removed.id)workingConfig.defaultLanguage=workingConfig.languages[0].id;languageIndex=Math.max(0,languageIndex-1);markDirty();renderLanguages()};toolbar.append(chooseLabel,add,remove);panel.append(toolbar);
+ const defaults=node('div','setting-row');defaults.append(node('div','setting-name','언어 선택 화면'));const grid=node('div','field-grid');grid.append(simpleField('화면 제목',workingConfig.languageSelection.title,v=>workingConfig.languageSelection.title=v),simpleField('화면 부제',workingConfig.languageSelection.subtitle,v=>workingConfig.languageSelection.subtitle=v));const defaultLabel=node('label','wide');defaultLabel.append(node('span','','기본 언어'));const defaultSelect=languageSelect(workingConfig.languages.findIndex(v=>v.id===workingConfig.defaultLanguage),index=>{workingConfig.defaultLanguage=workingConfig.languages[index].id;markDirty()});defaultLabel.append(defaultSelect);grid.append(defaultLabel);defaults.append(grid);panel.append(defaults);
+ const language=workingConfig.languages[languageIndex];const row=node('div','setting-row');row.dataset.search=`${language.id} ${language.label} ${language.subtitle}`.toLowerCase();row.append(node('div','setting-name','언어 정보'));const fields=node('div','field-grid');fields.append(simpleField('언어 ID',language.id,v=>{const old=language.id;language.id=v;if(workingConfig.defaultLanguage===old)workingConfig.defaultLanguage=v}),simpleField('표시 이름',language.label,v=>language.label=v),simpleField('부제',language.subtitle,v=>language.subtitle=v));row.append(fields);panel.append(row);filterSettings()}
+function renderMenus(){ensureShape();const panel=$('settingsPanel');panel.className='';panel.replaceChildren(panelHeader('메뉴 항목','언어와 언어별 사이니지 메뉴를 추가·삭제하고 순서를 변경합니다.'));if(!workingConfig.languages.length){panel.append(node('div','empty','등록된 언어가 없습니다.'));return}menuLanguageIndex=Math.min(menuLanguageIndex,workingConfig.languages.length-1);const toolbar=node('div','editor-toolbar');const label=node('label');label.append(node('span','setting-name','대상 언어'));label.append(languageSelect(menuLanguageIndex,index=>{menuLanguageIndex=index;renderMenus()}));const addLanguage=node('button','secondary','언어 추가');addLanguage.onclick=()=>{let n=workingConfig.languages.length+1,id=`lang${n}`;while(workingConfig.languages.some(v=>v.id===id))id=`lang${++n}`;workingConfig.languages.push({id,label:'새 언어',subtitle:'',items:[]});menuLanguageIndex=workingConfig.languages.length-1;languageIndex=menuLanguageIndex;markDirty();renderMenus()};const removeLanguage=node('button','danger','언어 삭제');removeLanguage.disabled=workingConfig.languages.length<=1;removeLanguage.onclick=()=>{if(!confirm('선택한 언어와 모든 메뉴를 삭제할까요?'))return;const removed=workingConfig.languages.splice(menuLanguageIndex,1)[0];if(workingConfig.defaultLanguage===removed.id)workingConfig.defaultLanguage=workingConfig.languages[0].id;menuLanguageIndex=Math.max(0,menuLanguageIndex-1);languageIndex=Math.min(languageIndex,workingConfig.languages.length-1);markDirty();renderMenus()};const add=node('button','','메뉴 추가');add.onclick=()=>{const items=workingConfig.languages[menuLanguageIndex].items??=[];let n=items.length+1,id=`menu${n}`;while(items.some(v=>v.id===id))id=`menu${++n}`;items.push({id,title:'새 메뉴',url:'https://example.com',icon:'icon:language',showTitle:true});workingConfig.languages[menuLanguageIndex].items=items;markDirty();renderMenus()};toolbar.append(label,addLanguage,removeLanguage,add);panel.append(toolbar);const items=workingConfig.languages[menuLanguageIndex].items??[];if(!items.length){panel.append(node('div','empty','등록된 메뉴가 없습니다.'));return}items.forEach((item,index)=>{const card=node('div','item-card');card.dataset.search=`${item.id} ${item.title} ${item.url} ${item.icon||''}`.toLowerCase();const head=node('div','item-head');head.append(node('strong','',`${index+1}. ${item.title||item.id}`));const up=node('button','ghost','↑');up.disabled=index===0;up.onclick=()=>{[items[index-1],items[index]]=[items[index],items[index-1]];markDirty();renderMenus()};const down=node('button','ghost','↓');down.disabled=index===items.length-1;down.onclick=()=>{[items[index+1],items[index]]=[items[index],items[index+1]];markDirty();renderMenus()};const del=node('button','danger','삭제');del.onclick=()=>{if(confirm('이 메뉴 항목을 삭제할까요?')){items.splice(index,1);markDirty();renderMenus()}};head.append(up,down,del);card.append(head);const fields=node('div','field-grid');fields.append(simpleField('메뉴 ID',item.id,v=>item.id=v),simpleField('표시 이름',item.title,v=>item.title=v),simpleField('URL',item.url,v=>item.url=v),simpleField('아이콘',item.icon,v=>item.icon=v));const show=node('label');show.append(node('span','','메뉴 이름 표시'));const showSelect=node('select');[['true','표시'],['false','숨김']].forEach(([v,t])=>{const o=node('option','',t);o.value=v;showSelect.append(o)});showSelect.value=String(item.showTitle!==false);showSelect.onchange=()=>{item.showTitle=showSelect.value==='true';markDirty()};show.append(showSelect);const keep=node('label');keep.append(node('span','','같은 메뉴 재선택 시 상태 유지'));const keepSelect=node('select');[['','전체 설정 따름'],['true','유지'],['false','새로고침']].forEach(([v,t])=>{const o=node('option','',t);o.value=v;keepSelect.append(o)});keepSelect.value=item.keepStateOnTap===undefined?'':String(item.keepStateOnTap);keepSelect.onchange=()=>{if(keepSelect.value==='')delete item.keepStateOnTap;else item.keepStateOnTap=keepSelect.value==='true';markDirty()};keep.append(keepSelect);fields.append(show,keep);card.append(fields);panel.append(card)});filterSettings()}
+function renderAdvanced(){const panel=$('settingsPanel');panel.className='';panel.replaceChildren(panelHeader('고급 JSON','폼에서 제공하지 않는 세부 설정을 직접 수정할 수 있습니다. JSON 적용 후 최종 저장해야 사이니지에 반영됩니다.'));const editor=node('textarea');editor.id='rawEditor';editor.spellcheck=false;editor.value=JSON.stringify(workingConfig,null,2);const apply=node('button','','JSON 적용');apply.onclick=()=>{try{workingConfig=JSON.parse(editor.value);ensureShape();markDirty();message('JSON을 작업 사본에 적용했습니다. 저장 버튼을 눌러 반영하세요.')}catch(e){message(`JSON 형식 오류: ${e.message}`,true)}};panel.append(editor,node('div','setting-desc','주의: 잘못된 값은 서버 검증에서 거부됩니다.'),apply)}
+function renderSettings(){if(!workingConfig)return;if(activeSection==='layout')renderFieldSection('레이아웃','툴바 위치, 크기, 버튼과 색상을 설정합니다.',layoutFields);else if(activeSection==='idle')renderFieldSection('화면 보호기','대기 시간과 표시할 이미지·갤러리 소스를 설정합니다.',idleFields);else if(activeSection==='languages')renderLanguages();else if(activeSection==='menus')renderMenus();else renderAdvanced()}
+function filterSettings(){const query=$('settingsSearch').value.trim().toLowerCase();document.querySelectorAll('.setting-row,.item-card').forEach(row=>row.classList.toggle('hidden',query&&!row.dataset.search?.includes(query)))}
+async function loadStatus(){$('status').textContent=JSON.stringify(await api('/api/status'),null,2)}
+async function loadConfig(){const [effective,override]=await Promise.all([api('/api/config/effective'),api('/api/config')]);workingConfig=clone(effective);ensureShape();dirty=false;const overridden=Object.keys(override).length>0;$('configSource').textContent=overridden?'외부 설정 적용 중':'기본 설정 적용 중';$('configSource').classList.toggle('override',overridden);renderSettings()}
+async function loadServer(){const s=await api('/api/server-settings');$('apiEnabled').value=String(s.enabled);$('apiPort').value=s.port;$('mdnsEnabled').value=String(s.mdnsEnabled??true);$('mdnsHostname').value=s.mdnsHostname||'ysignage.local'}
+async function refreshAll(){try{await Promise.all([loadStatus(),loadConfig(),loadServer()]);message('정보를 갱신했습니다.')}catch(e){message(e.message,true)}}
 function showAdmin(){$('loginCard').classList.add('hidden');$('admin').classList.remove('hidden');refreshAll()}
 function logout(callApi=true){if(callApi&&token)api('/api/logout',{method:'POST'}).catch(()=>{});token='';sessionStorage.removeItem('simpleKioskAdminToken');$('admin').classList.add('hidden');$('loginCard').classList.remove('hidden')}
-async function loadStatus(){$('status').textContent=JSON.stringify(await api('/api/status'),null,2)}
-async function loadConfig(){$('config').value=JSON.stringify(await api('/api/config'),null,2)}
-async function loadServer(){const s=await api('/api/server-settings');$('apiEnabled').value=String(s.enabled);$('apiPort').value=s.port}
-async function refreshAll(){try{await Promise.all([loadStatus(),loadConfig(),loadServer()]);message('정보를 갱신했습니다.')}catch(e){message(e.message,true)}}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();try{const r=await api('/api/login',{method:'POST',body:JSON.stringify({pin:$('pin').value})});token=r.token;sessionStorage.setItem('simpleKioskAdminToken',token);$('pin').value='';showAdmin()}catch(e){message(e.message,true)}});
-$('refresh').onclick=refreshAll;$('logout').onclick=()=>logout();$('loadConfig').onclick=()=>loadConfig().catch(e=>message(e.message,true));
-$('saveConfig').onclick=async()=>{try{const value=JSON.parse($('config').value);await api('/api/config',{method:'PUT',body:JSON.stringify(value)});message('설정을 저장하고 적용했습니다.')}catch(e){message(e.message,true)}};
-$('saveServer').onclick=async()=>{try{const next={schemaVersion:1,enabled:$('apiEnabled').value==='true',port:Number($('apiPort').value)};await api('/api/server-settings',{method:'PUT',body:JSON.stringify(next)});message('서버가 다시 시작됩니다. 새 포트로 다시 접속하세요.')}catch(e){message(e.message,true)}};
+$('refresh').onclick=refreshAll;$('logout').onclick=()=>logout();$('loadConfig').onclick=()=>loadConfig().then(()=>message('적용 중인 설정을 다시 불러왔습니다.')).catch(e=>message(e.message,true));$('settingsSearch').oninput=filterSettings;
+document.querySelectorAll('[data-section]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-section]').forEach(v=>v.classList.toggle('active',v===button));activeSection=button.dataset.section;$('settingsSearch').value='';renderSettings()});
+document.querySelectorAll('[data-admin-tab]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-admin-tab]').forEach(v=>v.classList.toggle('active',v===button));document.querySelectorAll('.admin-panel').forEach(panel=>panel.classList.add('hidden'));$(`adminTab${button.dataset.adminTab[0].toUpperCase()}${button.dataset.adminTab.slice(1)}`).classList.remove('hidden')});
+$('saveConfig').onclick=async()=>{try{if(activeSection==='advanced'){workingConfig=JSON.parse($('rawEditor').value);ensureShape()}await api('/api/config',{method:'PUT',body:JSON.stringify(workingConfig)});dirty=false;message('전체 설정을 저장하고 적용했습니다. 사이니지가 설정을 다시 불러옵니다.')}catch(e){message(e.message,true)}};
+$('resetConfig').onclick=async()=>{if(!confirm('외부 설정을 비우고 프로그램 기본값을 사용하시겠습니까?'))return;try{await api('/api/config',{method:'PUT',body:'{}'});message('외부 설정을 비웠습니다. 잠시 후 다시 불러오세요.')}catch(e){message(e.message,true)}};
+$('saveServer').onclick=async()=>{try{const next={schemaVersion:2,enabled:$('apiEnabled').value==='true',port:Number($('apiPort').value),mdnsEnabled:$('mdnsEnabled').value==='true',mdnsHostname:$('mdnsHostname').value.trim().toLowerCase()};await api('/api/server-settings',{method:'PUT',body:JSON.stringify(next)});message('서버와 mDNS가 다시 시작됩니다. 새 주소로 다시 접속하세요.')}catch(e){message(e.message,true)}};
 document.querySelectorAll('[data-action]').forEach(button=>button.onclick=async()=>{const action=button.dataset.action;if(['update','restart','shutdown'].includes(action)&&!confirm(`${button.textContent} 작업을 실행할까요?`))return;try{const r=await api(`/api/actions/${action}`,{method:'POST'});message(r.message||'요청을 접수했습니다.');setTimeout(()=>loadStatus().catch(()=>{}),700)}catch(e){message(e.message,true)}});
-if(token)showAdmin();
+window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});if(token)showAdmin();
 </script>
 </body>
 </html>

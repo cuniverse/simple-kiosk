@@ -34,6 +34,34 @@ class MenuConfigLoader {
     return decoded;
   }
 
+  /// 기본 설정과 오버라이드를 병합한 현재 유효 설정을 반환한다.
+  ///
+  /// 오버라이드가 없으면 기본 설정 전체를 반환하며, 병합 설정이 유효하지
+  /// 않으면 앱과 동일하게 마지막 정상 설정을 사용한다.
+  Future<Map<String, dynamic>> readEffective() async {
+    final raw = await rootBundle.loadString(assetPath);
+    final defaults = json.decode(raw);
+    if (defaults is! Map<String, dynamic>) {
+      throw const FormatException('menu.defaults.json: 최상위 객체 필요');
+    }
+    try {
+      final merged =
+          MenuConfigMerger.merge(defaults, await readOverride()).json;
+      parse(merged);
+      return merged;
+    } catch (_) {
+      final lastGoodPath = RuntimePaths.lastGoodConfig;
+      if (lastGoodPath != null && await File(lastGoodPath).exists()) {
+        final decoded = json.decode(await File(lastGoodPath).readAsString());
+        if (decoded is Map<String, dynamic>) {
+          parse(decoded);
+          return decoded;
+        }
+      }
+      rethrow;
+    }
+  }
+
   Future<void> saveOverride(Map<String, dynamic> override) async {
     final raw = await rootBundle.loadString(assetPath);
     final defaults = json.decode(raw);

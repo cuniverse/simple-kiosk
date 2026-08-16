@@ -8,7 +8,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../service/keyboard_controller.dart';
 import '../service/system_keyboard.dart';
 
-/// 키오스크용 WebView 위젯.
+/// 사이니지용 WebView 위젯.
 ///
 /// 주요 정책:
 /// - JavaScript 허용
@@ -224,6 +224,9 @@ class _KioskWebViewState extends State<KioskWebView> {
   KioskWebViewController? _kioskController;
 
   bool _isLoading = true;
+  double _nativeZoomScale = 1;
+  double _cssZoomScale = 1;
+  double _zoomScale = 1;
   String? _errorMessage;
   String? _currentUrl;
   bool _initialLoadReadyReported = false;
@@ -251,6 +254,91 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// InAppWebView 위젯을 강제로 다시 만들기 위한 세대 카운터.
   /// 값이 바뀌면 [ValueKey]가 달라져 Flutter 가 위젯을 새로 빌드한다.
   int _webviewGeneration = 0;
+
+  static const double _minZoomScale = 0.5;
+  static const double _maxZoomScale = 3;
+  static const double _zoomStep = 0.25;
+
+  void _updateZoomScale(double nativeScale) {
+    if (!nativeScale.isFinite || nativeScale <= 0) return;
+    final totalScale = nativeScale * _cssZoomScale;
+    if ((_nativeZoomScale - nativeScale).abs() < 0.001 &&
+        (_zoomScale - totalScale).abs() < 0.001) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _nativeZoomScale = nativeScale;
+      _zoomScale = totalScale;
+    });
+  }
+
+  void _handleReportedDevicePixelRatio(List<dynamic> arguments) {
+    if (arguments.isEmpty || arguments.first is! num || !mounted) return;
+    final browserDevicePixelRatio = (arguments.first as num).toDouble();
+    final displayDevicePixelRatio = View.of(context).devicePixelRatio;
+    if (displayDevicePixelRatio <= 0) return;
+    _updateZoomScale(browserDevicePixelRatio / displayDevicePixelRatio);
+  }
+
+  Future<void> _installZoomMonitor() async {
+    final controller = _webController;
+    if (controller == null) return;
+    try {
+      await controller.evaluateJavascript(source: '''
+        (function () {
+          if (window.__signageZoomMonitorInstalled) {
+            window.__signageReportZoom();
+            return;
+          }
+          window.__signageZoomMonitorInstalled = true;
+          window.__signageReportZoom = function () {
+            try {
+              window.flutter_inappwebview.callHandler(
+                'signageZoomChanged',
+                window.devicePixelRatio || 1
+              );
+            } catch (_) {}
+          };
+          window.addEventListener('resize', window.__signageReportZoom);
+          if (window.visualViewport) {
+            window.visualViewport.addEventListener(
+              'resize',
+              window.__signageReportZoom
+            );
+          }
+          window.__signageReportZoom();
+        })();
+      ''');
+    } catch (_) {
+      // 일부 페이지는 전환 중 JavaScript 실행을 거부할 수 있다.
+    }
+  }
+
+  Future<void> _applyCssZoom() async {
+    final controller = _webController;
+    if (controller == null) return;
+    final zoom = _cssZoomScale.toStringAsFixed(4);
+    try {
+      await controller.evaluateJavascript(source: '''
+        (function () {
+          document.documentElement.style.zoom = '$zoom';
+        })();
+      ''');
+    } catch (_) {
+      // 페이지 전환 중이면 onLoadStop에서 다시 적용한다.
+    }
+  }
+
+  void _setZoomScale(double requestedScale) {
+    final target = requestedScale.clamp(_minZoomScale, _maxZoomScale);
+    final nativeScale = _nativeZoomScale <= 0 ? 1.0 : _nativeZoomScale;
+    setState(() {
+      _cssZoomScale = target / nativeScale;
+      _zoomScale = target;
+    });
+    unawaited(_applyCssZoom());
+  }
 
   /// 컨트롤러 헬스체크용 watchdog 타이머.
   ///
@@ -616,7 +704,7 @@ class _KioskWebViewState extends State<KioskWebView> {
   }
 
   /// 에러 발생 시 5초 카운트다운 후 자동 재시도. 3회 연속 실패하면 WebView 를
-  /// 통째로 재생성한다(키오스크가 외부 개입 없이 회복되도록).
+  /// 통째로 재생성한다(사이니지가 외부 개입 없이 회복되도록).
   void _scheduleAutoRetry() {
     _autoRetryTimer?.cancel();
     _autoRetrySecondsLeft = _autoRetryDelay.inSeconds;
@@ -737,6 +825,10 @@ class _KioskWebViewState extends State<KioskWebView> {
     allowsInlineMediaPlayback: true,
     // 운영에서는 HTTPS 사용을 권장한다. 필요 시 HTTP도 허용.
     allowsBackForwardNavigationGestures: false,
+    // 핀치 동작은 텍스트만 키우지 않고 WebView 페이지 전체 배율을 변경한다.
+    supportZoom: true,
+    builtInZoomControls: false,
+    displayZoomControls: false,
     transparentBackground: false,
     useHybridComposition: true,
   );
@@ -766,6 +858,13 @@ class _KioskWebViewState extends State<KioskWebView> {
               widget.onReady?.call(kc);
               _scheduleLoadingFallback();
               // 페이지에서 보낼 heartbeat 수신용 핸들러 등록.
+              controller.addJavaScriptHandler(
+                handlerName: 'signageZoomChanged',
+                callback: (arguments) {
+                  _handleReportedDevicePixelRatio(arguments);
+                  return null;
+                },
+              );
               controller.addJavaScriptHandler(
                 handlerName: 'kioskHeartbeat',
                 callback: (_) {
@@ -836,6 +935,8 @@ class _KioskWebViewState extends State<KioskWebView> {
               // OS 가상 키보드 트리거용 input 포커스 리스너도 함께 주입.
               _injectKeyboardFocusScript();
               _injectFunctionKeyScript();
+              unawaited(_installZoomMonitor());
+              unawaited(_applyCssZoom());
               // 일부 사이트는 onLoadStart 없이 리다이렉트만 되는 경우도 있으므로 공식
               // 종료 시점의 url 도 히스토리에 안전하게 포함시킨다(중복은 자체 필터됨).
               _kioskController?._noteNavigationStart(url?.toString());
@@ -845,6 +946,9 @@ class _KioskWebViewState extends State<KioskWebView> {
               if (progress >= 100) {
                 _finishLoading();
               }
+            },
+            onZoomScaleChanged: (controller, oldScale, newScale) {
+              _updateZoomScale(newScale);
             },
             // 네비게이션 요청 가로채기:
             // http(s)만 허용하고, 그 외 스킴(tel:, mailto:, intent: 등)은 차단.
@@ -943,6 +1047,22 @@ class _KioskWebViewState extends State<KioskWebView> {
             child: LinearProgressIndicator(minHeight: 4),
           ),
 
+        if ((_zoomScale - 1).abs() > 0.01)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: SafeArea(
+              child: WebZoomControls(
+                scale: _zoomScale,
+                canZoomOut: _zoomScale > _minZoomScale + 0.01,
+                canZoomIn: _zoomScale < _maxZoomScale - 0.01,
+                onZoomOut: () => _setZoomScale(_zoomScale - _zoomStep),
+                onZoomIn: () => _setZoomScale(_zoomScale + _zoomStep),
+                onReset: () => _setZoomScale(1),
+              ),
+            ),
+          ),
+
         // 에러 오버레이.
         if (_errorMessage != null)
           Positioned.fill(
@@ -965,6 +1085,86 @@ class _KioskWebViewState extends State<KioskWebView> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class WebZoomControls extends StatelessWidget {
+  final double scale;
+  final bool canZoomOut;
+  final bool canZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onZoomIn;
+  final VoidCallback onReset;
+
+  const WebZoomControls({
+    super.key,
+    required this.scale,
+    required this.canZoomOut,
+    required this.canZoomIn,
+    required this.onZoomOut,
+    required this.onZoomIn,
+    required this.onReset,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final percent = (scale * 100).round();
+    return Material(
+      key: const ValueKey('web-zoom-controls'),
+      color: colors.surface.withValues(alpha: 0.94),
+      elevation: 6,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Tooltip(
+              message: '더블클릭하면 100%로 복원',
+              child: InkWell(
+                key: const ValueKey('web-zoom-reset'),
+                onTap: () {},
+                onDoubleTap: onReset,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(
+                    scale >= 1 ? Icons.zoom_in : Icons.zoom_out,
+                    size: 30,
+                    color: colors.primary,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 58,
+              child: Text(
+                '$percent%',
+                key: const ValueKey('web-zoom-percent'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              key: const ValueKey('web-zoom-out'),
+              tooltip: '축소',
+              onPressed: canZoomOut ? onZoomOut : null,
+              icon: const Icon(Icons.remove),
+            ),
+            IconButton(
+              key: const ValueKey('web-zoom-in'),
+              tooltip: '확대',
+              onPressed: canZoomIn ? onZoomIn : null,
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

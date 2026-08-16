@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// 새 아이콘이 필요하면 이 맵에 추가하면 된다.
 class MaterialIconRegistry {
   static const Map<String, IconData> _icons = {
-    // 키오스크에서 자주 쓰는 아이콘들.
+    // 사이니지에서 자주 쓰는 아이콘들.
     'home': Icons.home_filled,
     'notice': Icons.campaign_outlined,
     'announcement': Icons.campaign_outlined,

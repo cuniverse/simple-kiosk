@@ -8,18 +8,16 @@
   #define OutputDir "..\dist"
 #endif
 
-#define AppName "Simple Kiosk"
+#define AppName "여의도성당Signage"
 #define AppExeName "simple_kiosk.exe"
 
 [Setup]
 AppId={{6C95C054-1458-4B4C-9458-1420CA590CA6}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=cuniverse
 AppPublisherURL=https://github.com/cuniverse/simple-kiosk
 AppSupportURL=https://github.com/cuniverse/simple-kiosk/issues
 AppUpdatesURL=https://github.com/cuniverse/simple-kiosk/releases
-AppContact=cuniverse@catholic.or.kr
 DefaultDirName={code:GetInstallDir}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -38,9 +36,7 @@ UsePreviousAppDir=no
 UninstallDisplayIcon={app}\versions\{#AppVersion}\{#AppExeName}
 VersionInfoVersion={#AppVersion}
 VersionInfoProductName={#AppName}
-VersionInfoCompany=cuniverse
-VersionInfoDescription=Simple Kiosk
-VersionInfoCopyright=Copyright (C) 2026 cuniverse <cuniverse@catholic.or.kr>
+VersionInfoDescription={#AppName}
 
 [Dirs]
 Name: "{app}\config"
@@ -63,22 +59,25 @@ Source: "{#SourceDir}\updater\*"; DestDir: "{app}\updater"; Flags: ignoreversion
 [InstallDelete]
 Type: files; Name: "{userstartup}\Simple Kiosk.lnk"
 Type: files; Name: "{userstartup}\SimpleKiosk.lnk"
+Type: files; Name: "{userstartup}\여의도성당Signage.lnk"
+Type: files; Name: "{userdesktop}\Simple Kiosk.lnk"
+Type: filesandordirs; Name: "{userprograms}\Simple Kiosk"
 Type: files; Name: "{app}\USER_MANUAL.md"
 
 [Icons]
-Name: "{group}\Simple Kiosk"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"
-Name: "{group}\Simple Kiosk 사용자 매뉴얼"; Filename: "{app}\USER_MANUAL.html"
-Name: "{group}\Simple Kiosk 제거"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Simple Kiosk"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: desktopicon
-Name: "{userstartup}\Simple Kiosk"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: startup
+Name: "{group}\{#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"
+Name: "{group}\{#AppName} 사용자 매뉴얼"; Filename: "{app}\USER_MANUAL.html"
+Name: "{group}\{#AppName} 제거"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: desktopicon
+Name: "{userstartup}\{#AppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\versions\{#AppVersion}\{#AppExeName}"; Tasks: startup
 
 [Tasks]
-Name: "startup"; Description: "Windows 로그인 시 Simple Kiosk 자동 실행"; GroupDescription: "자동 실행:"
+Name: "startup"; Description: "Windows 로그인 시 {#AppName} 자동 실행"; GroupDescription: "자동 실행:"
 Name: "desktopicon"; Description: "바탕 화면 바로가기 만들기"; GroupDescription: "추가 바로가기:"; Flags: unchecked
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\updater\configure-installer.ps1"" -InstallRoot ""{app}"" -Version ""{#AppVersion}"""; Flags: runhidden waituntilterminated
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; Description: "Simple Kiosk 실행"; Flags: nowait postinstall skipifsilent
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\launcher.ps1"""; WorkingDir: "{app}"; Description: "{#AppName} 실행"; Flags: nowait postinstall skipifsilent
 
 [Code]
 var
@@ -172,7 +171,7 @@ function InitializeUninstall(): Boolean;
 begin
   DeleteUserData :=
     SuppressibleMsgBox(
-      'Simple Kiosk 설정과 사용자 파일도 함께 삭제하시겠습니까?' + #13#10 + #13#10 +
+      '{#AppName} 설정과 사용자 파일도 함께 삭제하시겠습니까?' + #13#10 + #13#10 +
       '예: config, media, state, logs, diagnostics, backups 삭제' + #13#10 +
       '아니요(권장): 프로그램만 삭제하고 설정과 사용자 파일 보존',
       mbConfirmation,

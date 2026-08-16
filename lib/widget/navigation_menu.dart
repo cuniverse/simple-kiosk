@@ -77,16 +77,19 @@ class NavigationMenu extends StatelessWidget {
   /// 선택 버튼 전경색.
   final Color? selectedButtonForegroundColor;
 
-  /// 하단 툴바를 접는 콜백. `null`이면 숨김 버튼을 표시하지 않는다.
+  /// 툴바를 감추는 콜백. `null`이면 숨김 버튼을 표시하지 않는다.
   final VoidCallback? onHide;
 
   /// 화면 보호기로 즉시 진입하는 콜백. `null`이면 버튼을 표시하지 않는다.
   final VoidCallback? onEnterIdle;
 
-  /// PIN 보호된 업데이트 관리자 화면을 여는 콜백.
+  /// PIN 보호된 설정 화면을 여는 콜백.
   final VoidCallback? onOpenAdmin;
 
-  /// 키오스크 창을 시스템 트레이로 감추는 콜백.
+  /// 화면 보호기 더블클릭으로 사이니지 감추기 순서를 시작하는 콜백.
+  final VoidCallback? onPrepareHideKiosk;
+
+  /// 툴바 감추기 더블클릭으로 사이니지 감추기 순서를 완료하는 콜백.
   final VoidCallback? onHideKiosk;
 
   const NavigationMenu({
@@ -112,6 +115,7 @@ class NavigationMenu extends StatelessWidget {
     this.onHide,
     this.onEnterIdle,
     this.onOpenAdmin,
+    this.onPrepareHideKiosk,
     this.onHideKiosk,
   });
 
@@ -199,42 +203,37 @@ class NavigationMenu extends StatelessWidget {
               if (showKeyboardToggle ||
                   onEnterIdle != null ||
                   onOpenAdmin != null ||
-                  onHideKiosk != null)
+                  onHide != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: buttonGap,
+                    runSpacing: buttonGap,
                     children: [
                       if (showKeyboardToggle)
                         const _KeyboardToggle(
                           orientation: NavigationOrientation.side,
                         ),
-                      if (showKeyboardToggle && onEnterIdle != null)
-                        SizedBox(width: buttonGap),
                       if (onOpenAdmin != null)
                         _ToolbarVisibilityButton(
                           icon: Icons.admin_panel_settings_outlined,
-                          tooltip: '업데이트 관리',
+                          tooltip: '설정',
                           onPressed: onOpenAdmin!,
                         ),
-                      if (onOpenAdmin != null && onEnterIdle != null)
-                        SizedBox(width: buttonGap),
                       if (onEnterIdle != null)
                         _ToolbarVisibilityButton(
                           icon: Icons.wallpaper_outlined,
                           tooltip: '화면 보호기 시작',
                           onPressed: onEnterIdle!,
+                          onDoublePressed: onPrepareHideKiosk,
                         ),
-                      if (onHideKiosk != null &&
-                          (showKeyboardToggle ||
-                              onOpenAdmin != null ||
-                              onEnterIdle != null))
-                        SizedBox(width: buttonGap),
-                      if (onHideKiosk != null)
+                      if (onHide != null)
                         _ToolbarVisibilityButton(
                           icon: Icons.visibility_off_outlined,
-                          tooltip: '키오스크 감추기',
-                          onPressed: onHideKiosk!,
+                          tooltip: '툴바 감추기',
+                          onPressed: onHide!,
+                          onDoublePressed: onHideKiosk,
                         ),
                     ],
                   ),
@@ -317,6 +316,7 @@ class NavigationMenu extends StatelessWidget {
               icon: Icons.keyboard_arrow_down,
               tooltip: '툴바 감추기',
               onPressed: onHide!,
+              onDoublePressed: onHideKiosk,
             ),
           ),
         );
@@ -330,6 +330,7 @@ class NavigationMenu extends StatelessWidget {
               icon: Icons.wallpaper_outlined,
               tooltip: '화면 보호기 시작',
               onPressed: onEnterIdle!,
+              onDoublePressed: onPrepareHideKiosk,
             ),
           ),
         );
@@ -341,21 +342,8 @@ class NavigationMenu extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: _ToolbarVisibilityButton(
               icon: Icons.admin_panel_settings_outlined,
-              tooltip: '업데이트 관리',
+              tooltip: '설정',
               onPressed: onOpenAdmin!,
-            ),
-          ),
-        );
-      }
-      if (onHideKiosk != null) {
-        children.add(SizedBox(width: buttonGap));
-        children.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            child: _ToolbarVisibilityButton(
-              icon: Icons.visibility_off_outlined,
-              tooltip: '키오스크 감추기',
-              onPressed: onHideKiosk!,
             ),
           ),
         );
@@ -417,6 +405,7 @@ class NavigationMenu extends StatelessWidget {
             icon: Icons.keyboard_arrow_down,
             tooltip: '툴바 감추기',
             onPressed: onHide!,
+            onDoublePressed: onHideKiosk,
           ),
         ),
       );
@@ -431,6 +420,7 @@ class NavigationMenu extends StatelessWidget {
             icon: Icons.wallpaper_outlined,
             tooltip: '화면 보호기 시작',
             onPressed: onEnterIdle!,
+            onDoublePressed: onPrepareHideKiosk,
           ),
         ),
       );
@@ -445,27 +435,8 @@ class NavigationMenu extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: _ToolbarVisibilityButton(
             icon: Icons.admin_panel_settings_outlined,
-            tooltip: '업데이트 관리',
+            tooltip: '설정',
             onPressed: onOpenAdmin!,
-          ),
-        ),
-      );
-    }
-    if (onHideKiosk != null) {
-      if (!showKeyboardToggle &&
-          onHide == null &&
-          onEnterIdle == null &&
-          onOpenAdmin == null) {
-        children.add(const Spacer());
-      }
-      children.add(SizedBox(width: buttonGap));
-      children.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: _ToolbarVisibilityButton(
-            icon: Icons.visibility_off_outlined,
-            tooltip: '키오스크 감추기',
-            onPressed: onHideKiosk!,
           ),
         ),
       );
@@ -490,12 +461,14 @@ class NavigationMenu extends StatelessWidget {
   }
 }
 
-/// WebView의 위젯 트리 위치를 유지하면서 하단 툴바와 플로팅 컨트롤만 전환한다.
+/// WebView의 위젯 트리 위치를 유지하면서 툴바와 플로팅 컨트롤만 전환한다.
 ///
 /// [hidden]이 바뀌어도 [webView]는 항상 첫 번째 `Positioned`의 자식으로 남으므로
 /// 네이티브 WebView가 dispose/recreate되지 않는다.
-class BottomToolbarHost extends StatefulWidget {
+class ToolbarHost extends StatefulWidget {
   final bool hidden;
+  final NavPosition position;
+  final double sideWidth;
   final double toolbarHeight;
   final Duration autoHideDuration;
   final VoidCallback? onAutoHide;
@@ -503,9 +476,11 @@ class BottomToolbarHost extends StatefulWidget {
   final Widget toolbar;
   final Widget overlay;
 
-  const BottomToolbarHost({
+  const ToolbarHost({
     super.key,
     required this.hidden,
+    this.position = NavPosition.bottom,
+    this.sideWidth = 220,
     required this.toolbarHeight,
     this.autoHideDuration = Duration.zero,
     this.onAutoHide,
@@ -515,10 +490,10 @@ class BottomToolbarHost extends StatefulWidget {
   });
 
   @override
-  State<BottomToolbarHost> createState() => _BottomToolbarHostState();
+  State<ToolbarHost> createState() => _ToolbarHostState();
 }
 
-class _BottomToolbarHostState extends State<BottomToolbarHost> {
+class _ToolbarHostState extends State<ToolbarHost> {
   Timer? _autoHideTimer;
 
   @override
@@ -528,7 +503,7 @@ class _BottomToolbarHostState extends State<BottomToolbarHost> {
   }
 
   @override
-  void didUpdateWidget(covariant BottomToolbarHost oldWidget) {
+  void didUpdateWidget(covariant ToolbarHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.hidden != widget.hidden ||
         oldWidget.autoHideDuration != widget.autoHideDuration ||
@@ -563,6 +538,42 @@ class _BottomToolbarHostState extends State<BottomToolbarHost> {
 
   @override
   Widget build(BuildContext context) {
+    final position = widget.position == NavPosition.auto
+        ? NavPosition.bottom
+        : widget.position;
+    final toolbarVisible = !widget.hidden;
+    final leftInset = toolbarVisible && position == NavPosition.left
+        ? widget.sideWidth + 1
+        : 0.0;
+    final rightInset = toolbarVisible && position == NavPosition.right
+        ? widget.sideWidth + 1
+        : 0.0;
+    final topInset = toolbarVisible && position == NavPosition.top
+        ? widget.toolbarHeight + 1
+        : 0.0;
+    final bottomInset = toolbarVisible && position == NavPosition.bottom
+        ? widget.toolbarHeight + 1
+        : 0.0;
+
+    final toolbarWithDivider = switch (position) {
+      NavPosition.left => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [widget.toolbar, const VerticalDivider(width: 1)],
+        ),
+      NavPosition.right => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [const VerticalDivider(width: 1), widget.toolbar],
+        ),
+      NavPosition.top => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [widget.toolbar, const Divider(height: 1)],
+        ),
+      NavPosition.bottom || NavPosition.auto => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [const Divider(height: 1), widget.toolbar],
+        ),
+    };
+
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => _onUserActivity(),
@@ -571,22 +582,20 @@ class _BottomToolbarHostState extends State<BottomToolbarHost> {
       child: Stack(
         children: [
           Positioned.fill(
-            bottom: widget.hidden ? 0 : widget.toolbarHeight + 1,
+            left: leftInset,
+            right: rightInset,
+            top: topInset,
+            bottom: bottomInset,
             child: widget.webView,
           ),
           Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
+            left: position == NavPosition.right ? null : 0,
+            right: position == NavPosition.left ? null : 0,
+            top: position == NavPosition.bottom ? null : 0,
+            bottom: position == NavPosition.top ? null : 0,
             child: Offstage(
               offstage: widget.hidden,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Divider(height: 1),
-                  widget.toolbar,
-                ],
-              ),
+              child: toolbarWithDivider,
             ),
           ),
           Positioned.fill(
@@ -601,7 +610,7 @@ class _BottomToolbarHostState extends State<BottomToolbarHost> {
   }
 }
 
-/// 하단 툴바가 접힌 동안 WebView 위에 남는 최소 플로팅 컨트롤.
+/// 툴바가 감추어진 동안 WebView 위에 남는 최소 플로팅 컨트롤.
 ///
 /// 메뉴 버튼은 숨기되 탐색, 툴바 복원, 가상 키보드 제어는 언제든 가능하다.
 class CollapsedToolbarOverlay extends StatefulWidget {
@@ -709,7 +718,7 @@ class _CollapsedToolbarOverlayState extends State<CollapsedToolbarOverlay> {
               ),
               const SizedBox(width: 8),
               _ToolbarVisibilityButton(
-                icon: Icons.keyboard_arrow_up,
+                icon: Icons.visibility_outlined,
                 tooltip: '툴바 보이기',
                 onPressed: widget.onShowToolbar,
               ),
@@ -774,16 +783,50 @@ class _CollapsedToolbarOverlayState extends State<CollapsedToolbarOverlay> {
   }
 }
 
-class _ToolbarVisibilityButton extends StatelessWidget {
+class _ToolbarVisibilityButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final VoidCallback? onDoublePressed;
 
   const _ToolbarVisibilityButton({
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.onDoublePressed,
   });
+
+  @override
+  State<_ToolbarVisibilityButton> createState() =>
+      _ToolbarVisibilityButtonState();
+}
+
+class _ToolbarVisibilityButtonState extends State<_ToolbarVisibilityButton> {
+  Timer? _tapTimer;
+
+  void _handlePressed() {
+    final onDoublePressed = widget.onDoublePressed;
+    if (onDoublePressed == null) {
+      widget.onPressed();
+      return;
+    }
+    if (_tapTimer?.isActive ?? false) {
+      _tapTimer!.cancel();
+      _tapTimer = null;
+      onDoublePressed();
+      return;
+    }
+    _tapTimer = Timer(const Duration(milliseconds: 300), () {
+      _tapTimer = null;
+      if (mounted) widget.onPressed();
+    });
+  }
+
+  @override
+  void dispose() {
+    _tapTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -792,9 +835,9 @@ class _ToolbarVisibilityButton extends StatelessWidget {
       width: 56,
       height: 56,
       child: Tooltip(
-        message: tooltip,
+        message: widget.tooltip,
         child: ElevatedButton(
-          onPressed: onPressed,
+          onPressed: _handlePressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: scheme.surface,
             foregroundColor: scheme.onSurface,
@@ -809,7 +852,7 @@ class _ToolbarVisibilityButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: Icon(icon, size: 30),
+          child: Icon(widget.icon, size: 30),
         ),
       ),
     );
@@ -1042,7 +1085,7 @@ class _NavButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: background,
           foregroundColor: foreground,
-          // 큰 터치 버튼의 기본 splash/highlight와 elevation 전환은 키오스크
+          // 큰 터치 버튼의 기본 splash/highlight와 elevation 전환은 사이니지
           // 화면에서 메뉴바 전체가 번쩍이는 것처럼 보일 수 있어 제거한다.
           elevation: 0,
           shadowColor: Colors.transparent,
@@ -1076,9 +1119,11 @@ class _NavButton extends StatelessWidget {
   Widget _buildContent(Color foreground, bool hasIcon, bool showLabel) {
     final label = Text(
       title,
-      maxLines: 1,
+      maxLines: 2,
+      softWrap: true,
       overflow: TextOverflow.ellipsis,
       textAlign: TextAlign.center,
+      style: const TextStyle(height: 1.05),
     );
 
     if (!hasIcon) {
@@ -1101,7 +1146,7 @@ class _NavButton extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(height: 36, child: icon),
+        SizedBox(height: 30, child: icon),
         const SizedBox(height: 4),
         Flexible(child: label),
       ],

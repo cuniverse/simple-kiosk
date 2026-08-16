@@ -1,4 +1,4 @@
-# Simple Kiosk Windows 최초 설치 가이드
+# 여의도성당Signage Windows 최초 설치 가이드
 
 이 문서는 `simple-kiosk-windows-setup-<version>.exe` 또는 ZIP 배포 파일을 처음 설치하는 운영
 담당자를 위한 안내서입니다.
@@ -20,29 +20,29 @@ Bootstrapper를 자동 실행합니다. WebView2 자동 설치에는 인터넷 �
 1. `simple-kiosk-windows-setup-<version>.exe`를 실행합니다.
 2. 최초 SmartScreen 화면이 표시되면 배포 출처를 확인한 뒤 실행합니다.
 3. 설치 위치, Windows 로그인 시 자동 실행, 바탕화면 바로가기 생성 여부를 선택합니다.
-4. 설치 완료 후 시작 메뉴의 `Simple Kiosk`를 실행합니다.
+4. 설치 완료 후 시작 메뉴의 `여의도성당Signage`를 실행합니다.
 
 installer는 자동 업데이트용 런처와 버전 포인터를 자동 구성합니다. **Windows 로그인 시
-Simple Kiosk 자동 실행**은 기본적으로 선택되며, 필요하지 않으면 설치 옵션에서 해제할 수
+여의도성당Signage 자동 실행**은 기본적으로 선택되며, 필요하지 않으면 설치 옵션에서 해제할 수
 있습니다. 같은 PC에 기존 설치 정보가 있으면 그 설치 위치를 먼저 확인해 기본 경로로
-사용합니다. 설치 위치를 바꾸거나 자동 실행을 해제하면 이전 `Simple Kiosk` 시작프로그램
+사용합니다. 설치 위치를 바꾸거나 자동 실행을 해제하면 이전 `Simple Kiosk` 및 `여의도성당Signage` 시작프로그램
 바로가기를 제거하고, 자동 실행을 선택한 경우에만 새 설치 경로로 다시 등록합니다.
 자동 업데이트가 새 버전을 설치해도 시작프로그램은 특정 버전의 EXE가 아닌 고정된
 `launcher.ps1`을 실행하므로 변경된 현재 버전이 다음 실행부터 자동 선택됩니다.
 
-사용자 매뉴얼은 설치 폴더의 `USER_MANUAL.html`과 시작 메뉴의 **Simple Kiosk 사용자
+사용자 매뉴얼은 설치 폴더의 `USER_MANUAL.html`과 시작 메뉴의 **여의도성당Signage 사용자
 매뉴얼**에서 기본 브라우저로 열 수 있습니다. 인터넷 연결이 필요 없는 단일 HTML이며,
 자동 업데이트 후에는 새 버전에 포함된 매뉴얼로 함께 갱신됩니다. 포터블 ZIP에도 같은
 파일이 포함됩니다.
 
-실행 중에는 Windows 알림 영역에 **Simple Kiosk** 트레이 아이콘이 표시됩니다. 창 닫기,
-`Alt + F4`, 프로그램 메뉴의 **키오스크 감추기**는 화면만 감추고 프로세스를 유지합니다.
-트레이 메뉴에서 키오스크 보이기·감추기, 설정, 사용자 매뉴얼을 열 수 있으며 프로그램을
-완전히 끝낼 때는 트레이 메뉴의 **완전 종료**를 사용합니다.
+실행 중에는 Windows 알림 영역에 **여의도성당Signage** 트레이 아이콘이 표시됩니다. 창 닫기,
+`Alt + F4`는 화면만 감추고 프로세스를 유지합니다.
+트레이 메뉴에서 사이니지 보이기·감추기, 설정, 사용자 매뉴얼을 열 수 있으며 프로그램을
+완전히 끝낼 때는 설정 화면 하단 또는 트레이 메뉴의 **완전 종료**를 사용합니다.
 
 ### 삭제
 
-Windows 설정의 **앱 > 설치된 앱 > Simple Kiosk > 제거** 또는 시작 메뉴의 제거 항목을
+Windows 설정의 **앱 > 설치된 앱 > 여의도성당Signage > 제거** 또는 시작 메뉴의 제거 항목을
 사용합니다. 제거하면 시작 메뉴·바탕화면·시작프로그램 바로가기와 설치된 모든 앱 버전,
 업데이트 캐시는 항상 삭제됩니다.
 
@@ -84,11 +84,18 @@ Set-ExecutionPolicy -Scope Process Bypass
 관리 API는 기본적으로 사용하며 모든 IPv4 인터페이스의 TCP `80` 포트에서 대기합니다.
 프로그램의 **설정 > 관리 API / 관리자 페이지**에서 사용 여부와 포트를 변경할 수 있고,
 설정은 `<프로그램 폴더>\config\admin-api.json`에 저장됩니다. 포트가 이미 사용 중이면
-키오스크는 계속 실행되며 설정 화면에 API 시작 오류가 표시됩니다.
+사이니지는 계속 실행되며 설정 화면에 API 시작 오류가 표시됩니다.
 
-다른 PC의 브라우저에서 `http://<키오스크 IP>:<포트>/`에 접속합니다. 로그인 암호는
+mDNS도 기본으로 사용하며 `ysignage.local`을 관리 API의 로컬 네트워크 주소로
+광고합니다. 따라서 기본 포트에서는 같은 네트워크의 브라우저로
+`http://ysignage.local`에 접속할 수 있습니다. 여러 대를 운영하면 각 장치의 mDNS
+호스트 이름을 `ysignage-1.local`, `ysignage-2.local`처럼 다르게 설정하세요.
+
+다른 PC의 브라우저에서 `http://ysignage.local`또는 `http://<사이니지 IP>:<포트>/`에 접속합니다. 로그인 암호는
 프로그램 설정과 동일한 관리자 PIN입니다. 관리자 페이지에서 상태 확인, 메뉴 설정 변경,
 화면 보이기·감추기, 업데이트, 재시작과 완전 종료를 수행할 수 있습니다.
+외부 메뉴 설정 화면은 기본값과 오버라이드를 병합한 실제 적용 구성을 표시하며,
+레이아웃·화면보호기·언어·메뉴 항목별 폼과 고급 JSON 편집을 제공합니다.
 
 REST 클라이언트는 먼저 `POST /api/login`에 `{"pin":"1259"}` 형식으로 로그인한 뒤 반환된
 토큰을 `Authorization: Bearer <token>` 헤더로 보냅니다. 자동화 도구에서는
@@ -98,10 +105,11 @@ REST 클라이언트는 먼저 `POST /api/login`에 `{"pin":"1259"}` 형식으�
 |---|---|
 | `GET /api/status` | 실행·화면·버전·업데이트 상태 확인 |
 | `GET /api/config` | 현재 `menu.override.json` 확인 |
+| `GET /api/config/effective` | 기본값과 오버라이드를 병합한 실제 적용 메뉴 설정 확인 |
 | `PUT /api/config` | 메뉴 설정 검증·저장·즉시 적용 |
-| `GET`, `PUT /api/server-settings` | 관리 API 사용 여부와 포트 확인·변경 |
-| `POST /api/actions/show` | 키오스크 화면 표시 |
-| `POST /api/actions/hide` | 키오스크 화면 감추기 |
+| `GET`, `PUT /api/server-settings` | 관리 API·mDNS 사용 여부, 포트와 호스트 이름 확인·변경 |
+| `POST /api/actions/show` | 사이니지 화면 표시 |
+| `POST /api/actions/hide` | 사이니지 화면 감추기 |
 | `POST /api/actions/update` | 업데이트 확인·다운로드·설치 |
 | `POST /api/actions/restart` | 프로그램 재시작 |
 | `POST /api/actions/shutdown` | 프로그램 완전 종료 |
@@ -109,7 +117,8 @@ REST 클라이언트는 먼저 `POST /api/login`에 `{"pin":"1259"}` 형식으�
 외부 접속이 차단되면 관리자 PowerShell에서 실제 사용 포트에 맞춰 방화벽 규칙을 추가합니다.
 
 ```powershell
-New-NetFirewallRule -DisplayName "Simple Kiosk Admin API" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 80
+New-NetFirewallRule -DisplayName "여의도성당Signage Admin API" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 80
+New-NetFirewallRule -DisplayName "여의도성당Signage mDNS" -Direction Inbound -Action Allow -Protocol UDP -LocalPort 5353
 ```
 
 관리 페이지는 TLS가 없는 HTTP이므로 인터넷에 직접 노출하지 말고 신뢰할 수 있는 내부망과
@@ -280,7 +289,7 @@ DLL 또는 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 
 ## 8. 제거
 
-1. Simple Kiosk를 종료합니다.
+1. 여의도성당Signage를 종료합니다.
 2. 설치 폴더(예: `C:\SimpleKiosk`)를 삭제합니다.
 3. 바탕화면과 시작프로그램에 만든 바로가기를 삭제합니다.
 
@@ -310,14 +319,14 @@ DLL 또는 `data` 폴더 일부만 덮어쓰지 마세요. 실행 파일과 동�
 
 GitHub Actions에 `WINDOWS_SIGNING_CERTIFICATE_BASE64`와
 `WINDOWS_SIGNING_CERT_PASSWORD` 비밀값이 모두 등록된 빌드는 실행 파일을 코드
-서명하고 검증합니다. manifest에는 서명 인증서 지문이 기록되며, 키오스크 Updater는
+서명하고 검증합니다. manifest에는 서명 인증서 지문이 기록되며, 사이니지 Updater는
 설치 전에 신뢰 체인과 인증서 지문을 다시 검증합니다. 비밀값이 없는 빌드는 서명되지
 않으므로 배포 출처와 SHA-256 값을 반드시 확인하세요.
 
 ## 10. 운영 참고
 
-- 키오스크 화면 감추기: `Alt + F4` 또는 프로그램 메뉴의 **키오스크 감추기**
-- 앱 완전 종료: Windows 트레이 메뉴의 **완전 종료**
+- 사이니지 화면 감추기: `Alt + F4`
+- 앱 완전 종료: 설정 화면 하단 또는 Windows 트레이 메뉴의 **완전 종료**
 - 개발 및 점검용 창 모드: 실행 전에 `SIMPLE_KIOSK_WINDOWED=1` 환경변수 설정
 - 장시간 운영 단말기는 절전 및 화면 꺼짐 정책을 별도로 조정
 - 운영 단말기에서는 Windows 자동 업데이트 재시작 정책과 네트워크 복구 정책을 확인

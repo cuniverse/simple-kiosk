@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../model/admin_api_settings.dart';
 import 'admin_api_settings_store.dart';
 import 'admin_pin_store.dart';
+import 'mdns_service_controller.dart';
 
 typedef AdminStatusProvider = Future<Map<String, dynamic>> Function();
 typedef AdminActionHandler = Future<Map<String, dynamic>> Function(
@@ -23,12 +24,16 @@ class AdminApiController extends ChangeNotifier {
     required this.actionHandler,
     required this.configReader,
     required this.configWriter,
+    AdminConfigReader? effectiveConfigReader,
     AdminPinStore? pinStore,
     AdminApiSettingsStore? settingsStore,
     Future<String> Function()? pageLoader,
-  })  : _pinStore = pinStore ?? AdminPinStore(),
+    MdnsPublisher? mdnsPublisher,
+  })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
+        _pinStore = pinStore ?? AdminPinStore(),
         _settingsStore = settingsStore ?? const AdminApiSettingsStore(),
-        _pageLoader = pageLoader ?? _loadDefaultPage;
+        _pageLoader = pageLoader ?? _loadDefaultPage,
+        _mdnsPublisher = mdnsPublisher ?? MdnsServiceController();
 
   static const int _maxBodyBytes = 1024 * 1024;
   static const Duration _sessionLifetime = Duration(hours: 12);
@@ -39,9 +44,11 @@ class AdminApiController extends ChangeNotifier {
   final AdminActionHandler actionHandler;
   final AdminConfigReader configReader;
   final AdminConfigWriter configWriter;
+  final AdminConfigReader _effectiveConfigReader;
   final AdminPinStore _pinStore;
   final AdminApiSettingsStore _settingsStore;
   final Future<String> Function() _pageLoader;
+  final MdnsPublisher _mdnsPublisher;
   final Random _random = Random.secure();
   final Map<String, DateTime> _sessions = {};
   final Map<String, List<DateTime>> _failedAttempts = {};
@@ -49,11 +56,19 @@ class AdminApiController extends ChangeNotifier {
   AdminApiSettings settings = const AdminApiSettings();
   HttpServer? _server;
   String? lastError;
+  String? mdnsError;
   bool busy = false;
 
   bool get running => _server != null;
   int? get actualPort => _server?.port;
-  String get address => running ? 'http://<이 PC 주소>:${_server!.port}' : '-';
+  bool get mdnsRunning => _mdnsPublisher.running;
+  String get address {
+    if (!running) return '-';
+    final portSuffix = _server!.port == 80 ? '' : ':${_server!.port}';
+    return settings.mdnsEnabled && mdnsRunning
+        ? 'http://${settings.mdnsHostname}$portSuffix'
+        : 'http://<이 PC 주소>$portSuffix';
+  }
 
   Future<void> initialize() async {
     settings = await _settingsStore.load();
@@ -64,6 +79,11 @@ class AdminApiController extends ChangeNotifier {
   Future<void> updateSettings(AdminApiSettings updated) async {
     if (updated.port < 1 || updated.port > 65535) {
       throw const FormatException('관리 API 포트는 1~65535여야 합니다.');
+    }
+    if (!AdminApiSettings.isValidMdnsHostname(updated.mdnsHostname)) {
+      throw const FormatException(
+        'mDNS 호스트 이름은 example.local 형식이어야 합니다.',
+      );
     }
     busy = true;
     notifyListeners();
@@ -96,6 +116,17 @@ class AdminApiController extends ChangeNotifier {
         },
       );
       lastError = null;
+      mdnsError = null;
+      if (settings.mdnsEnabled) {
+        try {
+          await _mdnsPublisher.start(
+            hostname: settings.mdnsHostname,
+            port: _server!.port,
+          );
+        } catch (error) {
+          mdnsError = 'mDNS를 시작하지 못했습니다: $error';
+        }
+      }
     } catch (error) {
       _server = null;
       lastError = '포트 ${settings.port}에서 관리 API를 시작하지 못했습니다: $error';
@@ -103,6 +134,8 @@ class AdminApiController extends ChangeNotifier {
   }
 
   Future<void> _stop() async {
+    await _mdnsPublisher.stop();
+    mdnsError = null;
     final server = _server;
     _server = null;
     if (server != null) await server.close(force: true);
@@ -147,18 +180,29 @@ class AdminApiController extends ChangeNotifier {
             'actualPort': actualPort,
             'running': running,
             'error': lastError,
+            'mdnsEnabled': settings.mdnsEnabled,
+            'mdnsHostname': settings.mdnsHostname,
+            'mdnsRunning': mdnsRunning,
+            'mdnsError': mdnsError,
           },
         });
       }
       if (request.method == 'GET' && path == '/api/config') {
         return await _sendJson(request.response, 200, await configReader());
       }
+      if (request.method == 'GET' && path == '/api/config/effective') {
+        return await _sendJson(
+          request.response,
+          200,
+          await _effectiveConfigReader(),
+        );
+      }
       if (request.method == 'PUT' && path == '/api/config') {
         final body = await _readJsonObject(request);
         await configWriter(body);
         return await _sendJson(request.response, 200, {
           'ok': true,
-          'message': '설정을 저장하고 키오스크에 적용했습니다.',
+          'message': '설정을 저장하고 사이니지에 적용했습니다.',
         });
       }
       if (request.method == 'GET' && path == '/api/server-settings') {

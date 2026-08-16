@@ -34,7 +34,7 @@ class EnterEvent extends KeyboardEvent {
 
 /// 가상 키보드 표시/비표시 상태와, 키 입력 콜백을 외부와 연결하는 컨트롤러.
 ///
-/// 단일 인스턴스로 동작한다: 키오스크 화면 어디에서든 같은 키보드를 호출/감춤.
+/// 단일 인스턴스로 동작한다: 사이니지 화면 어디에서든 같은 키보드를 호출/감춤.
 class KeyboardController {
   KeyboardController._();
   static final KeyboardController instance = KeyboardController._();

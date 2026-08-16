@@ -5,6 +5,7 @@ import '../model/update_policy.dart';
 import '../service/admin_api_controller.dart';
 import '../service/admin_pin_store.dart';
 import '../service/update_controller.dart';
+import 'admin_pin_keypad.dart';
 
 class UpdateAdminDialog {
   static final AdminPinStore _pinStore = AdminPinStore();
@@ -15,18 +16,16 @@ class UpdateAdminDialog {
     BuildContext context,
     UpdateController controller, {
     AdminApiController? adminApiController,
+    Future<void> Function()? onExit,
   }) async {
     final pinController = TextEditingController();
     final authenticated = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('관리자 PIN'),
-        content: TextField(
+        content: AdminPinKeypad(
           controller: pinController,
-          autofocus: true,
-          obscureText: true,
-          keyboardType: TextInputType.number,
-          onSubmitted: (_) => Navigator.pop(context, true),
+          onSubmitted: () => Navigator.pop(context, true),
         ),
         actions: [
           TextButton(
@@ -58,6 +57,7 @@ class UpdateAdminDialog {
         controller: controller,
         pinStore: _pinStore,
         adminApiController: adminApiController,
+        onExit: onExit,
       ),
     );
   }
@@ -67,11 +67,13 @@ class _UpdateAdminPanel extends StatefulWidget {
   final UpdateController controller;
   final AdminPinStore pinStore;
   final AdminApiController? adminApiController;
+  final Future<void> Function()? onExit;
 
   const _UpdateAdminPanel({
     required this.controller,
     required this.pinStore,
     this.adminApiController,
+    this.onExit,
   });
 
   @override
@@ -85,9 +87,11 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
   late int _retainVersions;
   late int _logRetentionDays;
   late bool _adminApiEnabled;
+  late bool _mdnsEnabled;
   late final TextEditingController _startController;
   late final TextEditingController _endController;
   late final TextEditingController _adminApiPortController;
+  late final TextEditingController _mdnsHostnameController;
 
   @override
   void initState() {
@@ -99,11 +103,16 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     _retainVersions = policy.retainVersions;
     _logRetentionDays = policy.logRetentionDays;
     _adminApiEnabled = widget.adminApiController?.settings.enabled ?? true;
+    _mdnsEnabled = widget.adminApiController?.settings.mdnsEnabled ?? true;
     _startController = TextEditingController(text: policy.installWindow.start);
     _endController = TextEditingController(text: policy.installWindow.end);
     _adminApiPortController = TextEditingController(
       text:
           '${widget.adminApiController?.settings.port ?? AdminApiSettings.defaultPort}',
+    );
+    _mdnsHostnameController = TextEditingController(
+      text:
+          widget.adminApiController?.settings.mdnsHostname ?? 'ysignage.local',
     );
   }
 
@@ -112,6 +121,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     _startController.dispose();
     _endController.dispose();
     _adminApiPortController.dispose();
+    _mdnsHostnameController.dispose();
     super.dispose();
   }
 
@@ -234,9 +244,23 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
       );
       return;
     }
+    final mdnsHostname = _mdnsHostnameController.text.trim().toLowerCase();
+    if (!AdminApiSettings.isValidMdnsHostname(mdnsHostname)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('mDNS 호스트 이름을 example.local 형식으로 입력하세요.'),
+        ),
+      );
+      return;
+    }
     try {
       await controller.updateSettings(
-        AdminApiSettings(enabled: _adminApiEnabled, port: port),
+        AdminApiSettings(
+          enabled: _adminApiEnabled,
+          port: port,
+          mdnsEnabled: _mdnsEnabled,
+          mdnsHostname: mdnsHostname,
+        ),
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -258,6 +282,29 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     }
   }
 
+  Future<void> _confirmExit() async {
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('완전 종료'),
+        content: const Text('여의도성당Signage를 완전히 종료하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('완전 종료'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true || !mounted || widget.onExit == null) return;
+    Navigator.pop(context);
+    await widget.onExit!();
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: Listenable.merge([
@@ -267,7 +314,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
         builder: (context, _) {
           final controller = widget.controller;
           return AlertDialog(
-            title: const Text('자동 업데이트 관리'),
+            title: const Text('설정'),
             content: SizedBox(
               width: 520,
               child: SingleChildScrollView(
@@ -423,6 +470,29 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                           helperText: '기본값 80 · 변경 시 서버가 즉시 재시작됩니다.',
                         ),
                       ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('mDNS 자동 발견'),
+                        subtitle: Text(
+                          widget.adminApiController!.mdnsError ??
+                              (_mdnsEnabled
+                                  ? 'http://${_mdnsHostnameController.text.trim()}'
+                                  : '사용 안 함'),
+                        ),
+                        value: _mdnsEnabled,
+                        onChanged: widget.adminApiController!.busy
+                            ? null
+                            : (value) => setState(() => _mdnsEnabled = value),
+                      ),
+                      TextField(
+                        controller: _mdnsHostnameController,
+                        enabled:
+                            _mdnsEnabled && !widget.adminApiController!.busy,
+                        decoration: const InputDecoration(
+                          labelText: 'mDNS 호스트 이름',
+                          helperText: '기본값 ysignage.local · 같은 네트워크에서 접속할 주소',
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Align(
                         alignment: Alignment.centerRight,
@@ -480,7 +550,16 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                 ),
               ),
             ),
+            actionsAlignment: MainAxisAlignment.spaceBetween,
             actions: [
+              TextButton.icon(
+                onPressed: widget.onExit == null ? null : _confirmExit,
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+                icon: const Icon(Icons.power_settings_new),
+                label: const Text('완전 종료'),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('닫기'),

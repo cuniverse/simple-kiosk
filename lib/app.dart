@@ -3,9 +3,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:window_manager/window_manager.dart';
+
+import 'app_identity.dart';
 
 import 'model/idle_config.dart';
 import 'model/layout_config.dart';
@@ -38,7 +41,7 @@ class KioskApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Simple Kiosk',
+      title: appDisplayName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -196,7 +199,7 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
   }
 }
 
-/// 키오스크 메인 화면.
+/// 사이니지 메인 화면.
 ///
 /// - [LayoutConfig.navPosition] 에 따라 네비게이션 위치를 결정한다.
 ///   - `auto`: 화면 폭이 [LayoutConfig.breakpoint] 이상이면 좌측, 아니면 하단.
@@ -244,10 +247,14 @@ class _KioskHomeState extends State<_KioskHome> {
   /// 실제 화면은 준비가 끝날 때까지 [_selectedIndex]를 유지한다.
   int? _pendingIndex;
 
-  /// 하단 네비게이션 바를 접었는지 여부.
+  /// 네비게이션 툴바를 감추었는지 여부.
   ///
   /// 접힌 동안에는 WebView 위에 최소 조작 버튼만 플로팅으로 남긴다.
-  late bool _bottomToolbarHidden;
+  late bool _toolbarHidden;
+
+  /// 화면 보호기 더블클릭 후 툴바 감추기 더블클릭을 받을 수 있는 시각.
+  DateTime? _hideSignageGestureExpiresAt;
+  static const Duration _hideSignageGestureWindow = Duration(seconds: 5);
 
   /// 메뉴 인덱스별 컨트롤러. 한 번이라도 mount 된 항목에 대해서만 채워진다.
   final Map<int, KioskWebViewController> _controllers = {};
@@ -278,7 +285,7 @@ class _KioskHomeState extends State<_KioskHome> {
   void initState() {
     super.initState();
     _selectedLanguageIndex = _defaultLanguageIndex();
-    _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
+    _toolbarHidden = widget.layout.toolbarInitiallyHidden;
     _updateController = UpdateController();
     _updateController.initialize();
     _trayController = KioskTrayController(
@@ -290,6 +297,7 @@ class _KioskHomeState extends State<_KioskHome> {
       statusProvider: _adminStatus,
       actionHandler: _handleAdminAction,
       configReader: configLoader.readOverride,
+      effectiveConfigReader: configLoader.readEffective,
       configWriter: _saveExternalConfig,
     );
     unawaited(_initializeTray());
@@ -325,7 +333,7 @@ class _KioskHomeState extends State<_KioskHome> {
     await _updateController.initialize();
     final visible = Platform.isWindows ? await windowManager.isVisible() : true;
     return {
-      'application': 'Simple Kiosk',
+      'application': appDisplayName,
       'running': true,
       'visible': visible,
       'version': _updateController.currentVersion,
@@ -347,19 +355,19 @@ class _KioskHomeState extends State<_KioskHome> {
     switch (action) {
       case 'show':
         await _trayController.showWindow();
-        return {'message': '키오스크 화면을 표시했습니다.'};
+        return {'message': '사이니지 화면을 표시했습니다.'};
       case 'hide':
         await _trayController.hideWindow();
-        return {'message': '키오스크 화면을 감췄습니다.'};
+        return {'message': '사이니지 화면을 감췄습니다.'};
       case 'restart':
         Timer(const Duration(milliseconds: 500), _restartApplication);
-        return {'message': '키오스크를 재시작합니다.'};
+        return {'message': '사이니지를 재시작합니다.'};
       case 'shutdown':
         Timer(
           const Duration(milliseconds: 500),
           () => unawaited(_trayController.exitApplication()),
         );
-        return {'message': '키오스크를 완전히 종료합니다.'};
+        return {'message': '사이니지를 완전히 종료합니다.'};
       case 'update':
         await _updateController.initialize();
         final available = await _updateController.check(rethrowErrors: true);
@@ -403,7 +411,7 @@ class _KioskHomeState extends State<_KioskHome> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.layout.toolbarInitiallyHidden !=
         widget.layout.toolbarInitiallyHidden) {
-      _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
+      _toolbarHidden = widget.layout.toolbarInitiallyHidden;
     }
     final previousLanguageId = oldWidget.languages[_selectedLanguageIndex].id;
     final matchingIndex = widget.languages.indexWhere(
@@ -438,19 +446,34 @@ class _KioskHomeState extends State<_KioskHome> {
     setState(() {
       _selectedLanguageIndex = index;
       _showLanguageSelection = false;
-      _bottomToolbarHidden = widget.layout.toolbarInitiallyHidden;
+      _toolbarHidden = widget.layout.toolbarInitiallyHidden;
       _resetWebViewsForLanguage();
     });
   }
 
-  void _hideBottomToolbar() {
-    if (_bottomToolbarHidden) return;
-    setState(() => _bottomToolbarHidden = true);
+  void _hideToolbar() {
+    if (_toolbarHidden) return;
+    setState(() => _toolbarHidden = true);
   }
 
-  void _showBottomToolbar() {
-    if (!_bottomToolbarHidden) return;
-    setState(() => _bottomToolbarHidden = false);
+  void _showToolbar() {
+    if (!_toolbarHidden) return;
+    setState(() => _toolbarHidden = false);
+  }
+
+  void _prepareHideSignageGesture() {
+    _hideSignageGestureExpiresAt =
+        DateTime.now().add(_hideSignageGestureWindow);
+  }
+
+  void _completeHideSignageGesture() {
+    final expiresAt = _hideSignageGestureExpiresAt;
+    _hideSignageGestureExpiresAt = null;
+    if (expiresAt != null && !DateTime.now().isAfter(expiresAt)) {
+      unawaited(_trayController.hideWindow());
+      return;
+    }
+    _hideToolbar();
   }
 
   KioskWebViewController? get _currentController =>
@@ -561,7 +584,7 @@ class _KioskHomeState extends State<_KioskHome> {
       );
     }
     setState(() {
-      _bottomToolbarHidden = true;
+      _toolbarHidden = true;
       _selectedIndex = 0;
       _pendingIndex = null;
       // 홈만 남기고 모두 언mount.
@@ -642,7 +665,7 @@ class _KioskHomeState extends State<_KioskHome> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Simple Kiosk v${info.version}'),
+                Text('$appDisplayName v${info.version}'),
                 if (info.buildNumber.isNotEmpty)
                   Text('빌드 번호: ${info.buildNumber}'),
                 const Text(
@@ -654,8 +677,6 @@ class _KioskHomeState extends State<_KioskHome> {
                 Text('운영체제: ${Platform.operatingSystem}'),
                 const SizedBox(height: 12),
                 const Divider(),
-                const Text('제작자: cuniverse'),
-                const Text('이메일: cuniverse@catholic.or.kr'),
                 const Text(
                   'GitHub: https://github.com/cuniverse/simple-kiosk',
                 ),
@@ -733,7 +754,7 @@ class _KioskHomeState extends State<_KioskHome> {
                         const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
-                            'Simple Kiosk 사용자 매뉴얼',
+                            '$appDisplayName 사용자 매뉴얼',
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -792,7 +813,16 @@ class _KioskHomeState extends State<_KioskHome> {
       context,
       _updateController,
       adminApiController: _adminApiController,
+      onExit: _exitApplication,
     );
+  }
+
+  Future<void> _exitApplication() async {
+    if (Platform.isWindows) {
+      await _trayController.exitApplication();
+      return;
+    }
+    await SystemNavigator.pop();
   }
 
   Future<T> _runUpdateProgress<T>(
@@ -1013,64 +1043,36 @@ class _KioskHomeState extends State<_KioskHome> {
                         selectedButtonColor: widget.layout.selectedButtonColor,
                         selectedButtonForegroundColor:
                             widget.layout.selectedButtonForegroundColor,
-                        onHide: position == NavPosition.bottom
-                            ? _hideBottomToolbar
-                            : null,
+                        onHide: _hideToolbar,
                         onEnterIdle: widget.idle.isUsable
                             ? _idleGateController.enterIdle
                             : null,
                         onOpenAdmin: UpdateAdminDialog.isConfigured
                             ? _showAdminSettings
                             : null,
-                        onHideKiosk: _trayController.hideWindow,
+                        onPrepareHideKiosk: _prepareHideSignageGesture,
+                        onHideKiosk: _completeHideSignageGesture,
                       ),
                     );
 
-                    switch (position) {
-                      case NavPosition.left:
-                        return Row(
-                          children: [
-                            nav,
-                            const VerticalDivider(width: 1),
-                            Expanded(child: webViewStack),
-                          ],
-                        );
-                      case NavPosition.right:
-                        return Row(
-                          children: [
-                            Expanded(child: webViewStack),
-                            const VerticalDivider(width: 1),
-                            nav,
-                          ],
-                        );
-                      case NavPosition.top:
-                        return Column(
-                          children: [
-                            nav,
-                            const Divider(height: 1),
-                            Expanded(child: webViewStack),
-                          ],
-                        );
-                      case NavPosition.bottom:
-                      case NavPosition.auto: // 이론상 도달 불가 — 안전망.
-                        // 툴바 표시 여부와 관계없이 WebView는 항상 Stack의 첫 번째
-                        // 자식에 고정한다. 부모 구조가 바뀌면 네이티브 WebView가
-                        // dispose/recreate되어 페이지 상태가 사라질 수 있기 때문이다.
-                        return BottomToolbarHost(
-                          hidden: _bottomToolbarHidden,
-                          toolbarHeight: widget.layout.barHeight,
-                          autoHideDuration: Duration(
-                            seconds: widget.layout.toolbarAutoHideSec,
-                          ),
-                          onAutoHide: _hideBottomToolbar,
-                          webView: webViewStack,
-                          toolbar: nav,
-                          overlay: CollapsedToolbarOverlay(
-                            historyController: _currentController,
-                            onShowToolbar: _showBottomToolbar,
-                          ),
-                        );
-                    }
+                    // 모든 배치에서 WebView를 Stack의 첫 번째 자식으로 유지해
+                    // 툴바를 감추거나 보여도 현재 페이지 상태가 보존되게 한다.
+                    return ToolbarHost(
+                      hidden: _toolbarHidden,
+                      position: position,
+                      sideWidth: widget.layout.sideWidth,
+                      toolbarHeight: widget.layout.barHeight,
+                      autoHideDuration: Duration(
+                        seconds: widget.layout.toolbarAutoHideSec,
+                      ),
+                      onAutoHide: _hideToolbar,
+                      webView: webViewStack,
+                      toolbar: nav,
+                      overlay: CollapsedToolbarOverlay(
+                        historyController: _currentController,
+                        onShowToolbar: _showToolbar,
+                      ),
+                    );
                   },
                 ),
                 if (_showLanguageSelection)

@@ -1,10 +1,8 @@
-# Simple Kiosk
-
-제작자: cuniverse (`cuniverse@catholic.or.kr`)
+# 여의도성당Signage
 
 GitHub: https://github.com/cuniverse/simple-kiosk
 
-성당 로비 또는 디지털 사이니지용 Flutter 키오스크 WebView 앱입니다.
+성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
 ## 지원 OS
@@ -21,7 +19,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 - 좌측 사이드 네비게이션, 좁은 화면에서는 하단 네비게이션으로 자동 전환
 - 49인치 가로형 터치 사이니지에 적합한 큰 버튼 (최소 높이 72dp)
 - 현재 선택된 메뉴 시각적 강조 표시
-- 하단 툴바 숨김/복원 — 숨김 상태에서는 뒤로·앞으로·툴바 복원·가상 키보드만 플로팅 표시하며 네 모서리로 드래그 이동
+- 모든 배치의 툴바 감추기/복원 — 숨김 상태에서는 뒤로·앞으로·툴바 복원·가상 키보드만 플로팅 표시하며 네 모서리로 드래그 이동
 - WebView 로딩 인디케이터 및 에러 화면(재시도 버튼)
 - **메뉴별 독립 WebView (IndexedStack)** — 다른 메뉴로 갔다가 돌아와도 스크롤/내부 페이지 상태 유지 (`keepStateOnTap` 옵션)
 - 같은 메뉴 더블 탭 시 강제 초기 URL 재로드
@@ -172,7 +170,7 @@ flutter pub get
 | `showHistoryButtons` | bool | `false` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `false` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
 | `keepStateOnTap` | bool | `false` | **기본 동작**: 같은 메뉴 단일 탭 시 상태 유지(아무 동작 없음), 더블 탭(300ms 이내) 시 강제 재로드. 항목별 `items[].keepStateOnTap` 으로 오버라이드 가능 |
-| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 하단 툴바를 숨긴 상태로 표시 |
+| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 툴바를 감춘 상태로 표시 |
 | `toolbarAutoHideSec` | number | `10` | 툴바 복원 후 입력이 없을 때 다시 숨길 시간(초). `0`이면 자동 숨김 해제 |
 | `barColor` | color | 테마 | 네비 바 배경색 |
 | `buttonColor` / `buttonForegroundColor` | color | 테마 | 비선택 버튼 색 |
@@ -274,7 +272,7 @@ OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 �
   설치되지 않은 경우 Microsoft 공식 페이지에서 "Microsoft Edge WebView2 Runtime"을 다운로드해 설치하세요.
 - `flutter_inappwebview` Windows 구현은 WebView2를 기반으로 동작합니다.
 
-### 키오스크 전체화면 모드
+### 사이니지 전체화면 모드
 
 - 데스크톱(Windows / macOS / Linux) 빌드는 시작 시 자동으로 **borderless fullscreen** 으로 표시됩니다.
   ([lib/main.dart](lib/main.dart), [`window_manager`](https://pub.dev/packages/window_manager) 사용)
@@ -290,7 +288,7 @@ OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 �
 
 - macOS 데스크톱 앱 빌드를 위해 Xcode와 CocoaPods 설정이 필요합니다.
 - WebView에서 외부 URL을 로드할 수 있도록 macOS entitlements에 `com.apple.security.network.client`가 포함되어 있습니다.
-- 키오스크 용도로 배포하는 경우 전체 화면 실행, 자동 로그인, 절전 방지 등 macOS 시스템 설정을 함께 구성하는 것을 권장합니다.
+- 사이니지 용도로 배포하는 경우 전체 화면 실행, 자동 로그인, 절전 방지 등 macOS 시스템 설정을 함께 구성하는 것을 권장합니다.
 
 ## WebView 제약사항
 
@@ -299,7 +297,7 @@ OS 시스템 키보드 대신 **Flutter 자체 가상 키보드**를 내장해 �
 - 동영상 **자동재생**은 브라우저/플랫폼 정책 영향을 받습니다 (사용자 제스처 없이는 재생이 시작되지 않을 수 있음).
 - Windows에서는 WebView2 Runtime이 설치되어 있어야 동작합니다.
 - macOS에서는 앱 샌드박스 및 entitlements 설정에 따라 네트워크 접근 권한이 필요합니다.
-- 다운로드 / 팝업 / 외부 스킴(전화, 메일 등)은 키오스크 보안 정책상 의도적으로 차단됩니다.
+- 다운로드 / 팝업 / 외부 스킴(전화, 메일 등)은 사이니지 보안 정책상 의도적으로 차단됩니다.
 
 ## 프로젝트 구조
 

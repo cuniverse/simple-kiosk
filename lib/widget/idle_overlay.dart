@@ -1208,7 +1208,7 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
       controller.addListener(_onVideoTick);
       _videoListenerAttached = true;
 
-      await controller.setVolume(0); // 키오스크: 기본 무음(원하면 옵션화 가능).
+      await controller.setVolume(0); // 사이니지: 기본 무음(원하면 옵션화 가능).
       await controller.setLooping(false);
       await controller.play();
       if (mounted) setState(() {});

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "layout": {
-    "navPosition": "bottom",
+    "navPosition": "right",
     "sideWidth": 220,
     "barHeight": 96,
     "breakpoint": 720,
@@ -11,8 +11,8 @@
     "buttonAlignment": "stretch",
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
-    "toolbarInitiallyHidden": true,
-    "toolbarAutoHideSec": 20,
+    "toolbarInitiallyHidden": false,
+    "toolbarAutoHideSec": 0,
     "barColor": "#1f2937",
     "buttonColor": "#374151",
     "buttonForegroundColor": "#ffffff",

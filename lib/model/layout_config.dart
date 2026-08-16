@@ -129,10 +129,10 @@ class LayoutConfig {
   ///   더블 탭하면 설정된 URL 로 새로 로드한다.
   final bool keepStateOnTap;
 
-  /// 앱 시작 시 하단 툴바를 접힌 상태로 표시할지 여부.
+  /// 앱 시작 시 툴바를 감춘 상태로 표시할지 여부.
   final bool toolbarInitiallyHidden;
 
-  /// 펼친 하단 툴바를 사용자 입력 없이 유지할 시간(초).
+  /// 펼친 툴바를 사용자 입력 없이 유지할 시간(초).
   /// `0`이면 자동 숨김을 사용하지 않는다.
   final int toolbarAutoHideSec;
 

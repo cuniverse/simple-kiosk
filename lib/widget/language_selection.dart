@@ -20,6 +20,8 @@ class LanguageSelection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final availableWidth = MediaQuery.sizeOf(context).width - 48;
+    final buttonWidth = availableWidth < 360 ? availableWidth : 360.0;
     return Material(
       color: colors.surface,
       child: SafeArea(
@@ -29,12 +31,13 @@ class LanguageSelection extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.language, size: 72, color: colors.primary),
-                const SizedBox(height: 20),
+                Icon(Icons.language, size: 88, color: colors.primary),
+                const SizedBox(height: 24),
                 Text(
                   title,
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                        fontSize: 44,
                         fontWeight: FontWeight.w800,
                       ),
                 ),
@@ -43,12 +46,13 @@ class LanguageSelection extends StatelessWidget {
                   Text(
                     subtitle,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontSize: 28,
                           color: colors.onSurfaceVariant,
                         ),
                   ),
                 ],
-                const SizedBox(height: 40),
+                const SizedBox(height: 48),
                 Wrap(
                   alignment: WrapAlignment.center,
                   spacing: 24,
@@ -56,14 +60,14 @@ class LanguageSelection extends StatelessWidget {
                   children: List.generate(languages.length, (index) {
                     final language = languages[index];
                     return SizedBox(
-                      width: 300,
-                      height: 140,
+                      width: buttonWidth,
+                      height: 176,
                       child: FilledButton(
                         key: ValueKey('language-${language.id}'),
                         onPressed: () => onSelected(index),
                         style: FilledButton.styleFrom(
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(28),
                           ),
                         ),
                         child: Column(
@@ -73,16 +77,16 @@ class LanguageSelection extends StatelessWidget {
                               language.label,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                fontSize: 30,
+                                fontSize: 40,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             if (language.subtitle != null) ...[
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 10),
                               Text(
                                 language.subtitle!,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 18),
+                                style: const TextStyle(fontSize: 24),
                               ),
                             ],
                           ],
