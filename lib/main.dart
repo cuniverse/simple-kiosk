@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'app_identity.dart';
+import 'service/app_logger.dart';
 
 /// 앱 진입점.
 ///
@@ -22,6 +24,17 @@ Future<void> main(List<String> arguments) async {
     await Future<void>.delayed(const Duration(seconds: 1));
   }
   WidgetsFlutterBinding.ensureInitialized();
+  await AppLogger.initialize();
+  AppLogger.info(LogCategory.app, 'Application starting');
+  final previousFlutterErrorHandler = FlutterError.onError;
+  FlutterError.onError = (details) {
+    AppLogger.error(LogCategory.app, details.exception, details.stack);
+    previousFlutterErrorHandler?.call(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    AppLogger.error(LogCategory.app, error, stackTrace);
+    return false;
+  };
 
   // 가로 방향 우선 (필요 시 운영 환경에서 조정).
   await SystemChrome.setPreferredOrientations([
@@ -61,6 +74,7 @@ Future<void> main(List<String> arguments) async {
   try {
     await CookieManager.instance().deleteAllCookies();
   } catch (e) {
+    AppLogger.warning(LogCategory.app, 'Cookie cleanup failed: $e');
     if (kDebugMode) {
       debugPrint('[main] 쿠키 삭제 실패: $e');
     }

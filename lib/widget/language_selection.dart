@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../model/menu_language.dart';
+import 'material_icon_registry.dart';
 
 /// 화면보호기 해제 후 표시하는 터치 친화적인 언어 선택 화면.
 class LanguageSelection extends StatelessWidget {
@@ -73,12 +74,26 @@ class LanguageSelection extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              language.label,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 40,
-                                fontWeight: FontWeight.w800,
+                            if (language.icon != null) ...[
+                              SizedBox(
+                                width: 54,
+                                height: 54,
+                                child: _LanguageIcon(value: language.icon!),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  language.label,
+                                  maxLines: 2,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
                             ),
                             if (language.subtitle != null) ...[
@@ -101,5 +116,37 @@ class LanguageSelection extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _LanguageIcon extends StatelessWidget {
+  final String value;
+
+  const _LanguageIcon({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    if (value.startsWith('icon:')) {
+      return FittedBox(
+        child: Icon(
+          MaterialIconRegistry.lookup(value.substring(5)) ?? Icons.language,
+        ),
+      );
+    }
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return Image.network(
+        value,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.language, size: 48),
+      );
+    }
+    if (value.contains('/') || value.contains('\\')) {
+      return Image.asset(
+        value,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.language, size: 48),
+      );
+    }
+    return FittedBox(child: Text(value));
   }
 }

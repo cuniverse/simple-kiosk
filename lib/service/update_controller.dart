@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../model/update_policy.dart';
 import 'update_policy_store.dart';
 import 'update_service.dart';
+import 'app_logger.dart';
 
 class UpdateController extends ChangeNotifier {
   final UpdateService _service;
@@ -96,6 +97,7 @@ class UpdateController extends ChangeNotifier {
       }
       return available;
     } catch (error) {
+      AppLogger.error(LogCategory.update, error);
       _consecutiveFailures++;
       status = '확인 실패: $error';
       await _service.writeState({'status': 'check-failed', 'error': '$error'});
@@ -139,6 +141,7 @@ class UpdateController extends ChangeNotifier {
       }
       return downloadedPackage;
     } catch (error) {
+      AppLogger.error(LogCategory.update, error);
       status = '다운로드 실패: $error';
       if (rethrowErrors) rethrow;
       return null;
@@ -179,6 +182,7 @@ class UpdateController extends ChangeNotifier {
       notifyListeners();
       exit(0);
     } catch (error) {
+      AppLogger.error(LogCategory.update, error);
       busy = false;
       status = '설치 요청 실패: $error';
       notifyListeners();
@@ -196,6 +200,7 @@ class UpdateController extends ChangeNotifier {
       status = '진단 자료 저장 완료: $path';
       return path;
     } catch (error) {
+      AppLogger.error(LogCategory.update, error);
       status = '진단 자료 내보내기 실패: $error';
       rethrow;
     } finally {

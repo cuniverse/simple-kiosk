@@ -9,6 +9,10 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../model/admin_api_settings.dart';
 import 'admin_api_settings_store.dart';
 import 'admin_pin_store.dart';
+import 'app_logger.dart';
+import 'configuration_backup_service.dart';
+import 'diagnostics_service.dart';
+import 'menu_config_loader.dart';
 import 'mdns_service_controller.dart';
 
 typedef AdminStatusProvider = Future<Map<String, dynamic>> Function();
@@ -29,11 +33,17 @@ class AdminApiController extends ChangeNotifier {
     AdminApiSettingsStore? settingsStore,
     Future<String> Function()? pageLoader,
     MdnsPublisher? mdnsPublisher,
+    ConfigurationBackupService? backupService,
+    DiagnosticsService? diagnosticsService,
+    Future<void> Function()? onConfigurationImported,
   })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
         _pinStore = pinStore ?? AdminPinStore(),
         _settingsStore = settingsStore ?? const AdminApiSettingsStore(),
         _pageLoader = pageLoader ?? _loadDefaultPage,
-        _mdnsPublisher = mdnsPublisher ?? MdnsServiceController();
+        _mdnsPublisher = mdnsPublisher ?? MdnsServiceController(),
+        _backupService = backupService,
+        _diagnosticsService = diagnosticsService ?? const DiagnosticsService(),
+        _onConfigurationImported = onConfigurationImported;
 
   static const int _maxBodyBytes = 1024 * 1024;
   static const Duration _sessionLifetime = Duration(hours: 12);
@@ -49,6 +59,9 @@ class AdminApiController extends ChangeNotifier {
   final AdminApiSettingsStore _settingsStore;
   final Future<String> Function() _pageLoader;
   final MdnsPublisher _mdnsPublisher;
+  final ConfigurationBackupService? _backupService;
+  final DiagnosticsService _diagnosticsService;
+  final Future<void> Function()? _onConfigurationImported;
   final Random _random = Random.secure();
   final Map<String, DateTime> _sessions = {};
   final Map<String, List<DateTime>> _failedAttempts = {};
@@ -111,6 +124,7 @@ class AdminApiController extends ChangeNotifier {
       _server!.listen(
         (request) => unawaited(_handle(request)),
         onError: (Object error, StackTrace stackTrace) {
+          AppLogger.error(LogCategory.api, error, stackTrace);
           lastError = '$error';
           notifyListeners();
         },
@@ -128,6 +142,7 @@ class AdminApiController extends ChangeNotifier {
         }
       }
     } catch (error) {
+      AppLogger.error(LogCategory.api, error);
       _server = null;
       lastError = '포트 ${settings.port}에서 관리 API를 시작하지 못했습니다: $error';
     }
@@ -199,11 +214,113 @@ class AdminApiController extends ChangeNotifier {
       }
       if (request.method == 'PUT' && path == '/api/config') {
         final body = await _readJsonObject(request);
+        await _backupService?.saveCurrentAsPrevious();
         await configWriter(body);
         return await _sendJson(request.response, 200, {
           'ok': true,
           'message': '설정을 저장하고 사이니지에 적용했습니다.',
         });
+      }
+      if (request.method == 'POST' && path == '/api/config/validate') {
+        final body = await _readJsonObject(request);
+        MenuConfigLoader.parse(body);
+        return await _sendJson(request.response, 200, {'ok': true});
+      }
+      if (request.method == 'GET' && path == '/api/config-backup') {
+        final backupService = _backupService;
+        if (backupService == null) {
+          return await _sendJson(
+              request.response, 501, {'error': 'not-supported'});
+        }
+        final body = const JsonEncoder.withIndent(' ')
+            .convert(await backupService.export());
+        request.response.headers.set(
+          'Content-Disposition',
+          'attachment; filename="ysignage-settings.json"',
+        );
+        return await _sendBytes(
+          request.response,
+          utf8.encode(body),
+          ContentType.json,
+        );
+      }
+      if (request.method == 'PUT' && path == '/api/config-backup') {
+        final backupService = _backupService;
+        if (backupService == null) {
+          return await _sendJson(
+              request.response, 501, {'error': 'not-supported'});
+        }
+        final body = await _readJsonObject(request);
+        final importedSettings = await backupService.import(body);
+        await _sendJson(request.response, 202, {
+          'ok': true,
+          'message': '설정 백업을 검증하고 적용했습니다.',
+        });
+        unawaited(Future<void>.delayed(
+          const Duration(milliseconds: 300),
+          () async {
+            await updateSettings(importedSettings);
+            await _onConfigurationImported?.call();
+          },
+        ));
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/api/config-backup/restore-previous') {
+        final backupService = _backupService;
+        if (backupService == null) {
+          return await _sendJson(
+              request.response, 501, {'error': 'not-supported'});
+        }
+        final restoredSettings = await backupService.restorePrevious();
+        await _sendJson(request.response, 202, {
+          'ok': true,
+          'message': '직전 설정으로 복원했습니다.',
+        });
+        unawaited(Future<void>.delayed(
+          const Duration(milliseconds: 300),
+          () async {
+            await updateSettings(restoredSettings);
+            await _onConfigurationImported?.call();
+          },
+        ));
+        return;
+      }
+      if (request.method == 'GET' && path == '/api/diagnostics') {
+        final body = const JsonEncoder.withIndent(' ')
+            .convert(await _diagnosticsService.createReport());
+        request.response.headers.set(
+          'Content-Disposition',
+          'attachment; filename="ysignage-diagnostics.json"',
+        );
+        return await _sendBytes(
+          request.response,
+          utf8.encode(body),
+          ContentType.json,
+        );
+      }
+      if (request.method == 'GET' && path.startsWith('/api/logs/')) {
+        final name = path.substring('/api/logs/'.length);
+        LogCategory? category;
+        for (final value in LogCategory.values) {
+          if (value.name == name) category = value;
+        }
+        if (category == null) {
+          return await _sendJson(
+            request.response,
+            404,
+            {'error': 'unknown-log-category'},
+          );
+        }
+        request.response.headers.set(
+          'Content-Disposition',
+          'attachment; filename="$name.log"',
+        );
+        return await _sendBytes(
+          request.response,
+          utf8.encode(await AppLogger.read(category)),
+          ContentType.text,
+        );
       }
       if (request.method == 'GET' && path == '/api/server-settings') {
         return await _sendJson(request.response, 200, settings.toJson());
@@ -245,10 +362,13 @@ class AdminApiController extends ChangeNotifier {
         {'error': 'method-not-allowed'},
       );
     } on FormatException catch (error) {
+      AppLogger.warning(
+          LogCategory.api, '${request.method} ${request.uri.path}: $error');
       try {
         await _sendJson(request.response, 400, {'error': error.message});
       } catch (_) {}
     } catch (error) {
+      AppLogger.error(LogCategory.api, error);
       try {
         await _sendJson(request.response, 500, {'error': '$error'});
       } catch (_) {}

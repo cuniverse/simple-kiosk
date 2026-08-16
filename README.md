@@ -126,6 +126,7 @@ flutter pub get
     {
       "id": "ko",
       "label": "한국어",
+      "icon": "🇰🇷",
       "items": [
         { "id": "home", "title": "홈", "url": "https://example.com" }
       ]
@@ -143,6 +144,8 @@ flutter pub get
 
 언어를 추가하려면 `languages` 배열에 고유한 `id`, `label`, 독립된 `items` 배열을
 가진 객체를 추가합니다. 기존 최상위 `items` 형식도 단일 언어로 호환됩니다.
+선택 화면 아이콘은 `icon`에 국기 이모지, `icon:language`, `assets/...` 또는
+`https://...` 형식으로 지정합니다.
 
 ### languages[].items[] — 메뉴 항목 필드
 

@@ -29,6 +29,8 @@ installer는 자동 업데이트용 런처와 버전 포인터를 자동 구성�
 바로가기를 제거하고, 자동 실행을 선택한 경우에만 새 설치 경로로 다시 등록합니다.
 자동 업데이트가 새 버전을 설치해도 시작프로그램은 특정 버전의 EXE가 아닌 고정된
 `ysignage_launcher.exe`를 실행하므로 변경된 현재 버전이 다음 실행부터 자동 선택됩니다.
+기존 `Simple Kiosk` 이름의 바탕화면·시작프로그램 바로가기와 시작 메뉴 그룹은
+업데이트 성공 후 `여의도성당Signage` 이름으로 자동 변경됩니다.
 일반 실행 과정에서는 PowerShell이나 CMD 스크립트를 사용하지 않습니다.
 
 사용자 매뉴얼은 설치 폴더의 `USER_MANUAL.html`과 시작 메뉴의 **여의도성당Signage 사용자
@@ -108,6 +110,11 @@ REST 클라이언트는 먼저 `POST /api/login`에 `{"pin":"1259"}` 형식으�
 | `GET /api/config` | 현재 `menu.override.json` 확인 |
 | `GET /api/config/effective` | 기본값과 오버라이드를 병합한 실제 적용 메뉴 설정 확인 |
 | `PUT /api/config` | 메뉴 설정 검증·저장·즉시 적용 |
+| `POST /api/config/validate` | 전체 메뉴 설정을 저장하지 않고 유효성 검사 |
+| `GET`, `PUT /api/config-backup` | 통합 설정 백업 다운로드·검증 후 가져오기 |
+| `POST /api/config-backup/restore-previous` | 마지막 변경 전 설정 복원 |
+| `GET /api/diagnostics` | 시스템 정보와 분류 로그가 포함된 진단 보고서 다운로드 |
+| `GET /api/logs/{app,webview,update,api}` | 분류별 로그 다운로드 |
 | `GET`, `PUT /api/server-settings` | 관리 API·mDNS 사용 여부, 포트와 호스트 이름 확인·변경 |
 | `POST /api/actions/show` | 사이니지 화면 표시 |
 | `POST /api/actions/hide` | 사이니지 화면 감추기 |
@@ -132,6 +139,12 @@ New-NetFirewallRule -DisplayName "여의도성당Signage mDNS" -Direction Inboun
 `-DataRoot <경로> -ConfigureAcl`을 추가합니다.
 
 ### 수동 복구와 진단 자료
+
+웹 관리자 페이지의 **백업·진단** 탭에서는 적용 중인 메뉴·언어·툴바·관리 API·
+업데이트 정책을 하나의 JSON 파일로 내보내거나 가져올 수 있습니다. 가져오기 전에
+전체 설정을 검증하며 문제가 생기면 **직전 설정 복원**을 사용할 수 있습니다.
+관리자 PIN은 백업에 포함되지 않습니다. 같은 탭에서 분류별 로그와 시스템 정보를
+포함한 진단 보고서도 내려받을 수 있습니다.
 
 설치된 버전을 확인하거나 특정 정상 버전으로 되돌리려면 다음을 실행합니다.
 

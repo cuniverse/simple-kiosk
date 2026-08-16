@@ -5,6 +5,7 @@ class MenuLanguage {
   final String id;
   final String label;
   final String? subtitle;
+  final String? icon;
   final List<MenuItem> items;
 
   const MenuLanguage({
@@ -12,12 +13,14 @@ class MenuLanguage {
     required this.label,
     required this.items,
     this.subtitle,
+    this.icon,
   });
 
   factory MenuLanguage.fromJson(Map<String, dynamic> json, int index) {
     final id = json['id'];
     final label = json['label'];
     final subtitle = json['subtitle'];
+    final icon = json['icon'];
     final rawItems = json['items'];
     if (id is! String || id.trim().isEmpty) {
       throw FormatException('menu.json languages[$index].id: 비어있지 않은 문자열 필요');
@@ -29,6 +32,9 @@ class MenuLanguage {
     }
     if (subtitle != null && subtitle is! String) {
       throw FormatException('menu.json languages[$index].subtitle: 문자열 필요');
+    }
+    if (icon != null && icon is! String) {
+      throw FormatException('menu.json languages[$index].icon: 문자열 필요');
     }
     if (rawItems is! List || rawItems.isEmpty) {
       throw FormatException('menu.json languages[$index].items: 한 개 이상 필요');
@@ -58,6 +64,7 @@ class MenuLanguage {
       subtitle: subtitle is String && subtitle.trim().isNotEmpty
           ? subtitle.trim()
           : null,
+      icon: icon is String && icon.trim().isNotEmpty ? icon.trim() : null,
       items: List.unmodifiable(items),
     );
   }

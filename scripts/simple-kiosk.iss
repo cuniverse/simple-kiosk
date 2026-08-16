@@ -63,6 +63,7 @@ Type: files; Name: "{userstartup}\Simple Kiosk.lnk"
 Type: files; Name: "{userstartup}\SimpleKiosk.lnk"
 Type: files; Name: "{userstartup}\여의도성당Signage.lnk"
 Type: files; Name: "{userdesktop}\Simple Kiosk.lnk"
+Type: files; Name: "{userdesktop}\SimpleKiosk.lnk"
 Type: filesandordirs; Name: "{userprograms}\Simple Kiosk"
 Type: files; Name: "{app}\USER_MANUAL.md"
 

@@ -28,6 +28,7 @@ function Migrate-LegacyShortcuts([string]$NativeLauncher) {
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath $_) }
     $legacyScript = [IO.Path]::GetFullPath((Join-Path $DataRoot 'launcher.ps1'))
     $legacyCommand = [IO.Path]::GetFullPath((Join-Path $DataRoot 'SimpleKiosk.cmd'))
+    $nativeLauncherPath = [IO.Path]::GetFullPath($NativeLauncher)
     $shell = New-Object -ComObject WScript.Shell
     foreach ($link in (Get-ChildItem -LiteralPath $shortcutRoots -Filter '*.lnk' -File -Recurse -ErrorAction SilentlyContinue)) {
         $shortcut = $shell.CreateShortcut($link.FullName)
@@ -35,15 +36,50 @@ function Migrate-LegacyShortcuts([string]$NativeLauncher) {
         $arguments = [string]$shortcut.Arguments
         $targetsLegacyCommand = -not [string]::IsNullOrWhiteSpace($target) -and
             [IO.Path]::GetFullPath($target).Equals($legacyCommand, [StringComparison]::OrdinalIgnoreCase)
+        $targetsNativeLauncher = -not [string]::IsNullOrWhiteSpace($target) -and
+            [IO.Path]::GetFullPath($target).Equals($nativeLauncherPath, [StringComparison]::OrdinalIgnoreCase)
         $runsLegacyScript = $arguments.IndexOf($legacyScript, [StringComparison]::OrdinalIgnoreCase) -ge 0
-        if ($targetsLegacyCommand -or $runsLegacyScript) {
+        if ($targetsLegacyCommand -or $targetsNativeLauncher -or $runsLegacyScript) {
             $shortcut.TargetPath = $NativeLauncher
             $shortcut.Arguments = ''
             $shortcut.WorkingDirectory = $DataRoot
             $shortcut.IconLocation = "$NativeLauncher,0"
+            $shortcut.Description = '여의도성당Signage'
             $shortcut.Save()
-            Write-Log "Migrated shortcut to native launcher: $($link.FullName)"
+
+            $destination = $link.FullName
+            if ($link.Name -ieq 'Simple Kiosk.lnk' -or $link.Name -ieq 'SimpleKiosk.lnk') {
+                $destination = Join-Path $link.DirectoryName '여의도성당Signage.lnk'
+                if (-not $link.FullName.Equals($destination, [StringComparison]::OrdinalIgnoreCase)) {
+                    if (Test-Path -LiteralPath $destination) {
+                        Remove-Item -LiteralPath $link.FullName -Force
+                    } else {
+                        Move-Item -LiteralPath $link.FullName -Destination $destination
+                    }
+                }
+            }
+            Write-Log "Migrated shortcut to native launcher: $destination"
         }
+    }
+
+    $programs = [Environment]::GetFolderPath('Programs')
+    $legacyGroup = Join-Path $programs 'Simple Kiosk'
+    $currentGroup = Join-Path $programs '여의도성당Signage'
+    if (Test-Path -LiteralPath $legacyGroup) {
+        New-Item -ItemType Directory -Force -Path $currentGroup | Out-Null
+        foreach ($entry in (Get-ChildItem -LiteralPath $legacyGroup -Force -ErrorAction SilentlyContinue)) {
+            $name = $entry.Name
+            if ($name -ieq 'Simple Kiosk.lnk') {
+                $name = '여의도성당Signage.lnk'
+            } elseif ($name -ieq 'Simple Kiosk 사용자 매뉴얼.lnk') {
+                $name = '여의도성당Signage 사용자 매뉴얼.lnk'
+            } elseif ($name -ieq 'Simple Kiosk 제거.lnk') {
+                $name = '여의도성당Signage 제거.lnk'
+            }
+            Move-Item -LiteralPath $entry.FullName -Destination (Join-Path $currentGroup $name) -Force
+        }
+        Remove-Item -LiteralPath $legacyGroup -Force -ErrorAction SilentlyContinue
+        Write-Log "Migrated Start Menu group: $currentGroup"
     }
 }
 

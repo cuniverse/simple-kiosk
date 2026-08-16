@@ -1117,14 +1117,7 @@ class _NavButton extends StatelessWidget {
   }
 
   Widget _buildContent(Color foreground, bool hasIcon, bool showLabel) {
-    final label = Text(
-      title,
-      maxLines: 2,
-      softWrap: true,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: const TextStyle(height: 1.05),
-    );
+    final label = _AutoSizeTwoLineText(title: title);
 
     if (!hasIcon) {
       // 아이콘 없음 → 텍스트만
@@ -1150,6 +1143,48 @@ class _NavButton extends StatelessWidget {
         const SizedBox(height: 4),
         Flexible(child: label),
       ],
+    );
+  }
+}
+
+class _AutoSizeTwoLineText extends StatelessWidget {
+  final String title;
+
+  const _AutoSizeTwoLineText({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final inherited = DefaultTextStyle.of(context).style;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        var fontSize = inherited.fontSize ?? 18;
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : double.infinity;
+        final maxHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : double.infinity;
+        while (fontSize > 12) {
+          final painter = TextPainter(
+            text: TextSpan(
+              text: title,
+              style: inherited.copyWith(fontSize: fontSize, height: 1.05),
+            ),
+            maxLines: 2,
+            textDirection: TextDirection.ltr,
+          )..layout(maxWidth: maxWidth);
+          if (!painter.didExceedMaxLines && painter.height <= maxHeight) break;
+          fontSize -= 1;
+        }
+        return Text(
+          title,
+          maxLines: 2,
+          softWrap: true,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: inherited.copyWith(fontSize: fontSize, height: 1.05),
+        );
+      },
     );
   }
 }

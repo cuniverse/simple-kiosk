@@ -24,6 +24,8 @@ class RuntimePaths {
   static String? get adminApiSettings => child('config/admin-api.json');
   static String? get updateState => child('state/update-state.json');
   static String? get lastGoodConfig => child('state/last-good-config.json');
+  static String? get previousSettingsBackup =>
+      child('state/previous-settings-backup.json');
   static String? get appState => child('state/app-state.json');
   static String? get downloads => child('downloads');
   static String? get logs => child('logs');
@@ -38,6 +40,7 @@ class RuntimePaths {
       'logs',
       'downloads',
       'versions',
+      'diagnostics',
     ]) {
       await Directory(child(relative)!).create(recursive: true);
     }

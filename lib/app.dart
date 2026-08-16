@@ -16,6 +16,7 @@ import 'model/menu_config.dart';
 import 'model/menu_item.dart';
 import 'model/menu_language.dart';
 import 'service/admin_api_controller.dart';
+import 'service/configuration_backup_service.dart';
 import 'service/menu_config_loader.dart';
 import 'service/runtime_paths.dart';
 import 'widget/idle_gate.dart';
@@ -299,6 +300,8 @@ class _KioskHomeState extends State<_KioskHome> {
       configReader: configLoader.readOverride,
       effectiveConfigReader: configLoader.readEffective,
       configWriter: _saveExternalConfig,
+      backupService: const ConfigurationBackupService(),
+      onConfigurationImported: () async => widget.onReloadConfig(),
     );
     unawaited(_initializeTray());
     unawaited(_initializeAdminApi());

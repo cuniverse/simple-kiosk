@@ -66,6 +66,7 @@
   "languages": [
     {
       "id": "ko",
+      "icon": "🇰🇷",
       "label": "한국어",
       "subtitle": "Korean",
       "items": [
@@ -118,6 +119,7 @@
     },
     {
       "id": "en",
+      "icon": "🇺🇸",
       "label": "English",
       "subtitle": "영어",
       "items": [
@@ -151,6 +153,7 @@
     },
     {
       "id": "es",
+      "icon": "🇪🇸",
       "label": "Español",
       "subtitle": "스페인어",
       "items": [
@@ -184,6 +187,7 @@
     },
     {
       "id": "fr",
+      "icon": "🇫🇷",
       "label": "Français",
       "subtitle": "프랑스어",
       "items": [
@@ -217,6 +221,7 @@
     },
     {
       "id": "pt",
+      "icon": "🇵🇹",
       "label": "Português",
       "subtitle": "포르투갈어",
       "items": [
@@ -250,6 +255,7 @@
     },
     {
       "id": "it",
+      "icon": "🇮🇹",
       "label": "Italiano",
       "subtitle": "이탈리아어",
       "items": [

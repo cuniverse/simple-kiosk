@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../service/keyboard_controller.dart';
+import '../service/app_logger.dart';
 import '../service/system_keyboard.dart';
 
 /// 사이니지용 WebView 위젯.
@@ -981,6 +982,10 @@ class _KioskWebViewState extends State<KioskWebView> {
               // 별도 처리 없이 무시 → 다운로드 진행하지 않음.
             },
             onReceivedError: (controller, request, error) {
+              AppLogger.warning(
+                LogCategory.webview,
+                'Load error (${error.type}): ${request.url} - ${error.description}',
+              );
               if (!mounted) return;
               // 메인 프레임에서 발생한 오류만 사용자에게 표시.
               if (request.isForMainFrame == true) {
@@ -993,6 +998,10 @@ class _KioskWebViewState extends State<KioskWebView> {
               }
             },
             onReceivedHttpError: (controller, request, errorResponse) {
+              AppLogger.warning(
+                LogCategory.webview,
+                'HTTP ${errorResponse.statusCode}: ${request.url}',
+              );
               if (!mounted) return;
               if (request.isForMainFrame == true &&
                   (errorResponse.statusCode ?? 0) >= 400) {
@@ -1008,6 +1017,10 @@ class _KioskWebViewState extends State<KioskWebView> {
             // Android: 렌더러 프로세스가 죽었을 때(OOM 포함). 컨트롤러는 무효
             // 상태이므로 위젯을 통째로 새로 만든다.
             onRenderProcessGone: (controller, detail) {
+              AppLogger.error(
+                LogCategory.webview,
+                'WebView render process gone (didCrash=${detail.didCrash})',
+              );
               if (kDebugMode) {
                 debugPrint(
                   '[KioskWebView] onRenderProcessGone '
@@ -1019,6 +1032,10 @@ class _KioskWebViewState extends State<KioskWebView> {
             // Android: 렌더러가 응답하지 않음. TERMINATE 를 돌려주면
             // onRenderProcessGone 이 이어서 발생해 위 핸들러로 회복된다.
             onRenderProcessUnresponsive: (controller, url) async {
+              AppLogger.error(
+                LogCategory.webview,
+                'WebView render process unresponsive: $url',
+              );
               if (kDebugMode) {
                 debugPrint('[KioskWebView] onRenderProcessUnresponsive: $url');
               }
@@ -1026,6 +1043,10 @@ class _KioskWebViewState extends State<KioskWebView> {
             },
             // iOS / macOS: WebContent 프로세스(즉, 렌더러)가 종료된 경우.
             onWebContentProcessDidTerminate: (controller) {
+              AppLogger.error(
+                LogCategory.webview,
+                'WebView content process terminated',
+              );
               if (kDebugMode) {
                 debugPrint('[KioskWebView] onWebContentProcessDidTerminate');
               }

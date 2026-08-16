@@ -115,6 +115,7 @@ void main() {
         {
           'id': 'ko',
           'label': '한국어',
+          'icon': '🇰🇷',
           'items': [
             {'id': 'home', 'title': '홈', 'url': 'https://ko.example'},
           ],
@@ -131,6 +132,7 @@ void main() {
     });
 
     expect(config.languages.map((language) => language.id), ['ko', 'en']);
+    expect(config.language('ko').icon, '🇰🇷');
     expect(config.defaultLanguageId, 'en');
     expect(config.items.map((item) => item.title), ['Home', 'News']);
   });
@@ -195,6 +197,7 @@ void main() {
             MenuLanguage(
               id: 'ko',
               label: '한국어',
+              icon: '🇰🇷',
               items: [
                 MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
               ],
@@ -207,6 +210,7 @@ void main() {
 
     final button = find.byKey(const ValueKey('language-ko'));
     expect(button, findsOneWidget);
+    expect(find.text('🇰🇷'), findsOneWidget);
     expect(tester.getSize(button), const Size(360, 176));
     await tester.tap(button);
     expect(selected, 0);
