@@ -29,6 +29,9 @@ class MenuConfig {
   final String defaultLanguageId;
   final String languageSelectionTitle;
   final String languageSelectionSubtitle;
+  final String topicSelectionTitle;
+  final String topicSelectionSubtitle;
+  final bool skipSingleTopic;
   final WebViewDataPolicy webViewDataPolicy;
 
   /// 기존 단일 메뉴 소비 코드와 설정을 위한 기본 언어 메뉴.
@@ -44,6 +47,9 @@ class MenuConfig {
     required this.defaultLanguageId,
     this.languageSelectionTitle = '언어를 선택하세요',
     this.languageSelectionSubtitle = 'Please select your language',
+    this.topicSelectionTitle = '주제를 선택하세요',
+    this.topicSelectionSubtitle = 'Please select a topic',
+    this.skipSingleTopic = true,
     this.webViewDataPolicy = WebViewDataPolicy.defaults,
   });
 }

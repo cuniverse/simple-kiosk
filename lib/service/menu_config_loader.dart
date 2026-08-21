@@ -136,6 +136,9 @@ class MenuConfigLoader {
     String? requestedDefaultLanguage;
     var selectionTitle = '언어를 선택하세요';
     var selectionSubtitle = 'Please select your language';
+    var topicSelectionTitle = '주제를 선택하세요';
+    var topicSelectionSubtitle = 'Please select a topic';
+    var skipSingleTopic = true;
     var webViewDataPolicy = WebViewDataPolicy.defaults;
 
     if (decoded is List) {
@@ -216,6 +219,9 @@ class MenuConfigLoader {
         }
         final title = selectionValue['title'];
         final subtitle = selectionValue['subtitle'];
+        final topicTitle = selectionValue['topicTitle'];
+        final topicSubtitle = selectionValue['topicSubtitle'];
+        final skipSingle = selectionValue['skipSingleTopic'];
         if (title != null && (title is! String || title.trim().isEmpty)) {
           throw const FormatException(
               'menu.json languageSelection.title: 문자열 필요');
@@ -224,8 +230,29 @@ class MenuConfigLoader {
           throw const FormatException(
               'menu.json languageSelection.subtitle: 문자열 필요');
         }
+        if (topicTitle != null &&
+            (topicTitle is! String || topicTitle.trim().isEmpty)) {
+          throw const FormatException(
+            'menu.json languageSelection.topicTitle: 문자열 필요',
+          );
+        }
+        if (topicSubtitle != null && topicSubtitle is! String) {
+          throw const FormatException(
+            'menu.json languageSelection.topicSubtitle: 문자열 필요',
+          );
+        }
+        if (skipSingle != null && skipSingle is! bool) {
+          throw const FormatException(
+            'menu.json languageSelection.skipSingleTopic: bool 필요',
+          );
+        }
         if (title is String) selectionTitle = title.trim();
         if (subtitle is String) selectionSubtitle = subtitle.trim();
+        if (topicTitle is String) topicSelectionTitle = topicTitle.trim();
+        if (topicSubtitle is String) {
+          topicSelectionSubtitle = topicSubtitle.trim();
+        }
+        if (skipSingle is bool) skipSingleTopic = skipSingle;
       }
     } else {
       throw const FormatException(
@@ -249,6 +276,9 @@ class MenuConfigLoader {
       defaultLanguageId: defaultLanguageId,
       languageSelectionTitle: selectionTitle,
       languageSelectionSubtitle: selectionSubtitle,
+      topicSelectionTitle: topicSelectionTitle,
+      topicSelectionSubtitle: topicSelectionSubtitle,
+      skipSingleTopic: skipSingleTopic,
       webViewDataPolicy: webViewDataPolicy,
     );
   }

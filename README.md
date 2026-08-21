@@ -115,7 +115,7 @@ flutter pub get
 개발 기본값은 `assets/config/menu.defaults.json`에서 수정합니다. Windows 운영 설정은
 `<ysignage.exe가 들어 있는 폴더>\config\menu.override.json`에 변경한 값만 기록합니다.
 최상위 구조는 `layout`, `idle`, `languages`를 사용합니다. 화면보호기를 해제하면
-등록된 언어를 큰 버튼으로 선택하고 해당 언어의 메뉴만 표시합니다.
+등록된 언어와 주제를 차례로 선택하고 해당 언어·주제의 메뉴만 표시합니다.
 
 ### 최소 예시
 
@@ -127,30 +127,42 @@ flutter pub get
       "id": "ko",
       "label": "한국어",
       "icon": "assets/icons/languages/kr.png",
-      "items": [
-        { "id": "home", "title": "홈", "url": "https://example.com" }
+      "defaultTopic": "general",
+      "topics": [
+        {
+          "id": "general", "label": "전체", "defaultMenu": "home",
+          "items": [
+            { "id": "home", "title": "홈", "url": "https://example.com" }
+          ]
+        }
       ]
     },
     {
       "id": "en",
       "label": "English",
-      "items": [
-        { "id": "home", "title": "Home", "url": "https://example.com/en" }
+      "topics": [
+        {
+          "id": "general", "label": "General",
+          "items": [
+            { "id": "home", "title": "Home", "url": "https://example.com/en" }
+          ]
+        }
       ]
     }
   ]
 }
 ```
 
-언어를 추가하려면 `languages` 배열에 고유한 `id`, `label`, 독립된 `items` 배열을
-가진 객체를 추가합니다. 기존 최상위 `items` 형식도 단일 언어로 호환됩니다.
+언어를 추가하려면 `languages` 배열에 고유한 `id`, `label`, 한 개 이상의 `topics`를
+가진 객체를 추가합니다. 각 주제는 고유한 `id`, 버튼 이름인 `label`, 독립된 `items`
+목록을 가집니다. 기존 `languages[].items`는 단일 기본 주제로 자동 변환됩니다.
 선택 화면 아이콘은 `icon`에 함께 배포되는 국기 이미지
 (`assets/icons/languages/kr.png` 등), `icon:language`, 다른 `assets/...` 경로
 또는 `https://...` 형식으로 지정합니다.
 영어 기본 아이콘은 미국·영국 국기를 대각선으로 합성한
 `assets/icons/languages/en-us-gb.png`를 사용합니다.
 
-### languages[].items[] — 메뉴 항목 필드
+### languages[].topics[].items[] — 메뉴 항목 필드
 
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|

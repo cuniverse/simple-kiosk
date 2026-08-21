@@ -31,6 +31,8 @@ class MaterialIconRegistry {
     'news': Icons.newspaper_outlined,
     'people': Icons.people_outline,
     'group': Icons.groups_outlined,
+    'category': Icons.category_outlined,
+    'topic': Icons.topic_outlined,
     'star': Icons.star_outline,
     'favorite': Icons.favorite_outline,
     'search': Icons.search,

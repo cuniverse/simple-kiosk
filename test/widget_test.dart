@@ -11,6 +11,7 @@ import 'package:simple_kiosk/model/idle_config.dart';
 import 'package:simple_kiosk/model/layout_config.dart';
 import 'package:simple_kiosk/model/menu_language.dart';
 import 'package:simple_kiosk/model/menu_item.dart';
+import 'package:simple_kiosk/model/menu_topic.dart';
 import 'package:simple_kiosk/model/update_manifest.dart';
 import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/model/webview_slot_id.dart';
@@ -33,14 +34,32 @@ import 'package:simple_kiosk/widget/navigation_menu.dart';
 import 'package:simple_kiosk/widget/webview_loading_overlay.dart';
 
 void main() {
-  test('WebView 슬롯은 언어 ID와 메뉴 ID로 순서와 무관하게 식별된다', () {
-    const koreanHome = WebViewSlotId(languageId: 'ko', menuId: 'home');
-    const sameAfterReorder = WebViewSlotId(languageId: 'ko', menuId: 'home');
-    const englishHome = WebViewSlotId(languageId: 'en', menuId: 'home');
+  test('WebView 슬롯은 언어·주제·메뉴 ID로 순서와 무관하게 식별된다', () {
+    const koreanHome = WebViewSlotId(
+      languageId: 'ko',
+      topicId: 'parish',
+      menuId: 'home',
+    );
+    const sameAfterReorder = WebViewSlotId(
+      languageId: 'ko',
+      topicId: 'parish',
+      menuId: 'home',
+    );
+    const anotherTopicHome = WebViewSlotId(
+      languageId: 'ko',
+      topicId: 'pilgrimage',
+      menuId: 'home',
+    );
+    const englishHome = WebViewSlotId(
+      languageId: 'en',
+      topicId: 'parish',
+      menuId: 'home',
+    );
     final controllers = <WebViewSlotId, String>{koreanHome: 'controller'};
 
     expect(controllers[sameAfterReorder], 'controller');
     expect(englishHome, isNot(koreanHome));
+    expect(anotherTopicHome, isNot(koreanHome));
     expect(controllers[englishHome], isNull);
   });
 
@@ -63,7 +82,8 @@ void main() {
     expect(page, contains('이 섹션 기본값 복원'));
     expect(page, contains('이 값 복원'));
     expect(page, contains('이 메뉴 복원'));
-    expect(page, contains('언어 선택 후 첫 메뉴'));
+    expect(page, contains('주제 선택 후 첫 메뉴'));
+    expect(page, contains('주제 추가'));
     expect(page, contains("webViewData.idlePolicy"));
     expect(page, contains('Local Storage'));
   });
@@ -200,6 +220,45 @@ void main() {
     );
   });
 
+  test('언어별 주제와 주제별 메뉴를 파싱한다', () {
+    final config = MenuConfigLoader.parse({
+      'languageSelection': {'skipSingleTopic': false},
+      'languages': [
+        {
+          'id': 'ko',
+          'label': '한국어',
+          'defaultTopic': 'pilgrimage',
+          'topics': [
+            {
+              'id': 'parish',
+              'label': '본당',
+              'items': [
+                {'id': 'home', 'title': '홈', 'url': 'https://parish.example'},
+              ],
+            },
+            {
+              'id': 'pilgrimage',
+              'label': '순례',
+              'defaultMenu': 'map',
+              'items': [
+                {'id': 'map', 'title': '지도', 'url': 'https://map.example'},
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    final language = config.language('ko');
+    expect(language.effectiveTopics.map((topic) => topic.id), [
+      'parish',
+      'pilgrimage',
+    ]);
+    expect(language.defaultTopic.id, 'pilgrimage');
+    expect(language.defaultItem.id, 'map');
+    expect(config.skipSingleTopic, isFalse);
+  });
+
   test('WebView 데이터 정책과 로그인 유지 하위 도메인을 파싱한다', () {
     final config = MenuConfigLoader.parse({
       'webViewData': {
@@ -274,7 +333,8 @@ void main() {
   });
 
   testWidgets('언어 선택 화면은 큰 버튼으로 언어를 표시한다', (tester) async {
-    var selected = -1;
+    var selectedLanguage = -1;
+    var selectedTopic = -1;
     var returnCount = 0;
     await tester.pumpWidget(
       MaterialApp(
@@ -291,7 +351,10 @@ void main() {
               ],
             ),
           ],
-          onSelected: (index) => selected = index,
+          onSelected: (language, topic) {
+            selectedLanguage = language;
+            selectedTopic = topic;
+          },
           onReturnToIdle: () => returnCount += 1,
         ),
       ),
@@ -302,10 +365,72 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
     expect(tester.getSize(button), const Size(360, 176));
     await tester.tap(button);
-    expect(selected, 0);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('selected-language-ko')), findsOneWidget);
+    expect(selectedLanguage, -1);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(selectedLanguage, 0);
+    expect(selectedTopic, 0);
 
     await tester.tap(find.byKey(const ValueKey('return-to-idle')));
     expect(returnCount, 1);
+  });
+
+  testWidgets('언어를 선택하면 버튼이 상단으로 이동하고 주제 버튼을 표시한다', (tester) async {
+    var selectedLanguage = -1;
+    var selectedTopic = -1;
+    const parishItems = [
+      MenuItem(id: 'home', title: '홈', url: 'https://parish.example'),
+    ];
+    const pilgrimageItems = [
+      MenuItem(id: 'map', title: '지도', url: 'https://map.example'),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LanguageSelection(
+          title: '언어를 선택하세요',
+          subtitle: '',
+          skipSingleTopic: false,
+          languages: const [
+            MenuLanguage(
+              id: 'ko',
+              label: '한국어',
+              items: parishItems,
+              topics: [
+                MenuTopic(id: 'parish', label: '본당', items: parishItems),
+                MenuTopic(
+                  id: 'pilgrimage',
+                  label: '순례',
+                  items: pilgrimageItems,
+                ),
+              ],
+            ),
+          ],
+          onSelected: (language, topic) {
+            selectedLanguage = language;
+            selectedTopic = topic;
+          },
+          onReturnToIdle: () {},
+        ),
+      ),
+    );
+
+    final languageButton = find.byKey(const ValueKey('language-ko'));
+    final initialTop = tester.getTopLeft(languageButton).dy;
+    await tester.tap(languageButton);
+    await tester.pumpAndSettle();
+    final selectedLanguageButton =
+        find.byKey(const ValueKey('selected-language-ko'));
+    expect(selectedLanguageButton, findsOneWidget);
+    expect(tester.getTopLeft(selectedLanguageButton).dy, lessThan(initialTop));
+    expect(find.byKey(const ValueKey('topic-parish')), findsOneWidget);
+    expect(find.byKey(const ValueKey('topic-pilgrimage')), findsOneWidget);
+
+    final pilgrimage = find.byKey(const ValueKey('topic-pilgrimage'));
+    await tester.ensureVisible(pilgrimage);
+    await tester.tap(pilgrimage);
+    expect(selectedLanguage, 0);
+    expect(selectedTopic, 1);
   });
 
   testWidgets('언어 선택 화면에서 입력이 없으면 화면 보호기로 돌아간다', (tester) async {
@@ -339,7 +464,7 @@ void main() {
                 ],
               ),
             ],
-            onSelected: (_) {},
+            onSelected: (_, __) {},
             onReturnToIdle: controller.enterIdle,
           ),
         ),

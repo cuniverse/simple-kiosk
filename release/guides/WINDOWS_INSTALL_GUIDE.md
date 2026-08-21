@@ -285,10 +285,11 @@ $actual -eq $expected
 주요 설정은 다음과 같습니다.
 
 - `languages[]`: 화면보호기 해제 후 선택할 언어
-- `languages[].defaultMenu`: 언어 선택 후 처음 표시할 메뉴 ID. 생략하면 첫 메뉴 사용
-- `languages[].items[].title`: 언어별 메뉴 이름
-- `languages[].items[].url`: 언어별 연결 URL(운영 환경에서는 HTTPS 권장)
-- `languages[].items[].icon`: 언어별 메뉴 아이콘
+- `languages[].defaultTopic`: 언어 선택 후 기본 주제. 생략하면 첫 주제 사용
+- `languages[].topics[]`: 언어별 주제 버튼과 주제별 메뉴 구성
+- `languages[].topics[].defaultMenu`: 주제 선택 후 처음 표시할 메뉴 ID
+- `languages[].topics[].items[]`: 해당 언어·주제에서 사용할 메뉴 이름·URL·아이콘
+- `languageSelection.skipSingleTopic`: 주제가 하나일 때 주제 화면 생략 여부(기본 `true`)
 - `layout`: 메뉴 위치, 크기, 색상 및 표시 옵션
 - `idle`: 대기화면과 전환 시간
 - `webViewData.idlePolicy`: 화면보호기 진입 시 WebView 데이터 유지·쿠키 삭제·전체 삭제 정책

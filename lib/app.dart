@@ -15,6 +15,7 @@ import 'model/layout_config.dart';
 import 'model/menu_config.dart';
 import 'model/menu_item.dart';
 import 'model/menu_language.dart';
+import 'model/menu_topic.dart';
 import 'model/webview_slot_id.dart';
 import 'model/webview_data_policy.dart';
 import 'service/admin_api_controller.dart';
@@ -202,6 +203,9 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
           defaultLanguageId: snapshot.data!.defaultLanguageId,
           languageSelectionTitle: snapshot.data!.languageSelectionTitle,
           languageSelectionSubtitle: snapshot.data!.languageSelectionSubtitle,
+          topicSelectionTitle: snapshot.data!.topicSelectionTitle,
+          topicSelectionSubtitle: snapshot.data!.topicSelectionSubtitle,
+          skipSingleTopic: snapshot.data!.skipSingleTopic,
           layout: snapshot.data!.layout,
           idle: snapshot.data!.idle,
           webViewDataPolicy: snapshot.data!.webViewDataPolicy,
@@ -226,6 +230,9 @@ class _KioskHome extends StatefulWidget {
   final String defaultLanguageId;
   final String languageSelectionTitle;
   final String languageSelectionSubtitle;
+  final String topicSelectionTitle;
+  final String topicSelectionSubtitle;
+  final bool skipSingleTopic;
   final LayoutConfig layout;
   final IdleConfig idle;
   final WebViewDataPolicy webViewDataPolicy;
@@ -235,6 +242,9 @@ class _KioskHome extends StatefulWidget {
     required this.defaultLanguageId,
     required this.languageSelectionTitle,
     required this.languageSelectionSubtitle,
+    required this.topicSelectionTitle,
+    required this.topicSelectionSubtitle,
+    required this.skipSingleTopic,
     required this.layout,
     required this.idle,
     required this.webViewDataPolicy,
@@ -247,6 +257,7 @@ class _KioskHome extends StatefulWidget {
 
 class _KioskHomeState extends State<_KioskHome> {
   late String _selectedLanguageId;
+  late String _selectedTopicId;
   late String _selectedMenuId;
   bool _showLanguageSelection = false;
   bool _languageSelectionTransitioning = false;
@@ -312,9 +323,16 @@ class _KioskHomeState extends State<_KioskHome> {
   MenuLanguage get _selectedLanguage =>
       widget.languages[_selectedLanguageIndex];
 
-  List<MenuItem> get _items => _selectedLanguage.items;
+  MenuTopic get _selectedTopic {
+    final matches = _selectedLanguage.effectiveTopics.where(
+      (topic) => topic.id == _selectedTopicId,
+    );
+    return matches.isNotEmpty ? matches.first : _selectedLanguage.defaultTopic;
+  }
 
-  MenuItem get _defaultMenu => _selectedLanguage.defaultItem;
+  List<MenuItem> get _items => _selectedTopic.items;
+
+  MenuItem get _defaultMenu => _selectedTopic.defaultItem;
 
   int get _selectedIndex {
     final index = _items.indexWhere((item) => item.id == _selectedMenuId);
@@ -323,7 +341,9 @@ class _KioskHomeState extends State<_KioskHome> {
 
   int? get _pendingIndex {
     final pending = _pendingSlot;
-    if (pending == null || pending.languageId != _selectedLanguage.id) {
+    if (pending == null ||
+        pending.languageId != _selectedLanguage.id ||
+        pending.topicId != _selectedTopic.id) {
       return null;
     }
     final index = _items.indexWhere((item) => item.id == pending.menuId);
@@ -332,17 +352,21 @@ class _KioskHomeState extends State<_KioskHome> {
 
   WebViewSlotId _slotFor(MenuItem item) => WebViewSlotId(
         languageId: _selectedLanguage.id,
+        topicId: _selectedTopic.id,
         menuId: item.id,
       );
 
   WebViewSlotId get _selectedSlot => WebViewSlotId(
         languageId: _selectedLanguage.id,
+        topicId: _selectedTopic.id,
         menuId: _selectedMenuId,
       );
 
   MenuItem? get _pendingItem {
     final pending = _pendingSlot;
-    if (pending == null || pending.languageId != _selectedLanguage.id) {
+    if (pending == null ||
+        pending.languageId != _selectedLanguage.id ||
+        pending.topicId != _selectedTopic.id) {
       return null;
     }
     for (final item in _items) {
@@ -356,6 +380,7 @@ class _KioskHomeState extends State<_KioskHome> {
     super.initState();
     SystemKeyboard.configure(widget.layout.keyboardMode);
     _selectedLanguageId = _defaultLanguageId();
+    _selectedTopicId = _selectedLanguage.defaultTopicId;
     _selectedMenuId = _defaultMenu.id;
     // 시작 화면보호기가 켜진 경우 첫 WebView를 즉시 만들지 않는다. IdleGate의
     // 초기 진입 콜백에서 화면보호기 뒤에 한 번만 mount해 Windows 플랫폼 뷰가
@@ -423,6 +448,7 @@ class _KioskHomeState extends State<_KioskHome> {
       'startedAt': _startedAt.toUtc().toIso8601String(),
       'uptimeSeconds': DateTime.now().difference(_startedAt).inSeconds,
       'selectedLanguage': _selectedLanguage.id,
+      'selectedTopic': _selectedTopic.id,
       'selectedMenu': _items[_selectedIndex].id,
       'webViewData': {
         'sharing': {
@@ -515,6 +541,10 @@ class _KioskHomeState extends State<_KioskHome> {
     );
     _selectedLanguageId =
         matchingIndex >= 0 ? previousLanguageId : _defaultLanguageId();
+    if (!_selectedLanguage.effectiveTopics
+        .any((topic) => topic.id == _selectedTopicId)) {
+      _selectedTopicId = _selectedLanguage.defaultTopicId;
+    }
     if (matchingIndex < 0 || definitionsChanged) {
       _resetWebViewsForLanguage();
       return;
@@ -522,8 +552,13 @@ class _KioskHomeState extends State<_KioskHome> {
 
     final validSlots = <WebViewSlotId>{
       for (final language in widget.languages)
-        for (final item in language.items)
-          WebViewSlotId(languageId: language.id, menuId: item.id),
+        for (final topic in language.effectiveTopics)
+          for (final item in topic.items)
+            WebViewSlotId(
+              languageId: language.id,
+              topicId: topic.id,
+              menuId: item.id,
+            ),
     };
     _mountedSlots.removeWhere((slot) => !validSlots.contains(slot));
     _readySlots.removeWhere((slot) => !validSlots.contains(slot));
@@ -536,13 +571,23 @@ class _KioskHomeState extends State<_KioskHome> {
   bool _webViewDefinitionsChanged(_KioskHome oldWidget, _KioskHome newWidget) {
     final oldUrls = <WebViewSlotId, String>{
       for (final language in oldWidget.languages)
-        for (final item in language.items)
-          WebViewSlotId(languageId: language.id, menuId: item.id): item.url,
+        for (final topic in language.effectiveTopics)
+          for (final item in topic.items)
+            WebViewSlotId(
+              languageId: language.id,
+              topicId: topic.id,
+              menuId: item.id,
+            ): item.url,
     };
     final newUrls = <WebViewSlotId, String>{
       for (final language in newWidget.languages)
-        for (final item in language.items)
-          WebViewSlotId(languageId: language.id, menuId: item.id): item.url,
+        for (final topic in language.effectiveTopics)
+          for (final item in topic.items)
+            WebViewSlotId(
+              languageId: language.id,
+              topicId: topic.id,
+              menuId: item.id,
+            ): item.url,
     };
     // 순서만 바뀐 경우에는 슬롯과 WebView 상태를 그대로 유지한다.
     if (!setEquals(oldUrls.keys.toSet(), newUrls.keys.toSet())) return true;
@@ -573,23 +618,29 @@ class _KioskHomeState extends State<_KioskHome> {
     _lastTapSlot = null;
   }
 
-  void _selectLanguage(int index) {
-    if (index < 0 ||
-        index >= widget.languages.length ||
+  void _selectLanguageAndTopic(int languageIndex, int topicIndex) {
+    if (languageIndex < 0 ||
+        languageIndex >= widget.languages.length ||
         _languageSelectionTransitioning) {
       return;
     }
-    final selectedLanguageId = widget.languages[index].id;
-    final languageChanged = selectedLanguageId != _selectedLanguageId;
+    final language = widget.languages[languageIndex];
+    if (topicIndex < 0 || topicIndex >= language.effectiveTopics.length) {
+      return;
+    }
+    final topic = language.effectiveTopics[topicIndex];
+    final selectionChanged =
+        language.id != _selectedLanguageId || topic.id != _selectedTopicId;
     _languageSelectionTransitioning = true;
 
     // 언어 선택 화면을 한 프레임 더 유지한 상태에서 WebView와 툴바 배치를 먼저
     // 완성한다. 네이티브 WebView 크기 변경이 사용자에게 노출되지 않아 툴바가
     // 번쩍이는 현상을 막는다.
     setState(() {
-      _selectedLanguageId = selectedLanguageId;
+      _selectedLanguageId = language.id;
+      _selectedTopicId = topic.id;
       _toolbarHidden = widget.layout.toolbarInitiallyHidden;
-      if (languageChanged) {
+      if (selectionChanged) {
         _resetWebViewsForLanguage();
       }
     });
@@ -844,7 +895,9 @@ class _KioskHomeState extends State<_KioskHome> {
         await WebViewDataService.applyIdlePolicy(
           widget.webViewDataPolicy,
           knownUrls: widget.languages.expand(
-            (language) => language.items.map((item) => item.url),
+            (language) => language.effectiveTopics.expand(
+              (topic) => topic.items.map((item) => item.url),
+            ),
           ),
         );
       } catch (e) {
@@ -1247,6 +1300,7 @@ class _KioskHomeState extends State<_KioskHome> {
                   builder: (context, constraints) {
                     final position = _effectivePosition(constraints.maxWidth);
                     final languageId = _selectedLanguage.id;
+                    final topicId = _selectedTopic.id;
                     final generation = _webViewGeneration.value;
 
                     // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
@@ -1257,6 +1311,7 @@ class _KioskHomeState extends State<_KioskHome> {
                         final item = _items[i];
                         final slot = WebViewSlotId(
                           languageId: languageId,
+                          topicId: topicId,
                           menuId: item.id,
                         );
                         if (!_mountedSlots.contains(slot)) {
@@ -1369,7 +1424,10 @@ class _KioskHomeState extends State<_KioskHome> {
                       languages: widget.languages,
                       title: widget.languageSelectionTitle,
                       subtitle: widget.languageSelectionSubtitle,
-                      onSelected: _selectLanguage,
+                      topicTitle: widget.topicSelectionTitle,
+                      topicSubtitle: widget.topicSelectionSubtitle,
+                      skipSingleTopic: widget.skipSingleTopic,
+                      onSelected: _selectLanguageAndTopic,
                       onReturnToIdle: _idleGateController.enterIdle,
                     ),
                   ),

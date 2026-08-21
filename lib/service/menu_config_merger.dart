@@ -44,7 +44,13 @@ class MenuConfigMerger {
   static dynamic _firstLanguageItems(Map<String, dynamic> defaults) {
     final languages = defaults['languages'];
     if (languages is List && languages.isNotEmpty && languages.first is Map) {
-      return (languages.first as Map)['items'];
+      final language = languages.first as Map;
+      final items = language['items'];
+      if (items is List) return items;
+      final topics = language['topics'];
+      if (topics is List && topics.isNotEmpty && topics.first is Map) {
+        return (topics.first as Map)['items'];
+      }
     }
     throw const FormatException('menu.defaults.json: items 또는 languages 필요');
   }

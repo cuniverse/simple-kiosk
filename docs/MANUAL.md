@@ -79,9 +79,9 @@
   "webViewData": { ... }, // WebView 데이터 정리 정책
   "defaultLanguage": "ko",
   "languageSelection": { ... },
-  "languages": [       // 언어와 언어별 메뉴 목록
-    { "id": "ko", "label": "한국어", "defaultMenu": "home", "icon": "assets/icons/languages/kr.png", "items": [ ... ] },
-    { "id": "en", "label": "English", "items": [ ... ] }
+  "languages": [       // 언어, 언어별 주제와 주제별 메뉴 목록
+    { "id": "ko", "label": "한국어", "defaultTopic": "general", "topics": [ ... ] },
+    { "id": "en", "label": "English", "topics": [ ... ] }
   ]
 }
 ```
@@ -98,42 +98,62 @@
 "defaultLanguage": "ko",
 "languageSelection": {
   "title": "언어를 선택하세요",
-  "subtitle": "Please select your language"
+  "subtitle": "Please select your language",
+  "topicTitle": "주제를 선택하세요",
+  "topicSubtitle": "Please select a topic",
+  "skipSingleTopic": true
 },
 "languages": [
   {
     "id": "ko",
     "label": "한국어",
     "subtitle": "Korean",
-    "defaultMenu": "home",
-    "items": [
-      { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+    "defaultTopic": "general",
+    "topics": [
+      {
+        "id": "general",
+        "label": "전체",
+        "defaultMenu": "home",
+        "items": [
+          { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+        ]
+      }
     ]
   },
   {
     "id": "en",
     "label": "English",
     "subtitle": "영어",
-    "items": [
-      { "id": "home", "title": "Home", "url": "https://en.example.com" }
+    "topics": [
+      {
+        "id": "general",
+        "label": "General",
+        "items": [
+          { "id": "home", "title": "Home", "url": "https://en.example.com" }
+        ]
+      }
     ]
   }
 ]
 ```
 
-- 화면보호기를 터치해 해제할 때마다 `languages`의 각 항목이 300×140dp 대형 버튼으로 표시됩니다.
+- 화면보호기를 해제하면 언어 버튼이 표시되고, 언어를 선택하면 해당 버튼이 상단으로
+  이동한 뒤 `topics`의 주제 버튼이 표시됩니다.
+- `languageSelection.skipSingleTopic`이 `true`이면 주제가 하나뿐인 언어는 주제 화면을
+  건너뛰고 바로 진입합니다. 기본값은 `true`입니다.
 - 툴바의 **언어 선택** 아이콘을 누르면 현재 WebView 상태를 유지한 채 언어 선택
   화면으로 다시 돌아갈 수 있습니다.
-- 언어를 추가하려면 `languages` 배열에 고유한 `id`, 버튼에 표시할 `label`, 한 개 이상의 `items`를 가진 객체를 추가합니다.
+- 언어를 추가하려면 고유한 `id`, 버튼에 표시할 `label`, 한 개 이상의 `topics`를 추가합니다.
 - `defaultLanguage`는 앱 내부에서 언어 선택 전 준비할 기본 언어입니다.
-- 각 언어의 `items`는 서로 완전히 독립적이므로 메뉴 개수, 이름, URL, 아이콘이 달라도 됩니다.
-- `languages[].defaultMenu`는 언어 선택 직후 처음 표시할 메뉴 ID입니다. 생략하면
-  해당 언어의 첫 번째 `items` 항목을 사용합니다.
+- `languages[].defaultTopic`은 해당 언어의 기본 주제이며 생략하면 첫 주제를 사용합니다.
+- 각 `topics[]`는 고유한 `id`, 표시할 `label`, 선택적 `subtitle`·`icon`, 독립된
+  `items` 목록을 가집니다.
+- `topics[].defaultMenu`는 주제 선택 직후 표시할 메뉴이며 생략하면 첫 메뉴를 사용합니다.
 - 언어의 `icon`에는 함께 배포되는 국기 이미지(`assets/icons/languages/kr.png`
   등), `icon:language`, 다른 앱 에셋 경로 또는 HTTPS 이미지 주소를 지정할 수 있습니다.
 - 영어 기본 아이콘은 미국·영국 국기를 대각선으로 합성한
   `assets/icons/languages/en-us-gb.png`입니다.
-- 기존 최상위 `items` 배열만 있는 설정도 단일 언어 설정으로 계속 동작합니다.
+- 기존 최상위 `items` 또는 `languages[].items` 설정도 단일 언어·단일 주제로 계속 동작합니다.
 
 ### 메뉴 항목 형식
 
@@ -150,7 +170,7 @@
 
 - **운영에서는 HTTPS 사용 권장.** HTTP도 동작하지만 보안/신뢰성 측면에서 HTTPS가 안전합니다.
 - 메뉴는 위에서 아래(또는 왼쪽에서 오른쪽) 순서로 표시됩니다.
-- `defaultMenu`로 지정한 항목이 **홈(기본 페이지)** 역할을 하며, 설정이 없으면 첫 번째 항목을 사용합니다.
+- 선택한 주제의 `defaultMenu` 항목이 **홈(기본 페이지)** 역할을 하며, 설정이 없으면 첫 번째 항목을 사용합니다.
 - 메뉴별로 독립 WebView 가 생성되며, **한 번이라도 방문한 메뉴만 메모리에 살아있습니다** (방문 전엔 mount 되지 않음).
 - 처음 방문하는 메뉴는 기존 화면을 유지한 채 백그라운드에서 준비하고 로딩 오버레이를
   표시합니다. 기본 문서가 표시 가능한 시점에 즉시 전환하며, 12초 이상 지연되면
