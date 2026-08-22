@@ -87,6 +87,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 `Alt+F4`, `Win` 키 조합(`Win+Tab`, `Win+D`, `Win+R` 포함),
 `Ctrl+Esc`, `Ctrl+Shift+Esc`와 앱 실행 전용 키를 차단합니다. 트레이·관리 API·숨김 제스처로
 사이니지를 감추면 잠금과 선택적인 최상위 상태가 즉시 해제되고 다시 표시하면 자동 적용됩니다.
+웹 관리자의 **레이아웃** 설정에서 `Windows 키 및 조합`, `Alt+Tab`, `Alt+Esc`,
+`Alt+F4`, `Alt+Space`, `Ctrl+Esc`, `Ctrl+Shift+Esc`와 각 앱·메일·브라우저 실행 키를
+체크박스로 개별 허용하거나 차단할 수 있습니다. `Windows 키오스크 잠금`은 이 항목들의
+전체 스위치이며, 기존 설정 파일은 모든 항목을 차단하는 이전 동작을 그대로 유지합니다.
 `windowsPreventScreenSaver`와 `windowsPreventDisplaySleep`의 기본값은 모두 `true`이며,
 사이니지가 보이는 동안 각각 Windows 화면보호기와 화면 자동 끄기를 방지합니다. 사이니지를
 감추거나 종료하면 시스템의 원래 전원 정책이 즉시 다시 적용됩니다.

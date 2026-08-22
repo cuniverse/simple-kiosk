@@ -165,6 +165,7 @@ class MenuConfigLoader {
     String? requestedDefaultLanguage;
     var selectionTitle = '언어를 선택하세요';
     var selectionSubtitle = 'Please select your language';
+    String? selectionFontFamily;
     var topicSelectionTitle = '주제를 선택하세요';
     var topicSelectionSubtitle = 'Please select a topic';
     var skipSingleTopic = true;
@@ -255,6 +256,7 @@ class MenuConfigLoader {
         }
         final title = selectionValue['title'];
         final subtitle = selectionValue['subtitle'];
+        final fontFamily = selectionValue['fontFamily'];
         final topicTitle = selectionValue['topicTitle'];
         final topicSubtitle = selectionValue['topicSubtitle'];
         final skipSingle = selectionValue['skipSingleTopic'];
@@ -265,6 +267,11 @@ class MenuConfigLoader {
         if (subtitle != null && subtitle is! String) {
           throw const FormatException(
               'menu.json languageSelection.subtitle: 문자열 필요');
+        }
+        if (fontFamily != null && fontFamily is! String) {
+          throw const FormatException(
+            'menu.json languageSelection.fontFamily: 문자열 필요',
+          );
         }
         if (topicTitle != null &&
             (topicTitle is! String || topicTitle.trim().isEmpty)) {
@@ -284,6 +291,9 @@ class MenuConfigLoader {
         }
         if (title is String) selectionTitle = title.trim();
         if (subtitle is String) selectionSubtitle = subtitle.trim();
+        if (fontFamily is String && fontFamily.trim().isNotEmpty) {
+          selectionFontFamily = fontFamily.trim();
+        }
         if (topicTitle is String) topicSelectionTitle = topicTitle.trim();
         if (topicSubtitle is String) {
           topicSelectionSubtitle = topicSubtitle.trim();
@@ -318,6 +328,7 @@ class MenuConfigLoader {
       defaultLanguageId: defaultLanguageId,
       languageSelectionTitle: selectionTitle,
       languageSelectionSubtitle: selectionSubtitle,
+      languageSelectionFontFamily: selectionFontFamily,
       topicSelectionTitle: topicSelectionTitle,
       topicSelectionSubtitle: topicSelectionSubtitle,
       skipSingleTopic: skipSingleTopic,

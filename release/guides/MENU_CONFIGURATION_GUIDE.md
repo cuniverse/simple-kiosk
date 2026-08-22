@@ -309,6 +309,17 @@ search, help, link, web, music, mic, camera, image, download, qr
 
 ## 6. 툴바 레이아웃 설정: `layout`
 
+`layout.fontFamily`은 전체 Flutter UI 글꼴을 지정합니다. 외부 `fonts` 폴더,
+패키지 글꼴, Windows 시스템 글꼴, Flutter 기본 글꼴 순서로 적용합니다.
+패키지 글꼴은 `Pretendard`, `NanumSquare`, `NanumGothic`, `NanumBrush`,
+`KoPubDotum`, `Catholic`을 지원합니다. 웹사이트 자체 글꼴은 WebView의 CSS에
+따르므로 이 설정의 영향을 받지 않습니다.
+
+글꼴 적용 우선순위는 툴바가 `items[].fontFamily` →
+`layout.menuFontFamily` → `layout.fontFamily`, 언어 선택이
+`languages[].fontFamily` → `languageSelection.fontFamily` →
+`layout.fontFamily` 순서입니다. 빈 값은 상위 설정을 상속합니다.
+
 ```json
 "layout": {
   "navPosition": "bottom",
@@ -322,6 +333,7 @@ search, help, link, web, music, mic, camera, image, download, qr
   "showHistoryButtons": true,
   "showKeyboardToggle": true,
   "showSelectedTopic": true,
+  "selectedTopicLabelColor": "#f8fafc",
   "keepStateOnTap": false,
   "toolbarInitiallyHidden": true,
   "toolbarAutoHideSec": 10,
@@ -348,7 +360,9 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `showHistoryButtons` | bool | `true` | 뒤로·앞으로 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 가상 키보드 켜기·끄기 버튼 표시 |
 | `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
+| `selectedTopicLabelColor` | color | `#f8fafc` | 현재 주제 라벨 글자색. 라벨을 누르면 언어 선택으로 이동 |
 | `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
+| `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
 | `windowsPreventScreenSaver` | bool | `true` | 사이니지 표시 중 Windows 화면보호기 실행 방지 |
 | `windowsPreventDisplaySleep` | bool | `true` | 사이니지 표시 중 Windows 화면 자동 끄기 방지 |
@@ -360,6 +374,12 @@ search, help, link, web, music, mic, camera, image, download, qr
 현재 배포 기본값은 툴바를 표시하고 자동 숨김을 사용하지 않습니다. 필요하면
 `toolbarInitiallyHidden`을 켜거나 `toolbarAutoHideSec`을 1 이상으로 설정할 수 있습니다.
 자동 숨김을 사용하면 화면 터치, 드래그 또는 스크롤 입력 시 제한 시간이 다시 계산됩니다.
+
+`windowsKioskShortcuts`의 `windowsKey`, `altTab`, `altEscape`, `altF4`,
+`altSpace`, `ctrlEscape`, `ctrlShiftEscape`, `launchApp1`, `launchApp2`,
+`launchMail`, `browserHome`, `browserSearch`, `browserFavorites`를 각각 설정할 수
+있습니다. `windowsKey`는 시작 메뉴와 모든 Windows 키 조합을 함께 제어합니다.
+웹 관리자에서는 각 항목을 체크박스로 변경할 수 있습니다.
 
 툴바를 숨겨도 같은 WebView가 유지되므로 현재 페이지, 입력 내용과 스크롤 위치가
 바뀌지 않습니다. 숨김 상태에서는 뒤로, 앞으로, 툴바 복원, 가상 키보드 버튼이

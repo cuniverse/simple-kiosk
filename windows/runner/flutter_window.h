@@ -24,7 +24,7 @@ class FlutterWindow : public Win32Window {
   LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
                          LPARAM const lparam) noexcept override;
 
-  void RecoverRenderingSurface();
+  void RecoverRenderingSurface(bool force_resize = false);
 
  private:
   // The project to run.

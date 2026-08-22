@@ -42,6 +42,7 @@ VersionInfoDescription={#AppName}
 [Dirs]
 Name: "{app}\config"
 Name: "{app}\media"
+Name: "{app}\fonts"
 Name: "{app}\state"
 Name: "{app}\logs"
 Name: "{app}\downloads"
@@ -175,7 +176,7 @@ begin
   DeleteUserData :=
     SuppressibleMsgBox(
       '{#AppName} 설정과 사용자 파일도 함께 삭제하시겠습니까?' + #13#10 + #13#10 +
-      '예: config, media, state, logs, diagnostics, backups 삭제' + #13#10 +
+      '예: config, media, fonts, state, logs, diagnostics, backups 삭제' + #13#10 +
       '아니요(권장): 프로그램만 삭제하고 설정과 사용자 파일 보존',
       mbConfirmation,
       MB_YESNO or MB_DEFBUTTON2,
@@ -205,6 +206,7 @@ begin
   begin
     DelTree(AddBackslash(InstallRoot) + 'config', True, True, True);
     DelTree(AddBackslash(InstallRoot) + 'media', True, True, True);
+    DelTree(AddBackslash(InstallRoot) + 'fonts', True, True, True);
     DelTree(AddBackslash(InstallRoot) + 'state', True, True, True);
     DelTree(AddBackslash(InstallRoot) + 'logs', True, True, True);
     DelTree(AddBackslash(InstallRoot) + 'diagnostics', True, True, True);

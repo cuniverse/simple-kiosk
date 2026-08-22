@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../model/layout_config.dart';
 import '../model/menu_item.dart';
 import '../service/keyboard_controller.dart';
+import '../service/font_resource_service.dart';
 import '../service/system_keyboard.dart';
 import 'kiosk_webview.dart';
 import 'material_icon_registry.dart';
@@ -65,6 +66,9 @@ class NavigationMenu extends StatelessWidget {
   /// 현재 선택된 주제 이름. `null`이면 상태 라벨을 표시하지 않는다.
   final String? selectedTopicLabel;
 
+  /// 현재 선택된 주제 라벨의 글자색.
+  final Color selectedTopicLabelColor;
+
   /// 네비 바 배경색. `null`이면 테마 기본값.
   final Color? barColor;
 
@@ -79,6 +83,9 @@ class NavigationMenu extends StatelessWidget {
 
   /// 선택 버튼 전경색.
   final Color? selectedButtonForegroundColor;
+
+  /// 툴바 메뉴 버튼 전체 글꼴. 항목별 글꼴이 있으면 그 값이 우선한다.
+  final String? fontFamily;
 
   /// 툴바를 감추는 콜백. `null`이면 숨김 버튼을 표시하지 않는다.
   final VoidCallback? onHide;
@@ -114,11 +121,13 @@ class NavigationMenu extends StatelessWidget {
     this.historyController,
     this.showKeyboardToggle = false,
     this.selectedTopicLabel,
+    this.selectedTopicLabelColor = const Color(0xFFF8FAFC),
     this.barColor,
     this.buttonColor,
     this.buttonForegroundColor,
     this.selectedButtonColor,
     this.selectedButtonForegroundColor,
+    this.fontFamily,
     this.onHide,
     this.onEnterIdle,
     this.onOpenAdmin,
@@ -157,6 +166,9 @@ class NavigationMenu extends StatelessWidget {
                 _SelectedTopicLabel(
                   label: selectedTopicLabel!,
                   orientation: NavigationOrientation.side,
+                  color: selectedTopicLabelColor,
+                  fontFamily: fontFamily,
+                  onTap: onSelectLanguage,
                 ),
               if (showHistoryButtons)
                 Padding(
@@ -206,6 +218,10 @@ class NavigationMenu extends StatelessWidget {
                             selectedButtonColor: selectedButtonColor,
                             selectedButtonForegroundColor:
                                 selectedButtonForegroundColor,
+                            fontFamily: FontResourceService.familyFor(
+                                  items[i].fontFamily,
+                                ) ??
+                                fontFamily,
                             onPressed: () => onSelected(i),
                           ),
                         );
@@ -353,6 +369,9 @@ class NavigationMenu extends StatelessWidget {
                   _SelectedTopicLabel(
                     label: selectedTopicLabel!,
                     orientation: NavigationOrientation.bottom,
+                    color: selectedTopicLabelColor,
+                    fontFamily: fontFamily,
+                    onTap: onSelectLanguage,
                   ),
                   SizedBox(width: buttonGap),
                 ],
@@ -403,6 +422,10 @@ class NavigationMenu extends StatelessWidget {
                                 selectedButtonColor: selectedButtonColor,
                                 selectedButtonForegroundColor:
                                     selectedButtonForegroundColor,
+                                fontFamily: FontResourceService.familyFor(
+                                      items[i].fontFamily,
+                                    ) ??
+                                    fontFamily,
                                 onPressed: () => onSelected(i),
                               ),
                             ),
@@ -445,14 +468,20 @@ class NavigationMenu extends StatelessWidget {
   }
 }
 
-/// 메뉴 동작 요소와 혼동되지 않도록 배경·테두리·탭 동작 없이 현재 주제만 표시한다.
+/// 메뉴 버튼과 혼동되지 않는 작은 라벨이며, 누르면 언어 선택으로 돌아간다.
 class _SelectedTopicLabel extends StatelessWidget {
   final String label;
   final NavigationOrientation orientation;
+  final Color color;
+  final String? fontFamily;
+  final VoidCallback? onTap;
 
   const _SelectedTopicLabel({
     required this.label,
     required this.orientation,
+    required this.color,
+    this.fontFamily,
+    this.onTap,
   });
 
   @override
@@ -478,9 +507,10 @@ class _SelectedTopicLabel extends StatelessWidget {
             maxLines: side ? 2 : 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: colors.onSurfaceVariant,
+              color: color,
               fontSize: side ? 14 : 13,
               fontWeight: FontWeight.w600,
+              fontFamily: fontFamily,
             ),
           ),
         ),
@@ -488,21 +518,26 @@ class _SelectedTopicLabel extends StatelessWidget {
     );
     return Semantics(
       label: '현재 주제: $label',
-      readOnly: true,
+      button: onTap != null,
+      onTap: onTap,
       child: Tooltip(
-        message: '현재 주제: $label',
-        child: side
-            ? Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                child: SizedBox(height: 36, child: content),
-              )
-            : ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 150),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: content,
+        message: onTap == null ? '현재 주제: $label' : '언어 선택으로 돌아가기',
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: side
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                  child: SizedBox(height: 36, child: content),
+                )
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: content,
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }
@@ -1127,6 +1162,7 @@ class _NavButton extends StatelessWidget {
   final Color? buttonForegroundColor;
   final Color? selectedButtonColor;
   final Color? selectedButtonForegroundColor;
+  final String? fontFamily;
 
   final VoidCallback onPressed;
 
@@ -1142,6 +1178,7 @@ class _NavButton extends StatelessWidget {
     this.buttonForegroundColor,
     this.selectedButtonColor,
     this.selectedButtonForegroundColor,
+    this.fontFamily,
   });
 
   @override
@@ -1184,9 +1221,10 @@ class _NavButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
+          textStyle: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
+            fontFamily: fontFamily,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         ),

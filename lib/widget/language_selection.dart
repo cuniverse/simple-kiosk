@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../model/menu_language.dart';
 import '../model/menu_topic.dart';
+import '../service/font_resource_service.dart';
 import 'material_icon_registry.dart';
+
+const double _selectionButtonMaxWidth = 400;
+const double _selectionButtonHeight = 190;
 
 /// 화면보호기 해제 후 표시하는 터치 친화적인 언어 선택 화면.
 class LanguageSelection extends StatefulWidget {
@@ -14,6 +18,7 @@ class LanguageSelection extends StatefulWidget {
   final String topicTitle;
   final String topicSubtitle;
   final bool skipSingleTopic;
+  final String? fontFamily;
   final void Function(int languageIndex, int topicIndex) onSelected;
   final VoidCallback onReturnToIdle;
 
@@ -25,6 +30,7 @@ class LanguageSelection extends StatefulWidget {
     this.topicTitle = '주제를 선택하세요',
     this.topicSubtitle = 'Please select a topic',
     this.skipSingleTopic = true,
+    this.fontFamily,
     required this.onSelected,
     required this.onReturnToIdle,
   });
@@ -76,7 +82,9 @@ class _LanguageSelectionState extends State<LanguageSelection> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final availableWidth = MediaQuery.sizeOf(context).width - 48;
-    final buttonWidth = availableWidth < 360 ? availableWidth : 360.0;
+    final buttonWidth = availableWidth < _selectionButtonMaxWidth
+        ? availableWidth
+        : _selectionButtonMaxWidth;
     return Material(
       color: colors.surface,
       child: SafeArea(
@@ -115,9 +123,13 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                   key: const ValueKey('return-to-idle'),
                   onPressed: _returnToIdle,
                   icon: const Icon(Icons.wallpaper_outlined, size: 28),
-                  label: const Text(
+                  label: Text(
                     '화면 보호기로 돌아가기',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: widget.fontFamily,
+                    ),
                   ),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 58),
@@ -147,6 +159,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   fontSize: 44,
                   fontWeight: FontWeight.w800,
+                  fontFamily: widget.fontFamily,
                 ),
           ),
           if (widget.subtitle.isNotEmpty) ...[
@@ -157,6 +170,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontSize: 28,
                     color: colors.onSurfaceVariant,
+                    fontFamily: widget.fontFamily,
                   ),
             ),
           ],
@@ -170,10 +184,14 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               return _SelectionButton(
                 key: ValueKey('language-${language.id}'),
                 width: buttonWidth,
-                height: 176,
+                height: _selectionButtonHeight,
                 label: language.label,
                 subtitle: language.subtitle,
                 icon: language.icon,
+                fontFamily: FontResourceService.familyFor(
+                      language.fontFamily,
+                    ) ??
+                    widget.fontFamily,
                 onPressed: () => _selectLanguage(index),
               );
             }),
@@ -208,10 +226,14 @@ class _LanguageSelectionState extends State<LanguageSelection> {
             child: _SelectionButton(
               key: ValueKey('selected-language-${language.id}'),
               width: buttonWidth,
-              height: 142,
+              height: _selectionButtonHeight,
               label: language.label,
               subtitle: language.subtitle,
               icon: language.icon,
+              fontFamily: FontResourceService.familyFor(
+                    language.fontFamily,
+                  ) ??
+                  widget.fontFamily,
               selected: true,
               onPressed: _showLanguages,
             ),
@@ -227,6 +249,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                     fontSize: 40,
                     fontWeight: FontWeight.w800,
+                    fontFamily: widget.fontFamily,
                   ),
             ),
             if (widget.topicSubtitle.isNotEmpty) ...[
@@ -237,6 +260,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontSize: 25,
                       color: colors.onSurfaceVariant,
+                      fontFamily: widget.fontFamily,
                     ),
               ),
             ],
@@ -250,6 +274,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                 return _TopicButton(
                   topic: topic,
                   width: buttonWidth,
+                  fontFamily: widget.fontFamily,
                   onPressed: () => widget.onSelected(
                     languageIndex,
                     topicIndex,
@@ -262,9 +287,9 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               key: const ValueKey('change-language'),
               onPressed: _showLanguages,
               icon: const Icon(Icons.arrow_back),
-              label: const Text(
+              label: Text(
                 '다른 언어 선택',
-                style: TextStyle(fontSize: 20),
+                style: TextStyle(fontSize: 20, fontFamily: widget.fontFamily),
               ),
             ),
           ],
@@ -278,21 +303,24 @@ class _TopicButton extends StatelessWidget {
   final MenuTopic topic;
   final double width;
   final VoidCallback onPressed;
+  final String? fontFamily;
 
   const _TopicButton({
     required this.topic,
     required this.width,
     required this.onPressed,
+    this.fontFamily,
   });
 
   @override
   Widget build(BuildContext context) => _SelectionButton(
         key: ValueKey('topic-${topic.id}'),
         width: width,
-        height: 156,
+        height: _selectionButtonHeight,
         label: topic.label,
         subtitle: topic.subtitle,
         icon: topic.icon,
+        fontFamily: fontFamily,
         onPressed: onPressed,
       );
 }
@@ -305,6 +333,7 @@ class _SelectionButton extends StatelessWidget {
   final String? icon;
   final VoidCallback onPressed;
   final bool selected;
+  final String? fontFamily;
 
   const _SelectionButton({
     super.key,
@@ -315,6 +344,7 @@ class _SelectionButton extends StatelessWidget {
     this.subtitle,
     this.icon,
     this.selected = false,
+    this.fontFamily,
   });
 
   @override
@@ -340,11 +370,11 @@ class _SelectionButton extends StatelessWidget {
           children: [
             if (icon != null) ...[
               SizedBox(
-                width: 54,
-                height: 54,
+                width: 64,
+                height: 64,
                 child: _LanguageIcon(value: icon!),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
             ],
             Flexible(
               child: FittedBox(
@@ -353,9 +383,10 @@ class _SelectionButton extends StatelessWidget {
                   label,
                   maxLines: 2,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 40,
+                  style: TextStyle(
+                    fontSize: 42,
                     fontWeight: FontWeight.w800,
+                    fontFamily: fontFamily,
                   ),
                 ),
               ),
@@ -367,7 +398,7 @@ class _SelectionButton extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 22),
+                style: TextStyle(fontSize: 24, fontFamily: fontFamily),
               ),
             ],
           ],

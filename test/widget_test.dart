@@ -17,6 +17,7 @@ import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/model/webview_slot_id.dart';
 import 'package:simple_kiosk/model/webview_data_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
+import 'package:simple_kiosk/service/font_resource_service.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/widget/admin_pin_keypad.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
@@ -90,6 +91,9 @@ void main() {
     expect(page, contains('주제 선택 후 첫 메뉴'));
     expect(page, contains('주제 추가'));
     expect(page, contains("webViewData.idlePolicy"));
+    expect(page, contains('layout.menuFontFamily'));
+    expect(page, contains('언어 선택 전체 글꼴'));
+    expect(page, contains("restoreProperty('fontFamily')"));
     expect(page, contains('Local Storage'));
     expect(page, contains('id="reauthOverlay"'));
     expect(page, contains('현재 화면과 저장하지 않은 설정은 그대로 유지됩니다.'));
@@ -371,11 +375,15 @@ void main() {
 
   test('언어별 주제와 주제별 메뉴를 파싱한다', () {
     final config = MenuConfigLoader.parse({
-      'languageSelection': {'skipSingleTopic': false},
+      'languageSelection': {
+        'skipSingleTopic': false,
+        'fontFamily': 'NanumSquare',
+      },
       'languages': [
         {
           'id': 'ko',
           'label': '한국어',
+          'fontFamily': 'Catholic',
           'defaultTopic': 'pilgrimage',
           'topics': [
             {
@@ -390,7 +398,12 @@ void main() {
               'label': '순례',
               'defaultMenu': 'map',
               'items': [
-                {'id': 'map', 'title': '지도', 'url': 'https://map.example'},
+                {
+                  'id': 'map',
+                  'title': '지도',
+                  'url': 'https://map.example',
+                  'fontFamily': 'NanumBrush',
+                },
               ],
             },
           ],
@@ -406,6 +419,9 @@ void main() {
     expect(language.defaultTopic.id, 'pilgrimage');
     expect(language.defaultItem.id, 'map');
     expect(config.skipSingleTopic, isFalse);
+    expect(config.languageSelectionFontFamily, 'NanumSquare');
+    expect(language.fontFamily, 'Catholic');
+    expect(language.defaultItem.fontFamily, 'NanumBrush');
   });
 
   test('숨긴 언어·주제·메뉴를 제외하고 숨긴 기본값은 표시 항목으로 대체한다', () {
@@ -585,6 +601,25 @@ void main() {
       'assets/icons/languages/en-us-gb.png',
     );
     expect(config.language('ko').items.first.title, 'WYD 서울 2027');
+    expect(config.layout.fontFamily, 'Pretendard');
+    expect(config.layout.menuFontFamily, 'Pretendard');
+    expect(config.languageSelectionFontFamily, 'Pretendard');
+    expect(config.language('ko').fontFamily, 'NanumSquare');
+    expect(
+      config.languages.expand((language) => language.effectiveTopics).expand(
+            (topic) => topic.items,
+          ),
+      everyElement(predicate<MenuItem>((item) => item.fontFamily != null)),
+    );
+    expect(
+      config
+          .language('ko')
+          .effectiveTopics
+          .expand((topic) => topic.items)
+          .firstWhere((item) => item.title == '주보')
+          .fontFamily,
+      'NanumBrush',
+    );
     expect(
       config.language('en').items.firstWhere((item) => item.id == 'aos').title,
       'Archdiocese of Seoul',
@@ -630,10 +665,12 @@ void main() {
         home: LanguageSelection(
           title: '언어를 선택하세요',
           subtitle: 'Please select your language',
+          fontFamily: 'NanumSquare',
           languages: const [
             MenuLanguage(
               id: 'ko',
               label: '한국어',
+              fontFamily: 'Catholic',
               icon: 'assets/icons/languages/kr.png',
               items: [
                 MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
@@ -652,7 +689,10 @@ void main() {
     final button = find.byKey(const ValueKey('language-ko'));
     expect(button, findsOneWidget);
     expect(find.byType(Image), findsOneWidget);
-    expect(tester.getSize(button), const Size(360, 176));
+    expect(tester.getSize(button), const Size(400, 190));
+    expect(tester.widget<Text>(find.text('언어를 선택하세요')).style?.fontFamily,
+        'NanumSquare');
+    expect(tester.widget<Text>(find.text('한국어')).style?.fontFamily, 'Catholic');
     await tester.tap(button);
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.byKey(const ValueKey('selected-language-ko')), findsOneWidget);
@@ -714,6 +754,10 @@ void main() {
     expect(tester.getTopLeft(selectedLanguageButton).dy, lessThan(initialTop));
     expect(find.byKey(const ValueKey('topic-parish')), findsOneWidget);
     expect(find.byKey(const ValueKey('topic-pilgrimage')), findsOneWidget);
+    expect(
+      tester.getSize(selectedLanguageButton),
+      tester.getSize(find.byKey(const ValueKey('topic-parish'))),
+    );
 
     await tester.tap(find.byKey(const ValueKey('return-to-idle')));
     await tester.pumpAndSettle();
@@ -878,12 +922,14 @@ void main() {
                 title: title,
                 url: 'https://example.com',
                 icon: 'icon:home',
+                fontFamily: 'NanumBrush',
               ),
             ],
             selectedIndex: 0,
             onSelected: (_) {},
             orientation: NavigationOrientation.bottom,
             buttonWidth: 120,
+            fontFamily: 'NanumGothic',
           ),
         ),
       ),
@@ -893,6 +939,28 @@ void main() {
     expect(titleWidget.maxLines, 2);
     expect(titleWidget.softWrap, isTrue);
     expect(titleWidget.overflow, TextOverflow.ellipsis);
+    expect(titleWidget.style?.fontFamily, 'NanumBrush');
+  });
+
+  testWidgets('툴바 전체 글꼴은 개별 설정이 없는 메뉴에 적용된다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NavigationMenu(
+            items: const [
+              MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
+            ],
+            selectedIndex: 0,
+            onSelected: (_) {},
+            orientation: NavigationOrientation.bottom,
+            fontFamily: 'NanumGothic',
+          ),
+        ),
+      ),
+    );
+
+    expect(
+        tester.widget<Text>(find.text('홈')).style?.fontFamily, 'NanumGothic');
   });
 
   test('semantic versions and overnight install windows are handled', () {
@@ -1325,28 +1393,51 @@ void main() {
     expect(LayoutConfig.defaults.toolbarAutoHideSec, 10);
     expect(LayoutConfig.defaults.keyboardMode, KeyboardMode.windows);
     expect(LayoutConfig.defaults.showSelectedTopic, isTrue);
+    expect(
+      LayoutConfig.defaults.selectedTopicLabelColor,
+      const Color(0xFFF8FAFC),
+    );
     expect(LayoutConfig.defaults.windowsKioskLockdown, isTrue);
+    expect(LayoutConfig.defaults.windowsKioskShortcuts.windowsKey, isTrue);
+    expect(LayoutConfig.defaults.windowsKioskShortcuts.altTab, isTrue);
     expect(LayoutConfig.defaults.windowsAlwaysOnTop, isFalse);
     expect(LayoutConfig.defaults.windowsPreventScreenSaver, isTrue);
     expect(LayoutConfig.defaults.windowsPreventDisplaySleep, isTrue);
 
     final config = LayoutConfig.fromJson({
+      'fontFamily': ' Pretendard ',
+      'menuFontFamily': ' NanumGothic ',
       'toolbarInitiallyHidden': false,
       'toolbarAutoHideSec': 25,
       'barColor': '#123456',
       'keyboardMode': 'builtin',
       'showSelectedTopic': false,
+      'selectedTopicLabelColor': '#abcdef',
       'windowsKioskLockdown': false,
+      'windowsKioskShortcuts': {
+        'windowsKey': false,
+        'altTab': false,
+        'ctrlShiftEscape': false,
+        'browserFavorites': false,
+      },
       'windowsAlwaysOnTop': true,
       'windowsPreventScreenSaver': false,
       'windowsPreventDisplaySleep': false,
     });
     expect(config.toolbarInitiallyHidden, isFalse);
+    expect(config.fontFamily, 'Pretendard');
+    expect(config.menuFontFamily, 'NanumGothic');
     expect(config.toolbarAutoHideSec, 25);
     expect(config.barColor, const Color(0xFF123456));
     expect(config.keyboardMode, KeyboardMode.builtIn);
     expect(config.showSelectedTopic, isFalse);
+    expect(config.selectedTopicLabelColor, const Color(0xFFABCDEF));
     expect(config.windowsKioskLockdown, isFalse);
+    expect(config.windowsKioskShortcuts.windowsKey, isFalse);
+    expect(config.windowsKioskShortcuts.altTab, isFalse);
+    expect(config.windowsKioskShortcuts.altF4, isTrue);
+    expect(config.windowsKioskShortcuts.ctrlShiftEscape, isFalse);
+    expect(config.windowsKioskShortcuts.browserFavorites, isFalse);
     expect(config.windowsAlwaysOnTop, isTrue);
     expect(config.windowsPreventScreenSaver, isFalse);
     expect(config.windowsPreventDisplaySleep, isFalse);
@@ -1354,6 +1445,33 @@ void main() {
       () => LayoutConfig.fromJson({'keyboardMode': 'unknown'}),
       throwsFormatException,
     );
+  });
+
+  test('패키지 글꼴 파일과 라이선스를 모두 포함한다', () {
+    expect(
+        FontResourceService.packagedFamilies,
+        containsAll(const [
+          'Pretendard',
+          'NanumSquare',
+          'NanumGothic',
+          'NanumBrush',
+          'KoPubDotum',
+          'Catholic',
+        ]));
+    for (final path in const [
+      'assets/fonts/pretendard/Pretendard-Regular.otf',
+      'assets/fonts/nanum-square/NanumSquareR.otf',
+      'assets/fonts/nanum-gothic/NanumGothic.otf',
+      'assets/fonts/nanum-brush/NanumBrush.otf',
+      'assets/fonts/kopub-dotum/KoPub Dotum Medium.ttf',
+      'assets/fonts/catholic/Catholic.ttf',
+      'assets/fonts/licenses/Pretendard-OFL-1.1.txt',
+      'assets/fonts/licenses/Nanum-OFL-1.1.txt',
+      'assets/fonts/licenses/KoPub-Dotum-LICENSE.txt',
+      'assets/fonts/licenses/Catholic-LICENSE.txt',
+    ]) {
+      expect(File(path).existsSync(), isTrue, reason: path);
+    }
   });
 
   test('Windows 키오스크 잠금은 앱 전환과 셸 단축키를 차단한다', () {
@@ -1365,6 +1483,10 @@ void main() {
     expect(source, contains('VK_TAB'));
     expect(source, contains('VK_ESCAPE'));
     expect(source, contains('VK_LAUNCH_APP1'));
+    expect(source, contains('blockWindowsKey'));
+    expect(source, contains('blockAltTab'));
+    expect(source, contains('blockCtrlShiftEscape'));
+    expect(source, contains('g_block_browser_favorites'));
     expect(source, contains('ArmEmergencyExit'));
     expect(source, contains('compare_exchange_strong'));
     expect(source, contains('g_emergency_exit_sequence'));
@@ -1383,6 +1505,21 @@ void main() {
     final windowSource =
         File('windows/runner/win32_window.cpp').readAsStringSync();
     expect(windowSource, contains('BLACK_BRUSH'));
+  });
+
+  test('Windows 시작과 숨김 복원은 렌더 표면을 실제 resize로 복구한다', () {
+    final mainSource = File('lib/main.dart').readAsStringSync();
+    final nativeSource =
+        File('windows/runner/flutter_window.cpp').readAsStringSync();
+    final traySource =
+        File('lib/service/kiosk_tray_controller.dart').readAsStringSync();
+
+    expect(mainSource, contains('addPostFrameCallback'));
+    expect(mainSource, contains('recoverRenderingSurface'));
+    expect(nativeSource, contains('call.method_name() == "recoverSurface"'));
+    expect(nativeSource, contains('width - 1'));
+    expect(nativeSource, isNot(contains('this->Show();')));
+    expect(traySource, contains('recoverRenderingSurface'));
   });
 
   test('Windows 키보드 토글은 실제 창 상태를 확인해 반복 동작한다', () async {
@@ -1583,6 +1720,7 @@ void main() {
   });
 
   testWidgets('현재 주제는 버튼이 아닌 작은 라벨로 툴바 시작 위치에 표시된다', (tester) async {
+    var languageSelectionCount = 0;
     const items = [
       MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
     ];
@@ -1601,6 +1739,8 @@ void main() {
                 onSelected: (_) {},
                 orientation: NavigationOrientation.side,
                 selectedTopicLabel: '여의도동 성당',
+                selectedTopicLabelColor: const Color(0xFFABCDEF),
+                onSelectLanguage: () => languageSelectionCount += 1,
               ),
             ),
           ),
@@ -1614,8 +1754,15 @@ void main() {
       find.ancestor(of: sideLabel, matching: find.byType(FilledButton)),
       findsNothing,
     );
+    expect(
+      tester.widget<Text>(sideLabel).style?.color,
+      const Color(0xFFABCDEF),
+    );
     expect(tester.getTopLeft(sideLabel).dy,
         lessThan(tester.getTopLeft(find.text('홈')).dy));
+    await tester.tap(sideLabel);
+    await tester.pump();
+    expect(languageSelectionCount, 1);
 
     await tester.pumpWidget(
       MaterialApp(

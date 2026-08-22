@@ -56,7 +56,7 @@
 - **네비게이션 바**: 좌/우/상/하 어디에든 배치 가능 (설정으로 변경)
 - **뒤로/앞으로 버튼**: `showHistoryButtons` 활성화 시 바의 **시작점** 에 표시
 - **키보드 토글 버튼**: `showKeyboardToggle` 활성화 시 바의 **끝점** 에 표시
-- **현재 주제 라벨**: `showSelectedTopic` 활성화 시 세로 바의 최상단 또는 가로 바의 가장 왼쪽에 작게 표시
+- **현재 주제 라벨**: `showSelectedTopic` 활성화 시 세로 바의 최상단 또는 가로 바의 가장 왼쪽에 작게 표시하며, 누르면 언어 선택 화면으로 이동
 - **툴바 감추기 버튼**: 좌·우·상·하 툴바에서 `툴바 감추기` 버튼으로 전체 툴바를 감춤. 감춘 뒤에는
   `←`, `→`, 툴바 복원, `⌨`(가상 키보드) 버튼만 플로팅으로 표시. 컨트롤을
   드래그한 뒤 놓으면 왼쪽 위·오른쪽 위·왼쪽 아래·오른쪽 아래 중 가까운 모서리에 정렬
@@ -148,6 +148,8 @@ schemaVersion 1, 최상위 `items`, `languages[].items`와 이전 웹 관리자�
   이동한 뒤 `topics`의 주제 버튼이 표시됩니다.
 - `languageSelection.skipSingleTopic`이 `true`이면 주제가 하나뿐인 언어는 주제 화면을
   건너뛰고 바로 진입합니다. 기본값은 `true`입니다.
+- 언어와 주제 선택 버튼은 동일한 큰 터치 규격으로 표시되며 화면 폭이 부족하면 자동으로
+  줄바꿈되거나 스크롤됩니다.
 - 툴바의 **언어 선택** 아이콘을 누르면 현재 WebView 상태를 유지한 채 언어 선택
   화면으로 다시 돌아갈 수 있습니다.
 - 언어를 추가하려면 고유한 `id`, 버튼에 표시할 `label`, 한 개 이상의 `topics`를 추가합니다.
@@ -217,6 +219,7 @@ android:usesCleartextTraffic="true"
   "showHistoryButtons": true,
   "showKeyboardToggle": true,
   "showSelectedTopic": true,
+  "selectedTopicLabelColor": "#f8fafc",
   "keepStateOnTap": false,
   "toolbarInitiallyHidden": true,
   "toolbarAutoHideSec": 10
@@ -240,7 +243,9 @@ android:usesCleartextTraffic="true"
 | `showHistoryButtons` | bool | `true` | 네비 **시작점** 에 ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 네비 **끝점** 에 OS 가상 키보드 토글 버튼 표시 ([§9](#9-가상-키보드) 참고) |
 | `showSelectedTopic` | bool | `true` | 현재 주제를 버튼이 아닌 작은 상태 라벨로 표시 |
+| `selectedTopicLabelColor` | color | `#f8fafc` | 현재 주제 라벨 글자색. 라벨을 누르면 언어 선택으로 이동 |
 | `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
+| `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
 | `windowsPreventScreenSaver` | bool | `true` | 사이니지 표시 중 Windows 화면보호기 실행 방지 |
 | `windowsPreventDisplaySleep` | bool | `true` | 사이니지 표시 중 Windows 화면 자동 끄기 방지 |
@@ -253,6 +258,15 @@ android:usesCleartextTraffic="true"
 | `buttonForegroundColor` | 색상 문자열 | (테마) | 비선택 버튼 텍스트/아이콘 색 |
 | `selectedButtonColor` | 색상 문자열 | (테마) | 선택된 버튼 배경색 |
 | `selectedButtonForegroundColor` | 색상 문자열 | (테마) | 선택된 버튼 텍스트/아이콘 색 |
+
+`windowsKioskShortcuts`에서는 `windowsKey`, `altTab`, `altEscape`, `altF4`,
+`altSpace`, `ctrlEscape`, `ctrlShiftEscape`, `launchApp1`, `launchApp2`,
+`launchMail`, `browserHome`, `browserSearch`, `browserFavorites`를 각각
+`true`(차단) 또는 `false`(허용)로 지정할 수 있습니다. `windowsKey`는 시작 메뉴와
+`Win+Tab`, `Win+D`, `Win+R` 등 모든 Windows 키 조합에 함께 적용됩니다.
+상위 `windowsKioskLockdown`이 꺼져 있으면 개별 설정은 적용되지 않습니다.
+비상 종료용 `Ctrl+Alt+Shift+F4`와 Windows 보안 화면 `Ctrl+Alt+Del`은 안전을 위해
+이 설정으로 차단하지 않습니다.
 
 ### `keepStateOnTap` — 메뉴 상태 유지 동작
 
@@ -604,6 +618,25 @@ search, help, link, web, music, mic, camera, image, download, qr
 이 동작은 사이니지에서 사용자가 헤맬 가능성을 최소화합니다.
 
 ---
+
+## UI 글꼴 설정
+
+웹 관리자 **레이아웃 → UI 글꼴** 또는 `layout.fontFamily`에서 글꼴 이름을
+지정합니다. 실행 파일 기준 `fonts` 폴더의 외부 TTF/OTF가 가장 우선하고,
+패키지 글꼴, Windows 시스템 글꼴, Flutter 기본 글꼴 순서로 폴백합니다.
+
+포함된 패키지 글꼴 이름은 `Pretendard`, `NanumSquare`, `NanumGothic`,
+`NanumBrush`, `KoPubDotum`, `Catholic`입니다. 빈 값은 Flutter 기본 글꼴입니다.
+가톨릭체는 개인과 가톨릭 교회기관의 비영리·사목 목적에만 사용해야 합니다.
+
+- 전체 UI: `layout.fontFamily`
+- 툴바 전체: `layout.menuFontFamily`
+- 개별 툴바 메뉴: `languages[].topics[].items[].fontFamily`
+- 언어 선택 화면 전체: `languageSelection.fontFamily`
+- 개별 언어 버튼: `languages[].fontFamily`
+
+개별 설정이 없으면 화면 전체 설정을, 화면 전체 설정도 없으면 전체 UI 설정을
+상속합니다. 웹 관리자에서도 같은 항목을 편집할 수 있습니다.
 
 ## 9. 가상 키보드
 

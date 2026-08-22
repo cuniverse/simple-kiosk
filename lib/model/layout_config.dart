@@ -93,11 +93,124 @@ KeyboardMode _parseKeyboardMode(Object? raw) {
   }
 }
 
+/// Windows 사이니지 잠금에서 차단할 키와 키 조합.
+///
+/// 모든 항목의 기본값은 `true`이며, 상위 [LayoutConfig.windowsKioskLockdown]
+/// 설정이 켜져 있을 때만 적용된다.
+class WindowsKioskShortcutSettings {
+  final bool windowsKey;
+  final bool altTab;
+  final bool altEscape;
+  final bool altF4;
+  final bool altSpace;
+  final bool ctrlEscape;
+  final bool ctrlShiftEscape;
+  final bool launchApp1;
+  final bool launchApp2;
+  final bool launchMail;
+  final bool browserHome;
+  final bool browserSearch;
+  final bool browserFavorites;
+
+  const WindowsKioskShortcutSettings({
+    this.windowsKey = true,
+    this.altTab = true,
+    this.altEscape = true,
+    this.altF4 = true,
+    this.altSpace = true,
+    this.ctrlEscape = true,
+    this.ctrlShiftEscape = true,
+    this.launchApp1 = true,
+    this.launchApp2 = true,
+    this.launchMail = true,
+    this.browserHome = true,
+    this.browserSearch = true,
+    this.browserFavorites = true,
+  });
+
+  static const defaults = WindowsKioskShortcutSettings();
+
+  factory WindowsKioskShortcutSettings.fromJson(Object? raw) {
+    if (raw == null) return defaults;
+    if (raw is! Map) {
+      throw const FormatException(
+        'menu.json layout.windowsKioskShortcuts: object 필요',
+      );
+    }
+    final json = Map<String, dynamic>.from(raw);
+
+    bool value(String key, bool fallback) {
+      final current = json[key];
+      if (current == null) return fallback;
+      if (current is bool) return current;
+      throw FormatException(
+        'menu.json layout.windowsKioskShortcuts.$key: bool 필요',
+      );
+    }
+
+    return WindowsKioskShortcutSettings(
+      windowsKey: value('windowsKey', defaults.windowsKey),
+      altTab: value('altTab', defaults.altTab),
+      altEscape: value('altEscape', defaults.altEscape),
+      altF4: value('altF4', defaults.altF4),
+      altSpace: value('altSpace', defaults.altSpace),
+      ctrlEscape: value('ctrlEscape', defaults.ctrlEscape),
+      ctrlShiftEscape: value('ctrlShiftEscape', defaults.ctrlShiftEscape),
+      launchApp1: value('launchApp1', defaults.launchApp1),
+      launchApp2: value('launchApp2', defaults.launchApp2),
+      launchMail: value('launchMail', defaults.launchMail),
+      browserHome: value('browserHome', defaults.browserHome),
+      browserSearch: value('browserSearch', defaults.browserSearch),
+      browserFavorites: value('browserFavorites', defaults.browserFavorites),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is WindowsKioskShortcutSettings &&
+      windowsKey == other.windowsKey &&
+      altTab == other.altTab &&
+      altEscape == other.altEscape &&
+      altF4 == other.altF4 &&
+      altSpace == other.altSpace &&
+      ctrlEscape == other.ctrlEscape &&
+      ctrlShiftEscape == other.ctrlShiftEscape &&
+      launchApp1 == other.launchApp1 &&
+      launchApp2 == other.launchApp2 &&
+      launchMail == other.launchMail &&
+      browserHome == other.browserHome &&
+      browserSearch == other.browserSearch &&
+      browserFavorites == other.browserFavorites;
+
+  @override
+  int get hashCode => Object.hashAll([
+        windowsKey,
+        altTab,
+        altEscape,
+        altF4,
+        altSpace,
+        ctrlEscape,
+        ctrlShiftEscape,
+        launchApp1,
+        launchApp2,
+        launchMail,
+        browserHome,
+        browserSearch,
+        browserFavorites,
+      ]);
+}
+
 /// 네비게이션 바 레이아웃 설정.
 ///
 /// `menu.json`의 선택적 `layout` 섹션에서 로드된다.
 /// 값이 누락되면 모두 기본값을 사용한다.
 class LayoutConfig {
+  /// 앱 UI에 사용할 글꼴 이름. 비어 있으면 Flutter 기본 글꼴을 사용한다.
+  final String? fontFamily;
+
+  /// 툴바 메뉴 버튼 전체에 사용할 글꼴. 비어 있으면 [fontFamily]를 상속한다.
+  final String? menuFontFamily;
+
   /// 네비게이션 바 위치.
   final NavPosition navPosition;
 
@@ -143,8 +256,14 @@ class LayoutConfig {
   /// 현재 선택한 주제 이름을 툴바 시작 위치에 작은 상태 라벨로 표시할지 여부.
   final bool showSelectedTopic;
 
+  /// 현재 주제 라벨의 글자색.
+  final Color selectedTopicLabelColor;
+
   /// Windows 사이니지 표시 중 앱 전환·셸 단축키를 차단할지 여부.
   final bool windowsKioskLockdown;
+
+  /// Windows 사이니지 잠금에서 개별적으로 차단할 키와 키 조합.
+  final WindowsKioskShortcutSettings windowsKioskShortcuts;
 
   /// Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지할지 여부.
   final bool windowsAlwaysOnTop;
@@ -190,6 +309,8 @@ class LayoutConfig {
   final Color? selectedButtonForegroundColor;
 
   const LayoutConfig({
+    this.fontFamily,
+    this.menuFontFamily,
     this.navPosition = NavPosition.auto,
     this.sideWidth = 220,
     this.barHeight = 96,
@@ -201,7 +322,9 @@ class LayoutConfig {
     this.showHistoryButtons = false,
     this.showKeyboardToggle = false,
     this.showSelectedTopic = true,
+    this.selectedTopicLabelColor = const Color(0xFFF8FAFC),
     this.windowsKioskLockdown = true,
+    this.windowsKioskShortcuts = WindowsKioskShortcutSettings.defaults,
     this.windowsAlwaysOnTop = false,
     this.windowsPreventScreenSaver = true,
     this.windowsPreventDisplaySleep = true,
@@ -247,6 +370,28 @@ class LayoutConfig {
     }
 
     return LayoutConfig(
+      fontFamily: () {
+        final value = json['fontFamily'];
+        if (value == null) return defaults.fontFamily;
+        if (value is! String) {
+          throw const FormatException(
+            'menu.json layout.fontFamily: 문자열 필요',
+          );
+        }
+        final trimmed = value.trim();
+        return trimmed.isEmpty ? null : trimmed;
+      }(),
+      menuFontFamily: () {
+        final value = json['menuFontFamily'];
+        if (value == null) return defaults.menuFontFamily;
+        if (value is! String) {
+          throw const FormatException(
+            'menu.json layout.menuFontFamily: 문자열 필요',
+          );
+        }
+        final trimmed = value.trim();
+        return trimmed.isEmpty ? null : trimmed;
+      }(),
       navPosition: navPosition,
       sideWidth: parsePositive('sideWidth', defaults.sideWidth),
       barHeight: parsePositive('barHeight', defaults.barHeight),
@@ -280,6 +425,11 @@ class LayoutConfig {
           'menu.json layout.showSelectedTopic: bool 필요',
         );
       }(),
+      selectedTopicLabelColor: _parseColor(
+            json['selectedTopicLabelColor'],
+            'selectedTopicLabelColor',
+          ) ??
+          defaults.selectedTopicLabelColor,
       windowsKioskLockdown: () {
         final v = json['windowsKioskLockdown'];
         if (v == null) return defaults.windowsKioskLockdown;
@@ -288,6 +438,9 @@ class LayoutConfig {
           'menu.json layout.windowsKioskLockdown: bool 필요',
         );
       }(),
+      windowsKioskShortcuts: WindowsKioskShortcutSettings.fromJson(
+        json['windowsKioskShortcuts'],
+      ),
       windowsAlwaysOnTop: () {
         final v = json['windowsAlwaysOnTop'];
         if (v == null) return defaults.windowsAlwaysOnTop;

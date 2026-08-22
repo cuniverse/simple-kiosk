@@ -12,6 +12,9 @@
 /// }
 /// ```
 class MenuItem {
+  /// 이 툴바 항목에만 적용할 글꼴. 비어 있으면 툴바 전체 설정을 상속한다.
+  final String? fontFamily;
+
   /// `true`이면 이 항목을 툴바에서 숨긴다. 기본값은 `false`.
   final bool hidden;
 
@@ -53,6 +56,7 @@ class MenuItem {
     required this.title,
     required this.url,
     this.hidden = false,
+    this.fontFamily,
     this.icon,
     this.showTitle = true,
     this.keepStateOnTap,
@@ -70,6 +74,7 @@ class MenuItem {
     final showTitle = json['showTitle'];
     final keepState = json['keepStateOnTap'];
     final hidden = json['hidden'];
+    final fontFamily = json['fontFamily'];
 
     if (id is! String || id.isEmpty) {
       throw const FormatException('menu item: "id" 누락 또는 형식 오류');
@@ -82,6 +87,9 @@ class MenuItem {
     }
     if (hidden != null && hidden is! bool) {
       throw const FormatException('menu item: "hidden"은 bool 이어야 함');
+    }
+    if (fontFamily != null && fontFamily is! String) {
+      throw const FormatException('menu item: "fontFamily"는 문자열이어야 함');
     }
 
     String? iconPath;
@@ -104,6 +112,9 @@ class MenuItem {
       title: title,
       url: url,
       hidden: hidden as bool? ?? false,
+      fontFamily: fontFamily is String && fontFamily.trim().isNotEmpty
+          ? fontFamily.trim()
+          : null,
       icon: iconPath,
       showTitle: showTitle is bool ? showTitle : true,
       keepStateOnTap: keepStateOnTap,

@@ -1,7 +1,7 @@
 name: simple_kiosk
 description: 성당 로비용 Flutter 디지털 사이니지 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.19
+version: 1.2.20
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -50,3 +50,60 @@ flutter:
     - assets/icons/
     - assets/icons/languages/
     - assets/idle/
+    - assets/fonts/README.md
+    - assets/fonts/licenses/
+  fonts:
+    - family: NanumSquare
+      fonts:
+        - asset: assets/fonts/nanum-square/NanumSquareL.otf
+          weight: 300
+        - asset: assets/fonts/nanum-square/NanumSquareR.otf
+          weight: 400
+        - asset: assets/fonts/nanum-square/NanumSquareB.otf
+          weight: 700
+        - asset: assets/fonts/nanum-square/NanumSquareEB.otf
+          weight: 800
+    - family: NanumGothic
+      fonts:
+        - asset: assets/fonts/nanum-gothic/NanumGothicLight.otf
+          weight: 300
+        - asset: assets/fonts/nanum-gothic/NanumGothic.otf
+          weight: 400
+        - asset: assets/fonts/nanum-gothic/NanumGothicBold.otf
+          weight: 700
+        - asset: assets/fonts/nanum-gothic/NanumGothicExtraBold.otf
+          weight: 800
+    - family: NanumBrush
+      fonts:
+        - asset: assets/fonts/nanum-brush/NanumBrush.otf
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/pretendard/Pretendard-Thin.otf
+          weight: 100
+        - asset: assets/fonts/pretendard/Pretendard-ExtraLight.otf
+          weight: 200
+        - asset: assets/fonts/pretendard/Pretendard-Light.otf
+          weight: 300
+        - asset: assets/fonts/pretendard/Pretendard-Regular.otf
+          weight: 400
+        - asset: assets/fonts/pretendard/Pretendard-Medium.otf
+          weight: 500
+        - asset: assets/fonts/pretendard/Pretendard-SemiBold.otf
+          weight: 600
+        - asset: assets/fonts/pretendard/Pretendard-Bold.otf
+          weight: 700
+        - asset: assets/fonts/pretendard/Pretendard-ExtraBold.otf
+          weight: 800
+        - asset: assets/fonts/pretendard/Pretendard-Black.otf
+          weight: 900
+    - family: KoPubDotum
+      fonts:
+        - asset: assets/fonts/kopub-dotum/KoPub Dotum Light.ttf
+          weight: 300
+        - asset: assets/fonts/kopub-dotum/KoPub Dotum Medium.ttf
+          weight: 500
+        - asset: assets/fonts/kopub-dotum/KoPub Dotum Bold.ttf
+          weight: 700
+    - family: Catholic
+      fonts:
+        - asset: assets/fonts/catholic/Catholic.ttf

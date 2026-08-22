@@ -23,6 +23,19 @@ constexpr UINT kSurfaceWatchdogIntervalMs = 15000;
 HWND g_kiosk_window = nullptr;
 std::atomic_bool g_kiosk_mode_active = false;
 std::atomic_bool g_kiosk_lockdown_enabled = false;
+std::atomic_bool g_block_windows_key = true;
+std::atomic_bool g_block_alt_tab = true;
+std::atomic_bool g_block_alt_escape = true;
+std::atomic_bool g_block_alt_f4 = true;
+std::atomic_bool g_block_alt_space = true;
+std::atomic_bool g_block_ctrl_escape = true;
+std::atomic_bool g_block_ctrl_shift_escape = true;
+std::atomic_bool g_block_launch_app1 = true;
+std::atomic_bool g_block_launch_app2 = true;
+std::atomic_bool g_block_launch_mail = true;
+std::atomic_bool g_block_browser_home = true;
+std::atomic_bool g_block_browser_search = true;
+std::atomic_bool g_block_browser_favorites = true;
 std::atomic_bool g_prevent_screen_saver = false;
 std::atomic_bool g_prevent_display_sleep = false;
 std::atomic_uint64_t g_emergency_exit_sequence = 0;
@@ -405,15 +418,26 @@ LRESULT CALLBACK KioskKeyboardHook(int code, WPARAM wparam, LPARAM lparam) {
 
     if (g_kiosk_lockdown_enabled.load()) {
       // Windows 셸, 작업 전환, 실행 창, 바탕화면 및 작업 관리자로 빠져나가는
-      // 일반 단축키를 사이니지 표시 중에 차단한다.
-      if (key == VK_LWIN || key == VK_RWIN ||
-          (alt && (key == VK_TAB || key == VK_ESCAPE || key == VK_F4 ||
-                   key == VK_SPACE)) ||
-          (control && key == VK_ESCAPE) ||
-          (control && shift && key == VK_ESCAPE) ||
-          key == VK_LAUNCH_APP1 || key == VK_LAUNCH_APP2 ||
-          key == VK_LAUNCH_MAIL || key == VK_BROWSER_HOME ||
-          key == VK_BROWSER_SEARCH || key == VK_BROWSER_FAVORITES) {
+      // 일반 단축키를 각각의 관리 설정에 따라 차단한다.
+      const bool block_key =
+          ((key == VK_LWIN || key == VK_RWIN) &&
+           g_block_windows_key.load()) ||
+          (alt && key == VK_TAB && g_block_alt_tab.load()) ||
+          (alt && key == VK_ESCAPE && g_block_alt_escape.load()) ||
+          (alt && key == VK_F4 && g_block_alt_f4.load()) ||
+          (alt && key == VK_SPACE && g_block_alt_space.load()) ||
+          (control && !shift && key == VK_ESCAPE &&
+           g_block_ctrl_escape.load()) ||
+          (control && shift && key == VK_ESCAPE &&
+           g_block_ctrl_shift_escape.load()) ||
+          (key == VK_LAUNCH_APP1 && g_block_launch_app1.load()) ||
+          (key == VK_LAUNCH_APP2 && g_block_launch_app2.load()) ||
+          (key == VK_LAUNCH_MAIL && g_block_launch_mail.load()) ||
+          (key == VK_BROWSER_HOME && g_block_browser_home.load()) ||
+          (key == VK_BROWSER_SEARCH && g_block_browser_search.load()) ||
+          (key == VK_BROWSER_FAVORITES &&
+           g_block_browser_favorites.load());
+      if (block_key) {
         return 1;
       }
     }
@@ -474,7 +498,7 @@ bool FlutterWindow::OnCreate() {
           "simple_kiosk/windows_kiosk_mode",
           &flutter::StandardMethodCodec::GetInstance());
   kiosk_mode_channel_->SetMethodCallHandler(
-      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
              result) {
         if (call.method_name() == "setEnabled") {
@@ -485,6 +509,32 @@ bool FlutterWindow::OnCreate() {
               call, "shortcutLockdownEnabled", legacy_enabled);
           g_kiosk_mode_active.store(active);
           g_kiosk_lockdown_enabled.store(active && shortcut_lockdown);
+          g_block_windows_key.store(
+              MethodBoolArgument(call, "blockWindowsKey", true));
+          g_block_alt_tab.store(
+              MethodBoolArgument(call, "blockAltTab", true));
+          g_block_alt_escape.store(
+              MethodBoolArgument(call, "blockAltEscape", true));
+          g_block_alt_f4.store(
+              MethodBoolArgument(call, "blockAltF4", true));
+          g_block_alt_space.store(
+              MethodBoolArgument(call, "blockAltSpace", true));
+          g_block_ctrl_escape.store(
+              MethodBoolArgument(call, "blockCtrlEscape", true));
+          g_block_ctrl_shift_escape.store(
+              MethodBoolArgument(call, "blockCtrlShiftEscape", true));
+          g_block_launch_app1.store(
+              MethodBoolArgument(call, "blockLaunchApp1", true));
+          g_block_launch_app2.store(
+              MethodBoolArgument(call, "blockLaunchApp2", true));
+          g_block_launch_mail.store(
+              MethodBoolArgument(call, "blockLaunchMail", true));
+          g_block_browser_home.store(
+              MethodBoolArgument(call, "blockBrowserHome", true));
+          g_block_browser_search.store(
+              MethodBoolArgument(call, "blockBrowserSearch", true));
+          g_block_browser_favorites.store(
+              MethodBoolArgument(call, "blockBrowserFavorites", true));
           g_prevent_screen_saver.store(
               active && MethodBoolArgument(call, "preventScreenSaver"));
           g_prevent_display_sleep.store(
@@ -495,6 +545,9 @@ bool FlutterWindow::OnCreate() {
             g_keyboard_emergency_exit_token.store(0);
             g_touch_emergency_exit_token.store(0);
           }
+          result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "recoverSurface") {
+          RecoverRenderingSurface(true);
           result->Success(flutter::EncodableValue(true));
         } else {
           result->NotImplemented();
@@ -543,19 +596,15 @@ bool FlutterWindow::OnCreate() {
   keyboard_hook_ = ::SetWindowsHookEx(WH_KEYBOARD_LL, KioskKeyboardHook,
                                       ::GetModuleHandle(nullptr), 0);
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
-  });
-
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
+  // 창 표시와 전체화면 전환은 첫 Flutter 프레임 뒤 Dart에서 한 경로로만
+  // 수행한다. 네이티브에서도 창을 표시하면 첫 프레임/전체화면 resize가
+  // 경쟁해 렌더 표면이 검게 멈출 수 있다.
   flutter_controller_->ForceRedraw();
 
   return true;
 }
 
-void FlutterWindow::RecoverRenderingSurface() {
+void FlutterWindow::RecoverRenderingSurface(bool force_resize) {
   if (!flutter_controller_ || !flutter_controller_->view() ||
       g_kiosk_window == nullptr) {
     return;
@@ -569,8 +618,17 @@ void FlutterWindow::RecoverRenderingSurface() {
   ::GetWindowRect(flutter_view, &child);
   const LONG width = client.right - client.left;
   const LONG height = client.bottom - client.top;
-  if (!::IsWindowVisible(flutter_view) || child.right - child.left != width ||
-      child.bottom - child.top != height) {
+  if (force_resize && width > 1 && height > 1) {
+    // ForceRedraw만으로는 손상된 Flutter Windows swapchain 크기가 복구되지
+    // 않는다. 자식 HWND를 1px 줄였다가 복원해 실제 WM_SIZE/표면 재생성
+    // 사이클을 발생시킨다. 창을 표시하기 전에도 안전하게 호출할 수 있다.
+    ::SetWindowPos(flutter_view, nullptr, 0, 0, width - 1, height,
+                   SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    ::SetWindowPos(flutter_view, nullptr, 0, 0, width, height,
+                   SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+  } else if (!::IsWindowVisible(flutter_view) ||
+             child.right - child.left != width ||
+             child.bottom - child.top != height) {
     ::SetWindowPos(flutter_view, nullptr, 0, 0, width, height,
                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
   }
@@ -650,11 +708,11 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       break;
     case WM_DISPLAYCHANGE:
     case WM_DWMCOMPOSITIONCHANGED:
-      RecoverRenderingSurface();
+      RecoverRenderingSurface(true);
       break;
     case WM_POWERBROADCAST:
       if (wparam == PBT_APMRESUMEAUTOMATIC || wparam == PBT_APMRESUMESUSPEND) {
-        RecoverRenderingSurface();
+        RecoverRenderingSurface(true);
       }
       break;
     case WM_ACTIVATE:

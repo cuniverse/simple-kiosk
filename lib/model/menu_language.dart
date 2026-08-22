@@ -3,6 +3,9 @@ import 'menu_topic.dart';
 
 /// 사용자가 선택할 수 있는 언어와 해당 언어 전용 주제 목록.
 class MenuLanguage {
+  /// 이 언어 선택 버튼에만 적용할 글꼴. 비어 있으면 선택 화면 전체 설정을 상속한다.
+  final String? fontFamily;
+
   final String id;
   final String label;
   final bool hidden;
@@ -44,6 +47,7 @@ class MenuLanguage {
     required this.label,
     required List<MenuItem> items,
     this.hidden = false,
+    this.fontFamily,
     this.topics = const [],
     String? defaultMenuId,
     String? defaultTopicId,
@@ -63,6 +67,7 @@ class MenuLanguage {
     final defaultMenu = json['defaultMenu'];
     final defaultTopic = json['defaultTopic'];
     final hidden = json['hidden'];
+    final fontFamily = json['fontFamily'];
     if (id is! String || id.trim().isEmpty) {
       throw FormatException('menu.json languages[$index].id: 비어있지 않은 문자열 필요');
     }
@@ -79,6 +84,9 @@ class MenuLanguage {
     }
     if (hidden != null && hidden is! bool) {
       throw FormatException('menu.json languages[$index].hidden: bool 필요');
+    }
+    if (fontFamily != null && fontFamily is! String) {
+      throw FormatException('menu.json languages[$index].fontFamily: 문자열 필요');
     }
     final isHidden = hidden as bool? ?? false;
     if (rawTopics == null && (rawItems is! List || rawItems.isEmpty)) {
@@ -156,6 +164,9 @@ class MenuLanguage {
         id: id.trim(),
         label: label.trim(),
         hidden: isHidden,
+        fontFamily: fontFamily is String && fontFamily.trim().isNotEmpty
+            ? fontFamily.trim()
+            : null,
         subtitle: subtitle is String && subtitle.trim().isNotEmpty
             ? subtitle.trim()
             : null,
@@ -208,6 +219,9 @@ class MenuLanguage {
       id: id.trim(),
       label: label.trim(),
       hidden: isHidden,
+      fontFamily: fontFamily is String && fontFamily.trim().isNotEmpty
+          ? fontFamily.trim()
+          : null,
       subtitle: subtitle is String && subtitle.trim().isNotEmpty
           ? subtitle.trim()
           : null,

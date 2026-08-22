@@ -20,6 +20,7 @@ import 'model/webview_slot_id.dart';
 import 'model/webview_data_policy.dart';
 import 'service/admin_api_controller.dart';
 import 'service/configuration_backup_service.dart';
+import 'service/font_resource_service.dart';
 import 'service/menu_config_loader.dart';
 import 'service/runtime_paths.dart';
 import 'widget/idle_gate.dart';
@@ -46,37 +47,41 @@ class KioskApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: appDisplayName,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
+    return ValueListenableBuilder<ResolvedFontResource>(
+      valueListenable: FontResourceService.current,
+      builder: (context, font, _) => MaterialApp(
+        title: appDisplayName,
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
+          colorSchemeSeed: Colors.indigo,
+          fontFamily: font.effectiveFamily,
+        ),
+        // 모든 화면 위에 가상 키보드 오버레이를 띄울 수 있도록 builder 로 감싼다.
+        // KeyboardController.visible 가 true 일 때만 키보드 위젯이 표시된다.
+        builder: (context, child) {
+          return Stack(
+            children: [
+              if (child != null) child,
+              ValueListenableBuilder<bool>(
+                valueListenable: SystemKeyboard.builtInEnabled,
+                builder: (context, builtInEnabled, _) {
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: KeyboardController.instance.visible,
+                    builder: (context, visible, _) {
+                      if (!builtInEnabled || !visible) {
+                        return const SizedBox.shrink();
+                      }
+                      return const VirtualKeyboardOverlay();
+                    },
+                  );
+                },
+              ),
+            ],
+          );
+        },
+        home: const _MenuBootstrap(),
       ),
-      // 모든 화면 위에 가상 키보드 오버레이를 띄울 수 있도록 builder 로 감싼다.
-      // KeyboardController.visible 가 true 일 때만 키보드 위젯이 표시된다.
-      builder: (context, child) {
-        return Stack(
-          children: [
-            if (child != null) child,
-            ValueListenableBuilder<bool>(
-              valueListenable: SystemKeyboard.builtInEnabled,
-              builder: (context, builtInEnabled, _) {
-                return ValueListenableBuilder<bool>(
-                  valueListenable: KeyboardController.instance.visible,
-                  builder: (context, visible, _) {
-                    if (!builtInEnabled || !visible) {
-                      return const SizedBox.shrink();
-                    }
-                    return const VirtualKeyboardOverlay();
-                  },
-                );
-              },
-            ),
-          ],
-        );
-      },
-      home: const _MenuBootstrap(),
     );
   }
 }
@@ -105,7 +110,22 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
   }
 
   void _startLoad() {
-    _future = const MenuConfigLoader().load();
+    _future = () async {
+      final config = await const MenuConfigLoader().load();
+      await FontResourceService.apply(
+        config.layout.fontFamily,
+        additionalFamilies: [
+          config.layout.menuFontFamily,
+          config.languageSelectionFontFamily,
+          for (final language in config.languages) ...[
+            language.fontFamily,
+            for (final topic in language.effectiveTopics)
+              for (final item in topic.items) item.fontFamily,
+          ],
+        ],
+      );
+      return config;
+    }();
     // 별도 리스너로 실패를 감지해 자동 재시도를 예약한다.
     // FutureBuilder 는 원본 _future 의 에러를 그대로 받아 에러 UI 를 표시한다.
     _future.then<void>((_) {
@@ -203,6 +223,8 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
           defaultLanguageId: snapshot.data!.defaultLanguageId,
           languageSelectionTitle: snapshot.data!.languageSelectionTitle,
           languageSelectionSubtitle: snapshot.data!.languageSelectionSubtitle,
+          languageSelectionFontFamily:
+              snapshot.data!.languageSelectionFontFamily,
           topicSelectionTitle: snapshot.data!.topicSelectionTitle,
           topicSelectionSubtitle: snapshot.data!.topicSelectionSubtitle,
           skipSingleTopic: snapshot.data!.skipSingleTopic,
@@ -230,6 +252,7 @@ class _KioskHome extends StatefulWidget {
   final String defaultLanguageId;
   final String languageSelectionTitle;
   final String languageSelectionSubtitle;
+  final String? languageSelectionFontFamily;
   final String topicSelectionTitle;
   final String topicSelectionSubtitle;
   final bool skipSingleTopic;
@@ -242,6 +265,7 @@ class _KioskHome extends StatefulWidget {
     required this.defaultLanguageId,
     required this.languageSelectionTitle,
     required this.languageSelectionSubtitle,
+    required this.languageSelectionFontFamily,
     required this.topicSelectionTitle,
     required this.topicSelectionSubtitle,
     required this.skipSingleTopic,
@@ -396,6 +420,7 @@ class _KioskHomeState extends State<_KioskHome> {
       onOpenSettings: _showAdminSettings,
       onOpenManual: _showUserManual,
       shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
+      shortcutSettings: widget.layout.windowsKioskShortcuts,
       alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
       preventScreenSaver: widget.layout.windowsPreventScreenSaver,
       preventDisplaySleep: widget.layout.windowsPreventDisplaySleep,
@@ -537,6 +562,8 @@ class _KioskHomeState extends State<_KioskHome> {
     }
     if (oldWidget.layout.windowsKioskLockdown !=
             widget.layout.windowsKioskLockdown ||
+        oldWidget.layout.windowsKioskShortcuts !=
+            widget.layout.windowsKioskShortcuts ||
         oldWidget.layout.windowsAlwaysOnTop !=
             widget.layout.windowsAlwaysOnTop ||
         oldWidget.layout.windowsPreventScreenSaver !=
@@ -545,6 +572,7 @@ class _KioskHomeState extends State<_KioskHome> {
             widget.layout.windowsPreventDisplaySleep) {
       unawaited(_trayController.configureKioskMode(
         shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
+        shortcutSettings: widget.layout.windowsKioskShortcuts,
         alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
         preventScreenSaver: widget.layout.windowsPreventScreenSaver,
         preventDisplaySleep: widget.layout.windowsPreventDisplaySleep,
@@ -1393,6 +1421,8 @@ class _KioskHomeState extends State<_KioskHome> {
                         selectedTopicLabel: widget.layout.showSelectedTopic
                             ? _selectedTopic.label
                             : null,
+                        selectedTopicLabelColor:
+                            widget.layout.selectedTopicLabelColor,
                         barColor: widget.layout.barColor,
                         buttonColor: widget.layout.buttonColor,
                         buttonForegroundColor:
@@ -1400,6 +1430,9 @@ class _KioskHomeState extends State<_KioskHome> {
                         selectedButtonColor: widget.layout.selectedButtonColor,
                         selectedButtonForegroundColor:
                             widget.layout.selectedButtonForegroundColor,
+                        fontFamily: FontResourceService.familyFor(
+                          widget.layout.menuFontFamily,
+                        ),
                         onHide: _hideToolbar,
                         onEnterIdle: widget.idle.isUsable
                             ? _idleGateController.enterIdle
@@ -1453,6 +1486,9 @@ class _KioskHomeState extends State<_KioskHome> {
                       languages: widget.languages,
                       title: widget.languageSelectionTitle,
                       subtitle: widget.languageSelectionSubtitle,
+                      fontFamily: FontResourceService.familyFor(
+                        widget.languageSelectionFontFamily,
+                      ),
                       topicTitle: widget.topicSelectionTitle,
                       topicSubtitle: widget.topicSelectionSubtitle,
                       skipSingleTopic: widget.skipSingleTopic,

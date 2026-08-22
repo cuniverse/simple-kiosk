@@ -6,6 +6,7 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../app_identity.dart';
+import '../model/layout_config.dart';
 import 'windows_kiosk_mode.dart';
 
 class KioskTrayController with TrayListener, WindowListener {
@@ -13,10 +14,12 @@ class KioskTrayController with TrayListener, WindowListener {
     required this.onOpenSettings,
     required this.onOpenManual,
     required bool shortcutLockdownEnabled,
+    required WindowsKioskShortcutSettings shortcutSettings,
     required bool alwaysOnTopEnabled,
     required bool preventScreenSaver,
     required bool preventDisplaySleep,
   })  : _shortcutLockdownEnabled = shortcutLockdownEnabled,
+        _shortcutSettings = shortcutSettings,
         _alwaysOnTopEnabled = alwaysOnTopEnabled,
         _preventScreenSaver = preventScreenSaver,
         _preventDisplaySleep = preventDisplaySleep;
@@ -27,6 +30,7 @@ class KioskTrayController with TrayListener, WindowListener {
   bool _initialized = false;
   bool _allowExit = false;
   bool _shortcutLockdownEnabled;
+  WindowsKioskShortcutSettings _shortcutSettings;
   bool _alwaysOnTopEnabled;
   bool _preventScreenSaver;
   bool _preventDisplaySleep;
@@ -74,6 +78,7 @@ class KioskTrayController with TrayListener, WindowListener {
       _initialized = true;
       await WindowsKioskMode.configure(
         shortcutLockdownEnabled: _shortcutLockdownEnabled,
+        shortcutSettings: _shortcutSettings,
         alwaysOnTopEnabled: _alwaysOnTopEnabled,
         preventScreenSaver: _preventScreenSaver,
         preventDisplaySleep: _preventDisplaySleep,
@@ -94,6 +99,7 @@ class KioskTrayController with TrayListener, WindowListener {
     await WindowsKioskMode.activate();
     await windowManager.setSkipTaskbar(false);
     await windowManager.show();
+    await WindowsKioskMode.recoverRenderingSurface();
     await windowManager.focus();
   }
 
@@ -131,16 +137,19 @@ class KioskTrayController with TrayListener, WindowListener {
 
   Future<void> configureKioskMode({
     required bool shortcutLockdownEnabled,
+    required WindowsKioskShortcutSettings shortcutSettings,
     required bool alwaysOnTopEnabled,
     required bool preventScreenSaver,
     required bool preventDisplaySleep,
   }) async {
     _shortcutLockdownEnabled = shortcutLockdownEnabled;
+    _shortcutSettings = shortcutSettings;
     _alwaysOnTopEnabled = alwaysOnTopEnabled;
     _preventScreenSaver = preventScreenSaver;
     _preventDisplaySleep = preventDisplaySleep;
     await WindowsKioskMode.configure(
       shortcutLockdownEnabled: shortcutLockdownEnabled,
+      shortcutSettings: shortcutSettings,
       alwaysOnTopEnabled: alwaysOnTopEnabled,
       preventScreenSaver: preventScreenSaver,
       preventDisplaySleep: preventDisplaySleep,

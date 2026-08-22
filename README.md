@@ -115,7 +115,8 @@ flutter pub get
 개발 기본값은 `assets/config/menu.defaults.json`에서 수정합니다. Windows 운영 설정은
 `<ysignage.exe가 들어 있는 폴더>\config\menu.override.json`에 변경한 값만 기록합니다.
 최상위 구조는 `layout`, `idle`, `languages`를 사용합니다. 화면보호기를 해제하면
-등록된 언어와 주제를 차례로 선택하고 해당 언어·주제의 메뉴만 표시합니다.
+동일한 큰 터치 버튼으로 등록된 언어와 주제를 차례로 선택하고 해당 언어·주제의 메뉴만
+표시합니다.
 
 프로그램 시작 시 schemaVersion 1, 최상위 `items`, `languages[].items`, 이전 웹 관리자가
 만든 단일 `default` 주제 구조를 발견하면 현재 언어→주제→메뉴 구조로 자동
@@ -199,7 +200,9 @@ flutter pub get
 | `showHistoryButtons` | bool | `true` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
 | `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
+| `selectedTopicLabelColor` | color | `#f8fafc` | 현재 주제 라벨 글자색. 라벨을 누르면 언어 선택으로 이동 |
 | `windowsKioskLockdown` | bool | `true` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단 |
+| `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsAlwaysOnTop` | bool | `false` | Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
 | `windowsPreventScreenSaver` | bool | `true` | 사이니지 표시 중 Windows 화면보호기 실행 방지 |
 | `windowsPreventDisplaySleep` | bool | `true` | 사이니지 표시 중 Windows 화면 자동 끄기 방지 |
@@ -212,6 +215,25 @@ flutter pub get
 | `selectedButtonColor` / `selectedButtonForegroundColor` | color | 테마 (primary) | 선택 버튼 색 |
 
 색상은 `#RGB`, `#RRGGBB`, `#AARRGGBB` 또는 `transparent` 형식.
+
+### UI 글꼴
+
+`layout.fontFamily`에 글꼴 이름을 지정할 수 있습니다. 탐색 순서는 실행 파일 기준
+`fonts` 폴더 → Flutter 패키지 글꼴 → Windows 시스템 글꼴 → Flutter 기본 글꼴입니다.
+외부 글꼴은 `fonts/<글꼴 이름>/` 폴더에 TTF/OTF 파일을 넣거나 파일 이름을 글꼴
+이름으로 시작하게 구성합니다.
+
+패키지에는 `Pretendard`, `NanumSquare`, `NanumGothic`, `NanumBrush`,
+`KoPubDotum`, `Catholic`이 포함됩니다. 라이선스는
+`assets/fonts/licenses`에서 확인할 수 있으며, 가톨릭체는 개인과 가톨릭
+교회기관의 비영리·사목 목적에만 사용할 수 있습니다.
+
+화면별 글꼴은 다음 우선순위로 적용됩니다.
+
+- 툴바: `items[].fontFamily` → `layout.menuFontFamily` → `layout.fontFamily`
+- 언어 선택: `languages[].fontFamily` → `languageSelection.fontFamily` → `layout.fontFamily`
+
+빈 값이나 생략된 개별 설정은 상위 전체 설정을 상속합니다.
 
 ### idle — 대기화면 설정
 
@@ -229,7 +251,23 @@ flutter pub get
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
     "showSelectedTopic": true,
+    "selectedTopicLabelColor": "#f8fafc",
     "windowsKioskLockdown": true,
+    "windowsKioskShortcuts": {
+      "windowsKey": true,
+      "altTab": true,
+      "altEscape": true,
+      "altF4": true,
+      "altSpace": true,
+      "ctrlEscape": true,
+      "ctrlShiftEscape": true,
+      "launchApp1": true,
+      "launchApp2": true,
+      "launchMail": true,
+      "browserHome": true,
+      "browserSearch": true,
+      "browserFavorites": true
+    },
     "windowsAlwaysOnTop": false,
     "windowsPreventScreenSaver": true,
     "windowsPreventDisplaySleep": true,
