@@ -63,6 +63,15 @@ class _LanguageSelectionState extends State<LanguageSelection> {
     setState(() => _selectedLanguageIndex = null);
   }
 
+  void _returnToIdle() {
+    // 화면보호기 뒤에도 이 위젯이 유지되는 구성에서 이전 주제 화면이
+    // 다시 노출되지 않도록 진입 전에 언어 선택 첫 단계로 되돌린다.
+    if (_selectedLanguageIndex != null) {
+      _showLanguages();
+    }
+    widget.onReturnToIdle();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -104,7 +113,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                 message: '화면 보호기로 돌아가기',
                 child: FilledButton.tonalIcon(
                   key: const ValueKey('return-to-idle'),
-                  onPressed: widget.onReturnToIdle,
+                  onPressed: _returnToIdle,
                   icon: const Icon(Icons.wallpaper_outlined, size: 28),
                   label: const Text(
                     '화면 보호기로 돌아가기',

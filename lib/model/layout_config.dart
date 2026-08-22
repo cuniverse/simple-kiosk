@@ -140,6 +140,15 @@ class LayoutConfig {
   /// 표시할지 여부. 운영자가 수동으로 키보드를 띄울 수 있게 해준다.
   final bool showKeyboardToggle;
 
+  /// 현재 선택한 주제 이름을 툴바 시작 위치에 작은 상태 라벨로 표시할지 여부.
+  final bool showSelectedTopic;
+
+  /// Windows 사이니지 표시 중 앱 전환·셸 단축키를 차단할지 여부.
+  final bool windowsKioskLockdown;
+
+  /// Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지할지 여부.
+  final bool windowsAlwaysOnTop;
+
   /// Windows 기본 화면 키보드 또는 앱 내장 키보드 선택.
   final KeyboardMode keyboardMode;
 
@@ -185,6 +194,9 @@ class LayoutConfig {
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
     this.showKeyboardToggle = false,
+    this.showSelectedTopic = true,
+    this.windowsKioskLockdown = true,
+    this.windowsAlwaysOnTop = false,
     this.keyboardMode = KeyboardMode.windows,
     this.keepStateOnTap = false,
     this.toolbarInitiallyHidden = true,
@@ -250,6 +262,30 @@ class LayoutConfig {
         if (v is bool) return v;
         throw const FormatException(
           'menu.json layout.showKeyboardToggle: bool 필요',
+        );
+      }(),
+      showSelectedTopic: () {
+        final v = json['showSelectedTopic'];
+        if (v == null) return defaults.showSelectedTopic;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.showSelectedTopic: bool 필요',
+        );
+      }(),
+      windowsKioskLockdown: () {
+        final v = json['windowsKioskLockdown'];
+        if (v == null) return defaults.windowsKioskLockdown;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.windowsKioskLockdown: bool 필요',
+        );
+      }(),
+      windowsAlwaysOnTop: () {
+        final v = json['windowsAlwaysOnTop'];
+        if (v == null) return defaults.windowsAlwaysOnTop;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.windowsAlwaysOnTop: bool 필요',
         );
       }(),
       keyboardMode: _parseKeyboardMode(json['keyboardMode']),

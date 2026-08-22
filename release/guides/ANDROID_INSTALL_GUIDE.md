@@ -35,5 +35,5 @@
 
 - 화면 고정 또는 전용 단말기 모드를 설정합니다.
 - 자동 잠금, 절전, 시스템 업데이트 재부팅 시간을 운영 일정에 맞게 조정합니다.
-- 메뉴와 URL 설정은 앱에 포함되므로 `assets/config/menu.json`을 변경했다면 새 APK로
+- 메뉴와 URL 설정은 앱에 포함되므로 `assets/config/menu.defaults.json`을 변경했다면 새 APK로
   다시 빌드해야 합니다.

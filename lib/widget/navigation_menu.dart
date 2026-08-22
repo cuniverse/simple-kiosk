@@ -62,6 +62,9 @@ class NavigationMenu extends StatelessWidget {
   /// 표시할지 여부.
   final bool showKeyboardToggle;
 
+  /// 현재 선택된 주제 이름. `null`이면 상태 라벨을 표시하지 않는다.
+  final String? selectedTopicLabel;
+
   /// 네비 바 배경색. `null`이면 테마 기본값.
   final Color? barColor;
 
@@ -110,6 +113,7 @@ class NavigationMenu extends StatelessWidget {
     this.showHistoryButtons = false,
     this.historyController,
     this.showKeyboardToggle = false,
+    this.selectedTopicLabel,
     this.barColor,
     this.buttonColor,
     this.buttonForegroundColor,
@@ -149,6 +153,11 @@ class NavigationMenu extends StatelessWidget {
           // 메뉴 영역(스크롤) + 하단 푸터(고정) 구조로 나눈다.
           child: Column(
             children: [
+              if (selectedTopicLabel != null)
+                _SelectedTopicLabel(
+                  label: selectedTopicLabel!,
+                  orientation: NavigationOrientation.side,
+                ),
               if (showHistoryButtons)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
@@ -340,6 +349,13 @@ class NavigationMenu extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
+                if (selectedTopicLabel != null) ...[
+                  _SelectedTopicLabel(
+                    label: selectedTopicLabel!,
+                    orientation: NavigationOrientation.bottom,
+                  ),
+                  SizedBox(width: buttonGap),
+                ],
                 if (showHistoryButtons) ...[
                   _HistoryControls(
                     controller: historyController,
@@ -424,6 +440,69 @@ class NavigationMenu extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 메뉴 동작 요소와 혼동되지 않도록 배경·테두리·탭 동작 없이 현재 주제만 표시한다.
+class _SelectedTopicLabel extends StatelessWidget {
+  final String label;
+  final NavigationOrientation orientation;
+
+  const _SelectedTopicLabel({
+    required this.label,
+    required this.orientation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final side = orientation == NavigationOrientation.side;
+    final content = Row(
+      mainAxisSize: side ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        Container(
+          width: 3,
+          height: 24,
+          decoration: BoxDecoration(
+            color: colors.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 7),
+        Flexible(
+          child: Text(
+            label,
+            key: const ValueKey('selected-topic-label'),
+            maxLines: side ? 2 : 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colors.onSurfaceVariant,
+              fontSize: side ? 14 : 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+    return Semantics(
+      label: '현재 주제: $label',
+      readOnly: true,
+      child: Tooltip(
+        message: '현재 주제: $label',
+        child: side
+            ? Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                child: SizedBox(height: 36, child: content),
+              )
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 150),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: content,
+                ),
+              ),
       ),
     );
   }

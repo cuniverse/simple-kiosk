@@ -12,6 +12,9 @@
 /// }
 /// ```
 class MenuItem {
+  /// `true`이면 이 항목을 툴바에서 숨긴다. 기본값은 `false`.
+  final bool hidden;
+
   /// 메뉴 식별자(중복 불가 권장).
   final String id;
 
@@ -49,6 +52,7 @@ class MenuItem {
     required this.id,
     required this.title,
     required this.url,
+    this.hidden = false,
     this.icon,
     this.showTitle = true,
     this.keepStateOnTap,
@@ -65,6 +69,7 @@ class MenuItem {
     final icon = json['icon'];
     final showTitle = json['showTitle'];
     final keepState = json['keepStateOnTap'];
+    final hidden = json['hidden'];
 
     if (id is! String || id.isEmpty) {
       throw const FormatException('menu item: "id" 누락 또는 형식 오류');
@@ -74,6 +79,9 @@ class MenuItem {
     }
     if (url is! String || url.isEmpty) {
       throw const FormatException('menu item: "url" 누락 또는 형식 오류');
+    }
+    if (hidden != null && hidden is! bool) {
+      throw const FormatException('menu item: "hidden"은 bool 이어야 함');
     }
 
     String? iconPath;
@@ -95,6 +103,7 @@ class MenuItem {
       id: id,
       title: title,
       url: url,
+      hidden: hidden as bool? ?? false,
       icon: iconPath,
       showTitle: showTitle is bool ? showTitle : true,
       keepStateOnTap: keepStateOnTap,

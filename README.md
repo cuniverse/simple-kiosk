@@ -42,7 +42,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
   - WebView input 포커스 시 자동 호출 + 네비게이션 바 토글로 수동 호출 가능
   - 모든 OS (Windows / macOS / Linux / Android / iOS) 에서 동일 디자인/동작
 - **대기화면(Idle)**: 일정 시간 무조작 시 슬라이드쇼/단일 이미지/URL/폴더/웹 포토갤러리 모드로 전환
-- **Windows 자동 업데이트**: GitHub stable Release 확인, SHA-256 검증, 화면 보호기 중 설치, 시작 실패 자동 롤백
+- **Windows 자동 업데이트**: GitHub stable Release 확인, SHA-256 검증, 네이티브 EXE 설치, 시작 실패 자동 롤백
 
 ## 실행 방법
 
@@ -117,6 +117,11 @@ flutter pub get
 최상위 구조는 `layout`, `idle`, `languages`를 사용합니다. 화면보호기를 해제하면
 등록된 언어와 주제를 차례로 선택하고 해당 언어·주제의 메뉴만 표시합니다.
 
+프로그램 시작 시 schemaVersion 1, 최상위 `items`, `languages[].items`, 이전 웹 관리자가
+만든 단일 `default` 주제 구조를 발견하면 현재 언어→주제→메뉴 구조로 자동
+마이그레이션합니다. 변환 전 파일은 `backups/menu.override.before-migration-*.json`에
+보관하며, 변환 결과가 유효하지 않으면 원본을 변경하지 않습니다.
+
 ### 최소 예시
 
 ```json
@@ -161,6 +166,9 @@ flutter pub get
 또는 `https://...` 형식으로 지정합니다.
 영어 기본 아이콘은 미국·영국 국기를 대각선으로 합성한
 `assets/icons/languages/en-us-gb.png`를 사용합니다.
+언어·주제·메뉴 항목에 `"hidden": true`를 지정하면 해당 선택 화면 또는 툴바에서
+숨깁니다. 숨긴 기본 항목은 같은 범위의 첫 표시 항목으로 대체되며, 모든 언어나 표시
+주제의 모든 메뉴를 숨긴 구성은 검증에서 거부됩니다.
 
 ### languages[].topics[].items[] — 메뉴 항목 필드
 
@@ -170,14 +178,17 @@ flutter pub get
 | `title` | string | (필수) | 버튼에 표시될 텍스트 / 접근성 라벨 |
 | `url` | string | (필수) | WebView에 로드할 URL. **운영 환경에서는 HTTPS 권장** |
 | `icon` | string | `null` | 아이콘 경로. `assets/...`, `http(s)://...`, 또는 `icon:이름` (내장 머터리얼 아이콘) |
+| `hidden` | bool | `false` | `true`이면 이 메뉴를 툴바에서 숨김 |
 | `showTitle` | bool | `true` | 아이콘 있을 때 텍스트 동시 표시 여부. 아이콘 없으면 무시(텍스트 강제 표시) |
 | `keepStateOnTap` | bool | `null` (=layout 값 상속) | 단일 클릭 시 이 항목의 현재 페이지 상태 유지 여부. 항목별 오버라이드 |
 
 ### layout — 네비게이션/외관 설정
 
+아래 기본값은 현재 배포되는 `menu.defaults.json` 기준입니다.
+
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| `navPosition` | `auto`/`left`/`right`/`top`/`bottom` | `auto` | 네비게이션 위치. `auto` 는 폭 `breakpoint` 기준 자동 전환 |
+| `navPosition` | `auto`/`left`/`right`/`top`/`bottom` | `right` | 네비게이션 위치. `auto` 는 폭 `breakpoint` 기준 자동 전환 |
 | `breakpoint` | number(dp) | `720` | `auto` 모드에서 사이드/하단을 가르는 폭 |
 | `sideWidth` | number(dp) | `220` | 사이드 모드 폭 |
 | `barHeight` | number(dp) | `96` | 상/하단 모드 높이 |
@@ -185,12 +196,15 @@ flutter pub get
 | `buttonWidth` | number(dp) | `0`(균등) | 하단 모드에서 버튼 폭. `0` 이고 `stretch` 이면 균등 분배 |
 | `buttonGap` | number(dp) | `8` | 버튼 간 간격 |
 | `buttonAlignment` | `start`/`center`/`end`/`spaceBetween`/`spaceAround`/`spaceEvenly`/`stretch` | `stretch` | 정렬 방식 |
-| `showHistoryButtons` | bool | `false` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
-| `showKeyboardToggle` | bool | `false` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
+| `showHistoryButtons` | bool | `true` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
+| `showKeyboardToggle` | bool | `true` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
+| `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
+| `windowsKioskLockdown` | bool | `true` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단 |
+| `windowsAlwaysOnTop` | bool | `false` | Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
 | `keyboardMode` | `windows`/`builtin` | `windows` | Windows 기본 화면 키보드 또는 앱 내장 키보드 선택 |
 | `keepStateOnTap` | bool | `false` | **기본 동작**: 같은 메뉴 단일 탭 시 상태 유지(아무 동작 없음), 더블 탭(300ms 이내) 시 강제 재로드. 항목별 `items[].keepStateOnTap` 으로 오버라이드 가능 |
-| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 툴바를 감춘 상태로 표시 |
-| `toolbarAutoHideSec` | number | `10` | 툴바 복원 후 입력이 없을 때 다시 숨길 시간(초). `0`이면 자동 숨김 해제 |
+| `toolbarInitiallyHidden` | bool | `false` | 앱 시작 시 툴바를 감춘 상태로 표시 |
+| `toolbarAutoHideSec` | number | `0` | 툴바 복원 후 입력이 없을 때 다시 숨길 시간(초). `0`이면 자동 숨김 해제 |
 | `barColor` | color | 테마 | 네비 바 배경색 |
 | `buttonColor` / `buttonForegroundColor` | color | 테마 | 비선택 버튼 색 |
 | `selectedButtonColor` / `selectedButtonForegroundColor` | color | 테마 (primary) | 선택 버튼 색 |
@@ -199,7 +213,9 @@ flutter pub get
 
 ### idle — 대기화면 설정
 
-자세한 옵션은 [docs/MANUAL.md](docs/MANUAL.md) 참고. 모드(`mode`)는 `slideshow` / `image` / `url` / `folder` / `gallery` 중 선택.
+자세한 옵션은 [docs/MANUAL.md](docs/MANUAL.md) 참고. 현재 배포 기본값은 300초 후
+`gallery` 대기화면이며, `modes`에서 `slideshow`·`folder`·`gallery`를 복수 선택할 수
+있습니다. `image`와 `url`은 단일 모드로 사용합니다.
 
 ### 전체 예시 (이 저장소의 기본 설정)
 
@@ -210,6 +226,9 @@ flutter pub get
     "buttonAlignment": "stretch",
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
+    "showSelectedTopic": true,
+    "windowsKioskLockdown": true,
+    "windowsAlwaysOnTop": false,
     "keepStateOnTap": false,
     "toolbarInitiallyHidden": true,
     "toolbarAutoHideSec": 10,
@@ -328,16 +347,19 @@ Windows 키보드 실행이 불가능하면 내장 키보드로 자동 대체됩
 
 ```text
 lib/
-  main.dart                          # 앱 진입점, 전체화면 설정, 시작 시 쿠키 삭제
+  main.dart                          # 앱 진입점, 로깅과 전체화면 초기화
   app.dart                           # MaterialApp, 메뉴 로딩, IndexedStack 기반 메뉴별 WebView,
                                      #   대기화면 라이프사이클, Back 버튼 정책
   model/
-    menu_item.dart                   # 메뉴 항목 모델 (keepStateOnTap 포함)
+    menu_item.dart                   # 주제별 메뉴 항목 모델
+    menu_language.dart               # 언어와 기본 주제 모델
+    menu_topic.dart                  # 주제와 기본 메뉴 모델
     layout_config.dart               # 네비게이션 레이아웃/색상 설정
     idle_config.dart                 # 대기화면 설정
     menu_config.dart                 # 위 셋을 묶은 최상위 설정
   service/
-    menu_config_loader.dart          # menu.json 로더
+    menu_config_loader.dart          # 기본값·오버라이드 병합 설정 로더
+    menu_config_merger.dart          # 설정 스키마 호환 병합
     keyboard_controller.dart         # 가상 키보드 표시 상태/입력 이벤트 라우터
     system_keyboard.dart             # SystemKeyboard.show/hide (KeyboardController 래퍼)
     hangul_composer.dart             # 두벌식 한글 자모 조합기
@@ -352,7 +374,8 @@ lib/
     material_icon_registry.dart      # icon:이름 → IconData 매핑
 
 assets/
-  config/menu.json                   # 메뉴/레이아웃/대기화면 설정
+  admin/index.html                   # 내장 웹 관리자 페이지
+  config/menu.defaults.json          # 메뉴/레이아웃/대기화면 기본 설정
   icons/                             # 메뉴 아이콘 이미지
   idle/                              # 대기화면용 미디어
 ```

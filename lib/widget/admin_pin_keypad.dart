@@ -83,6 +83,18 @@ class _AdminPinKeypadState extends State<AdminPinKeypad> {
         child: Text(digit, style: const TextStyle(fontSize: 24)),
       );
 
+  Widget _keyRow(List<Widget> children) => SizedBox(
+        height: 56,
+        child: Row(
+          children: [
+            for (var index = 0; index < children.length; index++) ...[
+              if (index > 0) const SizedBox(width: 8),
+              Expanded(child: children[index]),
+            ],
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -114,28 +126,30 @@ class _AdminPinKeypadState extends State<AdminPinKeypad> {
                 ),
               ),
               const SizedBox(height: 12),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 3,
-                childAspectRatio: 1.65,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                children: [
-                  for (var digit = 1; digit <= 9; digit++)
-                    _digitButton('$digit'),
-                  OutlinedButton(
-                    onPressed: _clear,
-                    child: const Text('전체 삭제'),
-                  ),
-                  _digitButton('0'),
-                  IconButton.outlined(
-                    tooltip: '한 자리 삭제',
-                    onPressed: _backspace,
-                    icon: const Icon(Icons.backspace_outlined),
-                  ),
-                ],
-              ),
+              _keyRow([
+                for (var digit = 1; digit <= 3; digit++) _digitButton('$digit')
+              ]),
+              const SizedBox(height: 8),
+              _keyRow([
+                for (var digit = 4; digit <= 6; digit++) _digitButton('$digit')
+              ]),
+              const SizedBox(height: 8),
+              _keyRow([
+                for (var digit = 7; digit <= 9; digit++) _digitButton('$digit')
+              ]),
+              const SizedBox(height: 8),
+              _keyRow([
+                OutlinedButton(
+                  onPressed: _clear,
+                  child: const Text('전체 삭제'),
+                ),
+                _digitButton('0'),
+                IconButton.outlined(
+                  tooltip: '한 자리 삭제',
+                  onPressed: _backspace,
+                  icon: const Icon(Icons.backspace_outlined),
+                ),
+              ]),
             ],
           ),
         ),

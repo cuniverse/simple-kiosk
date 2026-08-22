@@ -6,18 +6,24 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../app_identity.dart';
+import 'windows_kiosk_mode.dart';
 
 class KioskTrayController with TrayListener, WindowListener {
   KioskTrayController({
     required this.onOpenSettings,
     required this.onOpenManual,
-  });
+    required bool shortcutLockdownEnabled,
+    required bool alwaysOnTopEnabled,
+  })  : _shortcutLockdownEnabled = shortcutLockdownEnabled,
+        _alwaysOnTopEnabled = alwaysOnTopEnabled;
 
   final Future<void> Function() onOpenSettings;
   final Future<void> Function() onOpenManual;
 
   bool _initialized = false;
   bool _allowExit = false;
+  bool _shortcutLockdownEnabled;
+  bool _alwaysOnTopEnabled;
 
   bool get supported => Platform.isWindows;
 
@@ -60,6 +66,10 @@ class KioskTrayController with TrayListener, WindowListener {
       listenersAdded = true;
       await windowManager.setPreventClose(true);
       _initialized = true;
+      await WindowsKioskMode.configure(
+        shortcutLockdownEnabled: _shortcutLockdownEnabled,
+        alwaysOnTopEnabled: _alwaysOnTopEnabled,
+      );
     } catch (_) {
       if (listenersAdded) {
         trayManager.removeListener(this);
@@ -73,6 +83,7 @@ class KioskTrayController with TrayListener, WindowListener {
 
   Future<void> showWindow() async {
     if (!supported) return;
+    await WindowsKioskMode.activate();
     await windowManager.setSkipTaskbar(false);
     await windowManager.show();
     await windowManager.focus();
@@ -80,6 +91,7 @@ class KioskTrayController with TrayListener, WindowListener {
 
   Future<void> hideWindow() async {
     if (!supported) return;
+    await WindowsKioskMode.deactivate();
     await windowManager.setSkipTaskbar(true);
     await windowManager.hide();
   }
@@ -95,6 +107,7 @@ class KioskTrayController with TrayListener, WindowListener {
   Future<void> exitApplication() async {
     if (!supported || _allowExit) return;
     _allowExit = true;
+    await WindowsKioskMode.deactivate();
     await windowManager.setPreventClose(false);
     await trayManager.destroy();
     await windowManager.destroy();
@@ -106,6 +119,18 @@ class KioskTrayController with TrayListener, WindowListener {
     trayManager.removeListener(this);
     windowManager.removeListener(this);
     _initialized = false;
+  }
+
+  Future<void> configureKioskMode({
+    required bool shortcutLockdownEnabled,
+    required bool alwaysOnTopEnabled,
+  }) async {
+    _shortcutLockdownEnabled = shortcutLockdownEnabled;
+    _alwaysOnTopEnabled = alwaysOnTopEnabled;
+    await WindowsKioskMode.configure(
+      shortcutLockdownEnabled: shortcutLockdownEnabled,
+      alwaysOnTopEnabled: alwaysOnTopEnabled,
+    );
   }
 
   @override

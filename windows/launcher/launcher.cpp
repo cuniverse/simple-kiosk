@@ -1,5 +1,8 @@
 #include <windows.h>
 #include <shellapi.h>
+#include <softpub.h>
+#include <wincrypt.h>
+#include <wintrust.h>
 
 #include <chrono>
 #include <filesystem>
@@ -117,6 +120,107 @@ void CopyIfPresent(const fs::path& source, const fs::path& destination) {
                 error);
 }
 
+std::wstring NormalizeThumbprint(const std::wstring& value) {
+  std::wstring normalized;
+  for (const wchar_t character : value) {
+    if (character >= L'0' && character <= L'9') {
+      normalized.push_back(character);
+    } else if (character >= L'a' && character <= L'f') {
+      normalized.push_back(character - L'a' + L'A');
+    } else if (character >= L'A' && character <= L'F') {
+      normalized.push_back(character);
+    }
+  }
+  return normalized;
+}
+
+bool VerifyEmbeddedSignature(const fs::path& file_path) {
+  WINTRUST_FILE_INFO file_info{};
+  file_info.cbStruct = sizeof(file_info);
+  file_info.pcwszFilePath = file_path.c_str();
+
+  WINTRUST_DATA trust_data{};
+  trust_data.cbStruct = sizeof(trust_data);
+  trust_data.dwUIChoice = WTD_UI_NONE;
+  trust_data.fdwRevocationChecks = WTD_REVOKE_NONE;
+  trust_data.dwUnionChoice = WTD_CHOICE_FILE;
+  trust_data.pFile = &file_info;
+  trust_data.dwStateAction = WTD_STATEACTION_VERIFY;
+  trust_data.dwProvFlags = WTD_REVOCATION_CHECK_NONE;
+
+  GUID policy = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+  const LONG status = WinVerifyTrust(nullptr, &policy, &trust_data);
+  trust_data.dwStateAction = WTD_STATEACTION_CLOSE;
+  WinVerifyTrust(nullptr, &policy, &trust_data);
+  return status == ERROR_SUCCESS;
+}
+
+std::wstring EmbeddedSignerThumbprint(const fs::path& file_path) {
+  HCERTSTORE certificate_store = nullptr;
+  HCRYPTMSG crypt_message = nullptr;
+  DWORD encoding = 0;
+  DWORD content_type = 0;
+  DWORD format_type = 0;
+  if (!CryptQueryObject(
+          CERT_QUERY_OBJECT_FILE, file_path.c_str(),
+          CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED,
+          CERT_QUERY_FORMAT_FLAG_BINARY, 0, &encoding, &content_type,
+          &format_type, &certificate_store, &crypt_message, nullptr)) {
+    return {};
+  }
+
+  std::wstring thumbprint;
+  DWORD signer_size = 0;
+  if (CryptMsgGetParam(crypt_message, CMSG_SIGNER_INFO_PARAM, 0, nullptr,
+                       &signer_size) &&
+      signer_size > 0) {
+    std::vector<BYTE> signer_buffer(signer_size);
+    if (CryptMsgGetParam(crypt_message, CMSG_SIGNER_INFO_PARAM, 0,
+                         signer_buffer.data(), &signer_size)) {
+      const auto* signer_info =
+          reinterpret_cast<const CMSG_SIGNER_INFO*>(signer_buffer.data());
+      CERT_INFO certificate_info{};
+      certificate_info.Issuer = signer_info->Issuer;
+      certificate_info.SerialNumber = signer_info->SerialNumber;
+      PCCERT_CONTEXT certificate = CertFindCertificateInStore(
+          certificate_store, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0,
+          CERT_FIND_SUBJECT_CERT, &certificate_info, nullptr);
+      if (certificate != nullptr) {
+        DWORD hash_size = 0;
+        if (CertGetCertificateContextProperty(
+                certificate, CERT_SHA1_HASH_PROP_ID, nullptr, &hash_size) &&
+            hash_size > 0) {
+          std::vector<BYTE> hash(hash_size);
+          if (CertGetCertificateContextProperty(
+                  certificate, CERT_SHA1_HASH_PROP_ID, hash.data(),
+                  &hash_size)) {
+            constexpr wchar_t hexadecimal[] = L"0123456789ABCDEF";
+            thumbprint.reserve(hash_size * 2);
+            for (DWORD index = 0; index < hash_size; ++index) {
+              thumbprint.push_back(hexadecimal[(hash[index] >> 4) & 0x0F]);
+              thumbprint.push_back(hexadecimal[hash[index] & 0x0F]);
+            }
+          }
+        }
+        CertFreeCertificateContext(certificate);
+      }
+    }
+  }
+  if (crypt_message != nullptr) CryptMsgClose(crypt_message);
+  if (certificate_store != nullptr) CertCloseStore(certificate_store, 0);
+  return thumbprint;
+}
+
+bool VerifySignatureAndSigner(const fs::path& file_path,
+                              const std::wstring& expected_thumbprint) {
+  if (!fs::is_regular_file(file_path) || !VerifyEmbeddedSignature(file_path)) {
+    return false;
+  }
+  const std::wstring actual = EmbeddedSignerThumbprint(file_path);
+  const std::wstring expected = NormalizeThumbprint(expected_thumbprint);
+  return !actual.empty() && actual == expected;
+}
+
 void SynchronizeRuntimeFiles(const fs::path& root,
                              const std::wstring& version) {
   const fs::path version_root = root / L"versions" / version;
@@ -124,12 +228,27 @@ void SynchronizeRuntimeFiles(const fs::path& root,
   const fs::path target_updater = root / L"updater";
   std::error_code error;
   if (fs::is_directory(source_updater, error)) {
+    const bool has_native_updater = fs::is_regular_file(
+        source_updater / L"ysignage_updater.exe", error);
     fs::create_directories(target_updater, error);
     for (const auto& entry : fs::directory_iterator(source_updater, error)) {
       if (entry.is_regular_file(error)) {
+        const std::wstring name = entry.path().filename().wstring();
+        if (has_native_updater &&
+            (name == L"update.ps1" || name == L"launcher.ps1" ||
+             name == L"launcher.cmd")) {
+          continue;
+        }
         fs::copy_file(entry.path(), target_updater / entry.path().filename(),
                       fs::copy_options::overwrite_existing, error);
       }
+    }
+    if (has_native_updater) {
+      fs::remove(root / L"launcher.ps1", error);
+      fs::remove(root / L"SimpleKiosk.cmd", error);
+      fs::remove(target_updater / L"update.ps1", error);
+      fs::remove(target_updater / L"launcher.ps1", error);
+      fs::remove(target_updater / L"launcher.cmd", error);
     }
   }
 
@@ -160,6 +279,13 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
   int argument_count = 0;
   LPWSTR* arguments = CommandLineToArgvW(GetCommandLineW(), &argument_count);
+  if (arguments != nullptr && argument_count == 4 &&
+      std::wstring(arguments[1]) == L"--verify-signature") {
+    const bool verified =
+        VerifySignatureAndSigner(arguments[2], arguments[3]);
+    LocalFree(arguments);
+    return verified ? 0 : 3;
+  }
   if (arguments != nullptr) {
     for (int index = 1; index < argument_count; ++index) {
       const std::wstring argument = arguments[index];

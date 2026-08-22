@@ -5,6 +5,7 @@ import 'menu_topic.dart';
 class MenuLanguage {
   final String id;
   final String label;
+  final bool hidden;
   final String? subtitle;
   final String? icon;
   final List<MenuItem> _legacyItems;
@@ -42,6 +43,7 @@ class MenuLanguage {
     required this.id,
     required this.label,
     required List<MenuItem> items,
+    this.hidden = false,
     this.topics = const [],
     String? defaultMenuId,
     String? defaultTopicId,
@@ -60,6 +62,7 @@ class MenuLanguage {
     final rawTopics = json['topics'];
     final defaultMenu = json['defaultMenu'];
     final defaultTopic = json['defaultTopic'];
+    final hidden = json['hidden'];
     if (id is! String || id.trim().isEmpty) {
       throw FormatException('menu.json languages[$index].id: 비어있지 않은 문자열 필요');
     }
@@ -74,6 +77,10 @@ class MenuLanguage {
     if (icon != null && icon is! String) {
       throw FormatException('menu.json languages[$index].icon: 문자열 필요');
     }
+    if (hidden != null && hidden is! bool) {
+      throw FormatException('menu.json languages[$index].hidden: bool 필요');
+    }
+    final isHidden = hidden as bool? ?? false;
     if (rawTopics == null && (rawItems is! List || rawItems.isEmpty)) {
       throw FormatException(
         'menu.json languages[$index]: topics 또는 items 한 개 이상 필요',
@@ -113,27 +120,49 @@ class MenuLanguage {
             'menu.json languages[$index].topics: 주제 id 중복 (${topic.id})',
           );
         }
-        topics.add(topic);
+        if (!topic.hidden) topics.add(topic);
       }
-      final defaultTopicId =
-          defaultTopic is String ? defaultTopic.trim() : topics.first.id;
-      if (!topicIds.contains(defaultTopicId)) {
+      final requestedDefaultTopic =
+          defaultTopic is String ? defaultTopic.trim() : null;
+      if (requestedDefaultTopic != null &&
+          !topicIds.contains(requestedDefaultTopic)) {
         throw FormatException(
-          'menu.json languages[$index].defaultTopic: 등록되지 않은 주제 ($defaultTopicId)',
+          'menu.json languages[$index].defaultTopic: 등록되지 않은 주제 ($requestedDefaultTopic)',
         );
       }
-      final selectedTopic =
-          topics.firstWhere((topic) => topic.id == defaultTopicId);
+      if (!isHidden && topics.isEmpty) {
+        throw FormatException(
+          'menu.json languages[$index].topics: 표시할 주제가 한 개 이상 필요',
+        );
+      }
+      if (!isHidden) {
+        final emptyTopic = topics.where((topic) => topic.items.isEmpty);
+        if (emptyTopic.isNotEmpty) {
+          throw FormatException(
+            'menu.json languages[$index].topics(${emptyTopic.first.id}).items: '
+            '표시할 메뉴가 한 개 이상 필요',
+          );
+        }
+      }
+      final defaultTopicId = topics.isEmpty
+          ? null
+          : topics.any((topic) => topic.id == requestedDefaultTopic)
+              ? requestedDefaultTopic
+              : topics.first.id;
+      final selectedTopic = defaultTopicId == null
+          ? null
+          : topics.firstWhere((topic) => topic.id == defaultTopicId);
       return MenuLanguage(
         id: id.trim(),
         label: label.trim(),
+        hidden: isHidden,
         subtitle: subtitle is String && subtitle.trim().isNotEmpty
             ? subtitle.trim()
             : null,
         icon: icon is String && icon.trim().isNotEmpty ? icon.trim() : null,
-        items: selectedTopic.items,
+        items: selectedTopic?.items ?? const [],
         topics: List.unmodifiable(topics),
-        defaultMenuId: selectedTopic.defaultMenuId,
+        defaultMenuId: selectedTopic?.defaultMenuId,
         defaultTopicId: defaultTopicId,
       );
     }
@@ -153,20 +182,32 @@ class MenuLanguage {
           'menu.json languages[$index].items: 메뉴 id 중복 (${item.id})',
         );
       }
-      items.add(item);
+      if (!item.hidden) items.add(item);
     }
 
-    final defaultMenuId =
-        defaultMenu is String ? defaultMenu.trim() : items.first.id;
-    if (!itemIds.contains(defaultMenuId)) {
+    final requestedDefaultMenu =
+        defaultMenu is String ? defaultMenu.trim() : null;
+    if (requestedDefaultMenu != null &&
+        !itemIds.contains(requestedDefaultMenu)) {
       throw FormatException(
-        'menu.json languages[$index].defaultMenu: 등록되지 않은 메뉴 ($defaultMenuId)',
+        'menu.json languages[$index].defaultMenu: 등록되지 않은 메뉴 ($requestedDefaultMenu)',
       );
     }
+    if (!isHidden && items.isEmpty) {
+      throw FormatException(
+        'menu.json languages[$index].items: 표시할 메뉴가 한 개 이상 필요',
+      );
+    }
+    final defaultMenuId = items.isEmpty
+        ? null
+        : items.any((item) => item.id == requestedDefaultMenu)
+            ? requestedDefaultMenu
+            : items.first.id;
 
     return MenuLanguage(
       id: id.trim(),
       label: label.trim(),
+      hidden: isHidden,
       subtitle: subtitle is String && subtitle.trim().isNotEmpty
           ? subtitle.trim()
           : null,

@@ -17,7 +17,7 @@ class AvailableUpdate {
 }
 
 class UpdateService {
-  static const updaterVersion = '1.1.0';
+  static const updaterVersion = '2.0.0';
   static const _api =
       'https://api.github.com/repos/cuniverse/simple-kiosk/releases/latest';
   static const _headers = {
@@ -165,7 +165,7 @@ class UpdateService {
     );
   }
 
-  Future<File> _updaterScript(String name) async {
+  Future<File> _updaterTool(String name) async {
     final fixed = RuntimePaths.child('updater/$name');
     if (fixed != null) {
       final file = File(fixed);
@@ -184,8 +184,22 @@ class UpdateService {
     int logRetentionDays = 30,
   }) async {
     if (!Platform.isWindows) throw UnsupportedError('Windows 업데이트만 지원');
-    final script = await _updaterScript('update.ps1');
-    if (!await script.exists()) throw StateError('업데이트 실행기 누락: ${script.path}');
+    final updater = await _updaterTool('ysignage_updater.exe');
+    if (!await updater.exists()) {
+      throw StateError('네이티브 업데이트 실행기 누락: ${updater.path}');
+    }
+    final fixedLauncher = RuntimePaths.child('ysignage_launcher.exe');
+    final bundledLauncher = File(
+      '${File(Platform.resolvedExecutable).parent.path}'
+      '${Platform.pathSeparator}ysignage_launcher.exe',
+    );
+    final signatureVerifier =
+        fixedLauncher != null && await File(fixedLauncher).exists()
+            ? File(fixedLauncher)
+            : bundledLauncher;
+    if (!await signatureVerifier.exists()) {
+      throw StateError('네이티브 서명 검증 실행기 누락: ${signatureVerifier.path}');
+    }
     await writeState({
       'status': 'install-requested',
       'version': manifest.version,
@@ -194,28 +208,27 @@ class UpdateService {
       'appPid': pid,
     });
     final process = await Process.start(
-      'powershell.exe',
+      updater.path,
       [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        script.path,
-        '-PackagePath',
+        '--package',
         package.path,
-        '-Version',
+        '--version',
         manifest.version,
-        '-ExpectedSha256',
+        '--sha256',
         manifest.sha256,
-        '-AppPid',
+        '--app-pid',
         '$pid',
-        '-RetainVersions',
+        '--data-root',
+        RuntimePaths.dataRoot!,
+        '--retain-versions',
         '$retainVersions',
-        '-LogRetentionDays',
+        '--log-retention-days',
         '$logRetentionDays',
-        if (manifest.authenticodeRequired) '-RequireAuthenticode',
+        '--signature-verifier',
+        signatureVerifier.path,
+        if (manifest.authenticodeRequired) '--require-authenticode',
         if (manifest.signerThumbprint != null) ...[
-          '-ExpectedSignerThumbprint',
+          '--signer-thumbprint',
           manifest.signerThumbprint!,
         ],
       ],
@@ -231,7 +244,9 @@ class UpdateService {
     process.stdout.transform(utf8.decoder).listen(stdoutBuffer.write);
     process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
     final exited = process.exitCode.then<int?>((value) => value);
-    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    // 네이티브 업데이트 실행기는 앱 종료 전에 ZIP 해시·경로·구성·서명을
+    // 모두 검증한다. 큰 패키지에서도 검증 완료 신호를 충분히 기다린다.
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
     while (DateTime.now().isBefore(deadline)) {
       final state = await _readUpdateState();
       if (state?['version'] == manifest.version &&
@@ -269,7 +284,7 @@ class UpdateService {
 
   Future<String> exportDiagnostics() async {
     if (!Platform.isWindows) throw UnsupportedError('Windows만 지원');
-    final script = await _updaterScript('export-diagnostics.ps1');
+    final script = await _updaterTool('export-diagnostics.ps1');
     if (!await script.exists()) {
       throw StateError('진단 도구 누락: ${script.path}');
     }

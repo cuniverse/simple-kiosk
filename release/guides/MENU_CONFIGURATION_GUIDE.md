@@ -18,8 +18,13 @@ assets/config/menu.defaults.json
 
 Windows 운영 오버라이드는 전체 기본 설정을 복사하지 않고 변경한 값만 작성합니다.
 `layout`과 `idle`은 키 단위로 재귀 병합됩니다. 다국어 설정은 `languages` 배열 전체를
-지정하며 각 언어 안에 독립된 `items` 배열을 둡니다. 기존 단일 `items` 오버라이드도
-계속 지원됩니다.
+지정하며 각 언어 안에 주제 `topics`, 각 주제 안에 메뉴 `items`를 둡니다. 기존 최상위
+`items`와 `languages[].items` 형식도 단일 언어·단일 주제로 계속 지원됩니다.
+
+프로그램 시작 시 구형 형식은 현재 `languages[].topics[].items` 구조로 자동 변환됩니다.
+schemaVersion 2여도 이전 웹 관리자가 생성한 단일 `default` 주제라면 새 버전 기본 주제와
+ID 기준으로 병합합니다. 변환 전 `menu.override.json`은 프로그램 폴더의
+`backups/menu.override.before-migration-*.json`에 보관됩니다.
 
 ```json
 {
@@ -31,15 +36,29 @@ Windows 운영 오버라이드는 전체 기본 설정을 복사하지 않고 �
     {
       "id": "ko",
       "label": "한국어",
-      "items": [
-        { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+      "defaultTopic": "general",
+      "topics": [
+        {
+          "id": "general",
+          "label": "전체",
+          "defaultMenu": "home",
+          "items": [
+            { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+          ]
+        }
       ]
     },
     {
       "id": "en",
       "label": "English",
-      "items": [
-        { "id": "home", "title": "Home", "url": "https://en.example.com" }
+      "topics": [
+        {
+          "id": "general",
+          "label": "General",
+          "items": [
+            { "id": "home", "title": "Home", "url": "https://en.example.com" }
+          ]
+        }
       ]
     }
   ]
@@ -59,17 +78,18 @@ C:\SimpleKiosk\config\menu.override.json
 
 ## 2. 안전하게 수정하는 순서
 
-1. 여의도성당Signage를 완전히 종료합니다.
-2. 기존 `menu.json`을 `menu.backup.json` 같은 이름으로 복사합니다.
-3. UTF-8을 지원하는 편집기로 `menu.json`을 엽니다.
-4. JSON 문법을 지키면서 필요한 값만 수정합니다.
-5. 아래 방법으로 JSON 문법을 검사합니다.
-6. 앱을 다시 실행하고 모든 메뉴를 시험합니다.
+1. 웹 관리자의 **백업·진단 > 설정 내보내기**로 현재 설정을 백업합니다.
+2. 웹 관리자의 **사이니지 구성**에서 필요한 값을 수정합니다.
+3. **저장 후 즉시 적용**을 눌러 서버 검증과 저장을 수행합니다.
+4. 언어·주제·메뉴와 화면보호기 동작을 확인합니다.
+
+파일을 직접 편집해야 한다면 앱을 완전히 종료하고
+`<프로그램 폴더>\config\menu.override.json`을 백업한 뒤 UTF-8 편집기로 수정합니다.
 
 PowerShell에서 문법 검사:
 
 ```powershell
-Get-Content .\menu.json -Raw | ConvertFrom-Json | Out-Null
+Get-Content .\config\menu.override.json -Raw | ConvertFrom-Json | Out-Null
 ```
 
 macOS 또는 Linux에서 문법 검사:
@@ -102,18 +122,29 @@ JSON 작성 시 다음 사항에 주의하세요.
   "defaultLanguage": "ko",
   "languageSelection": {
     "title": "언어를 선택하세요",
-    "subtitle": "Please select your language"
+    "subtitle": "Please select your language",
+    "topicTitle": "주제를 선택하세요",
+    "topicSubtitle": "Please select a topic",
+    "skipSingleTopic": true
   },
   "languages": [
     {
       "id": "ko",
       "label": "한국어",
-      "items": [
+      "defaultTopic": "general",
+      "topics": [
         {
-          "id": "home",
-          "title": "홈",
-          "url": "https://example.com/ko",
-          "icon": "icon:home"
+          "id": "general",
+          "label": "전체",
+          "defaultMenu": "home",
+          "items": [
+            {
+              "id": "home",
+              "title": "홈",
+              "url": "https://example.com/ko",
+              "icon": "icon:home"
+            }
+          ]
         }
       ]
     }
@@ -123,15 +154,16 @@ JSON 작성 시 다음 사항에 주의하세요.
 
 - `layout`: 툴바 위치, 크기, 버튼과 색상 설정
 - `idle`: 일정 시간 사용하지 않을 때 표시할 대기화면 설정
-- `languages`: 선택 가능한 언어 목록. 한 개 이상의 언어가 필요합니다.
-- `languages[].items`: 해당 언어에서만 표시할 메뉴 버튼 목록
-- 각 언어의 `items`는 한 개 이상 있어야 하며 첫 번째 항목이 해당 언어의 홈 메뉴가 됩니다.
+- `languages`: 선택 가능한 언어 목록. 표시 가능한 언어가 한 개 이상 필요합니다.
+- `languages[].topics`: 언어별 주제 목록. 표시 가능한 주제가 한 개 이상 필요합니다.
+- `languages[].topics[].items`: 해당 언어·주제에서 표시할 메뉴 버튼 목록
+- `defaultTopic`과 `defaultMenu`를 생략하면 첫 번째 표시 항목을 사용합니다.
 - 생략 가능한 값을 쓰지 않으면 앱의 기본값이 적용됩니다.
 
 ## 4. 언어 및 메뉴 항목 설정
 
-화면보호기를 해제하면 `languages`에 등록된 언어가 큰 버튼으로 표시됩니다. 언어마다
-메뉴 개수, 제목, URL과 아이콘을 독립적으로 지정할 수 있습니다.
+화면보호기를 해제하면 `languages`에 등록된 언어가 큰 버튼으로 표시됩니다. 언어를
+선택하면 해당 언어의 `topics`가 표시되고, 주제를 선택하면 그 주제의 메뉴를 사용합니다.
 
 ```json
 "languages": [
@@ -139,27 +171,44 @@ JSON 작성 시 다음 사항에 주의하세요.
     "id": "ko",
     "label": "한국어",
     "subtitle": "Korean",
-    "items": [
-      { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+    "defaultTopic": "parish",
+    "topics": [
+      {
+        "id": "parish",
+        "label": "본당",
+        "items": [
+          { "id": "home", "title": "홈", "url": "https://ko.example.com" }
+        ]
+      }
     ]
   },
   {
     "id": "en",
     "label": "English",
     "subtitle": "영어",
-    "items": [
-      { "id": "home", "title": "Home", "url": "https://en.example.com" },
-      { "id": "news", "title": "News", "url": "https://en.example.com/news" }
+    "topics": [
+      {
+        "id": "general",
+        "label": "General",
+        "items": [
+          { "id": "home", "title": "Home", "url": "https://en.example.com" },
+          { "id": "news", "title": "News", "url": "https://en.example.com/news" }
+        ]
+      }
     ]
   }
 ]
 ```
 
-언어를 추가하려면 고유한 `id`, 표시 이름 `label`, 선택적인 `subtitle`, 한 개 이상의
-`items`를 가진 객체를 배열에 추가합니다. `defaultLanguage`에는 등록된 언어 `id`를
-지정합니다.
+언어를 추가하려면 고유한 `id`, 표시 이름 `label`, 선택적인 `subtitle`·`icon`, 한 개
+이상의 `topics`를 가진 객체를 배열에 추가합니다. `defaultLanguage`에는 등록된 언어
+`id`를 지정합니다. 주제는 고유한 `id`, `label`, 한 개 이상의 `items`를 가집니다.
 
-### 메뉴 항목: `languages[].items`
+언어·주제·메뉴에 `"hidden": true`를 지정하면 해당 선택 화면이나 툴바에서 숨깁니다.
+생략하거나 `false`이면 표시합니다. 숨긴 기본 항목은 같은 범위의 첫 표시 항목으로 자동
+대체됩니다. 모든 언어 또는 표시되는 주제의 모든 메뉴를 숨길 수는 없습니다.
+
+### 메뉴 항목: `languages[].topics[].items`
 
 기본 메뉴 한 개의 형식은 다음과 같습니다.
 
@@ -169,6 +218,7 @@ JSON 작성 시 다음 사항에 주의하세요.
   "title": "공지사항",
   "url": "https://example.com/notice",
   "icon": "icon:notice",
+  "hidden": false,
   "showTitle": true,
   "keepStateOnTap": true
 }
@@ -180,6 +230,7 @@ JSON 작성 시 다음 사항에 주의하세요.
 | `title` | 문자열 | 예 | 없음 | 버튼에 표시할 이름입니다. 제목을 숨겨도 접근성 라벨로 사용됩니다. |
 | `url` | 문자열 | 예 | 없음 | 메뉴를 선택했을 때 열 URL입니다. 운영 환경에서는 HTTPS를 권장합니다. |
 | `icon` | 문자열 | 아니요 | 없음 | 내장 아이콘, 로컬 에셋 또는 네트워크 이미지입니다. |
+| `hidden` | bool | 아니요 | `false` | `true`이면 이 메뉴를 툴바에서 숨깁니다. |
 | `showTitle` | bool | 아니요 | `true` | `false`이면 아이콘만 표시합니다. 아이콘이 없으면 빈 버튼 방지를 위해 제목이 표시됩니다. |
 | `keepStateOnTap` | bool | 아니요 | `layout` 값 상속 | 이 메뉴의 현재 웹페이지·스크롤 상태 유지 방식을 개별 지정합니다. |
 
@@ -270,6 +321,7 @@ search, help, link, web, music, mic, camera, image, download, qr
   "buttonAlignment": "stretch",
   "showHistoryButtons": true,
   "showKeyboardToggle": true,
+  "showSelectedTopic": true,
   "keepStateOnTap": false,
   "toolbarInitiallyHidden": true,
   "toolbarAutoHideSec": 10,
@@ -281,9 +333,11 @@ search, help, link, web, music, mic, camera, image, download, qr
 }
 ```
 
+아래 기본값은 현재 배포되는 `menu.defaults.json` 기준입니다.
+
 | 키 | 타입 | 기본값 | 허용값 및 설명 |
 |---|---|---|---|
-| `navPosition` | 문자열 | `auto` | `auto`, `left`, `right`, `top`, `bottom` |
+| `navPosition` | 문자열 | `right` | `auto`, `left`, `right`, `top`, `bottom` |
 | `sideWidth` | 양수 | `220` | 좌우 툴바 폭(dp) |
 | `barHeight` | 양수 | `96` | 상하 툴바 높이(dp) |
 | `breakpoint` | 양수 | `720` | `auto`에서 이 폭 이상이면 왼쪽, 미만이면 하단 툴바 사용 |
@@ -291,16 +345,19 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `buttonWidth` | 0 이상 | `0` | 상하 툴바 버튼 폭(dp), `0`은 가용 공간 분배 |
 | `buttonGap` | 0 이상 | `8` | 버튼 사이 간격(dp) |
 | `buttonAlignment` | 문자열 | `stretch` | `start`, `center`, `end`, `spaceBetween`, `spaceAround`, `spaceEvenly`, `stretch` |
-| `showHistoryButtons` | bool | `false` | 뒤로·앞으로 버튼 표시 |
-| `showKeyboardToggle` | bool | `false` | 가상 키보드 켜기·끄기 버튼 표시 |
+| `showHistoryButtons` | bool | `true` | 뒤로·앞으로 버튼 표시 |
+| `showKeyboardToggle` | bool | `true` | 가상 키보드 켜기·끄기 버튼 표시 |
+| `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
+| `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
+| `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
 | `keepStateOnTap` | bool | `false` | 모든 메뉴의 기본 상태 유지 동작 |
-| `toolbarInitiallyHidden` | bool | `true` | 앱 시작 시 툴바를 감춘 상태로 표시 |
-| `toolbarAutoHideSec` | 0 이상의 숫자 | `10` | 펼친 툴바를 입력 없이 표시할 시간(초). `0`이면 자동 숨김 해제 |
+| `toolbarInitiallyHidden` | bool | `false` | 앱 시작 시 툴바를 감춘 상태로 표시 |
+| `toolbarAutoHideSec` | 0 이상의 숫자 | `0` | 펼친 툴바를 입력 없이 표시할 시간(초). `0`이면 자동 숨김 해제 |
 | `barColor` | 색상 문자열 | `#1f2937` | 툴바 배경색. `#RGB`, `#RRGGBB`, `#AARRGGBB`, `transparent` 지원 |
 
-툴바는 기본적으로 숨김 상태로 시작합니다. 오버레이의 복원 버튼으로 툴바를 표시한
-뒤 `toolbarAutoHideSec` 동안 화면 터치, 드래그 또는 스크롤 입력이 없으면 다시
-자동으로 숨겨집니다. 입력이 발생하면 제한 시간은 처음부터 다시 계산됩니다.
+현재 배포 기본값은 툴바를 표시하고 자동 숨김을 사용하지 않습니다. 필요하면
+`toolbarInitiallyHidden`을 켜거나 `toolbarAutoHideSec`을 1 이상으로 설정할 수 있습니다.
+자동 숨김을 사용하면 화면 터치, 드래그 또는 스크롤 입력 시 제한 시간이 다시 계산됩니다.
 
 툴바를 숨겨도 같은 WebView가 유지되므로 현재 페이지, 입력 내용과 스크롤 위치가
 바뀌지 않습니다. 숨김 상태에서는 뒤로, 앞으로, 툴바 복원, 가상 키보드 버튼이
@@ -344,12 +401,14 @@ search, help, link, web, music, mic, camera, image, download, qr
 }
 ```
 
+아래 기본값은 현재 배포되는 `menu.defaults.json` 기준입니다.
+
 | 키 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| `enabled` | bool | `false` | 대기화면 기능 사용 여부 |
-| `timeoutSec` | 숫자 | `60` | 마지막 입력 후 진입할 때까지의 초. `0` 이하는 자동 진입 안 함 |
+| `enabled` | bool | `true` | 대기화면 기능 사용 여부 |
+| `timeoutSec` | 숫자 | `300` | 마지막 입력 후 진입할 때까지의 초. `0` 이하는 자동 진입 안 함 |
 | `startOnLaunch` | bool | `true` | 앱 시작 직후 대기화면 표시 여부 |
-| `modes` | 배열 | `["none"]` | `slideshow`, `folder`, `gallery`는 복수 지정 가능 |
+| `modes` | 배열 | `["gallery"]` | `slideshow`, `folder`, `gallery`는 복수 지정 가능 |
 | `mode` | 문자열 | `none` | 기존 단일 모드 호환 설정. `modes`가 있으면 무시 |
 | `showHint` | bool | `true` | 터치 안내 문구 표시 여부 |
 | `hintText` | 문자열 | `화면을 터치해 주세요` | 안내 문구 |
@@ -596,16 +655,30 @@ search, help, link, web, music, mic, camera, image, download, qr
     {
       "id": "ko",
       "label": "한국어",
-      "items": [
-        { "id": "home", "title": "홈", "url": "https://example.com" },
-        { "id": "notice", "title": "공지사항", "url": "https://example.com/notice" }
+      "defaultTopic": "general",
+      "topics": [
+        {
+          "id": "general",
+          "label": "전체",
+          "defaultMenu": "home",
+          "items": [
+            { "id": "home", "title": "홈", "url": "https://example.com" },
+            { "id": "notice", "title": "공지사항", "url": "https://example.com/notice" }
+          ]
+        }
       ]
     },
     {
       "id": "en",
       "label": "English",
-      "items": [
-        { "id": "home", "title": "Home", "url": "https://example.com/en" }
+      "topics": [
+        {
+          "id": "general",
+          "label": "General",
+          "items": [
+            { "id": "home", "title": "Home", "url": "https://example.com/en" }
+          ]
+        }
       ]
     }
   ]
@@ -615,7 +688,7 @@ search, help, link, web, music, mic, camera, image, download, qr
 ## 10. 변경 후 확인 목록
 
 - JSON 문법 검사에서 오류가 없는지
-- 첫 번째 메뉴가 원하는 홈 페이지인지
+- `defaultTopic`과 `defaultMenu`가 원하는 첫 화면을 가리키는지
 - 모든 메뉴의 제목, 아이콘과 URL이 맞는지
 - 메뉴를 이동한 뒤 돌아왔을 때 상태 유지 방식이 의도한 것과 같은지
 - 뒤로·앞으로 버튼과 가상 키보드 버튼이 보이는지
@@ -628,7 +701,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 ### 앱에 설정 오류 화면이 표시됨
 
 - 필수 필드인 `id`, `title`, `url`이 비어 있지 않은지 확인합니다.
-- `languages`와 각 `languages[].items`가 배열이며 한 개 이상의 항목을 포함하는지 확인합니다.
+- `languages`, `languages[].topics`, `topics[].items`가 배열이며 표시 가능한 항목을
+  한 개 이상 포함하는지 확인합니다.
 - 숫자 필드에 문자열을 넣거나 bool 필드에 `"true"`를 넣지 않았는지 확인합니다.
 - `navPosition`, `buttonAlignment`, `mode`, `transition`의 철자를 확인합니다.
 - 백업한 설정으로 되돌린 뒤 한 항목씩 다시 수정합니다.
@@ -636,7 +710,7 @@ search, help, link, web, music, mic, camera, image, download, qr
 ### 변경 내용이 반영되지 않음
 
 - 앱을 작업 관리자나 활동 관리자에서도 완전히 종료했는지 확인합니다.
-- 실제 실행 중인 배포 폴더의 `menu.json`을 수정했는지 확인합니다.
+- Windows에서는 실제 프로그램 폴더의 `config\menu.override.json`을 수정했는지 확인합니다.
 - Android와 macOS에서는 원본 설정 수정 후 새 패키지를 빌드했는지 확인합니다.
 - 개발 중 핫 리로드(`r`)가 아닌 핫 리스타트(`R`)를 실행했는지 확인합니다.
 

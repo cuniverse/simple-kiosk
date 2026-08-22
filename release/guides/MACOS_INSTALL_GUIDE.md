@@ -31,4 +31,4 @@ shasum -a 256 -c SHA256SUMS.txt
 - 종료: `Command + Q`
 - 개발용 창 모드: 실행 전 `SIMPLE_KIOSK_WINDOWED=1` 환경변수 설정
 - 절전 방지, 자동 로그인 및 로그인 항목 등록은 단말기 운영 정책에 맞춰 설정합니다.
-- 메뉴 변경: `assets/config/menu.json` 수정 후 macOS 패키지를 다시 빌드합니다.
+- 메뉴 변경: `assets/config/menu.defaults.json` 수정 후 macOS 패키지를 다시 빌드합니다.

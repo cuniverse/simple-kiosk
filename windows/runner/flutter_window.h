@@ -24,6 +24,8 @@ class FlutterWindow : public Win32Window {
   LRESULT MessageHandler(HWND window, UINT const message, WPARAM const wparam,
                          LPARAM const lparam) noexcept override;
 
+  void RecoverRenderingSurface();
+
  private:
   // The project to run.
   flutter::DartProject project_;
@@ -34,6 +36,8 @@ class FlutterWindow : public Win32Window {
       shortcut_channel_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       system_keyboard_channel_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      kiosk_mode_channel_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
       windows_startup_channel_;
   HHOOK keyboard_hook_ = nullptr;

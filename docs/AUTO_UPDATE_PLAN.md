@@ -1,6 +1,6 @@
 # 여의도성당Signage Git 기반 자동 업데이트 계획
 
-> 상태: Windows stable 운영 구현 완료, 설치형 EXE 지원 (v1.2.8)
+> 상태: Windows stable 운영 구현 완료, installer·네이티브 Launcher·Updater 지원 (v1.2.18)
 > 1차 대상: Windows 사이니지 배포본
 > 업데이트 원본: GitHub Releases
 
@@ -14,6 +14,8 @@
 - 고정 Launcher, 별도 Updater, 버전 포인터 전환, 시작 신호와 자동 롤백 구현
 - CI의 태그 버전 주입, Windows ZIP manifest 생성 및 Release 첨부 구현
 - 기존 `menu.json` 차이 추출/백업 마이그레이션 도구 구현
+- 시작 시 schemaVersion 1·구형 items·합성 단일 주제 운영 설정의 자동 백업 및
+  언어→주제→메뉴 구조 마이그레이션 구현
 - 관리자 화면에서 확인 주기, 유휴 설치, 설치 시간대와 보관 정책 편집 구현
 - 이전 버전·다운로드·로그 정리와 고정 업데이터 동기화 구현
 - 수동 버전 복구 및 진단 자료 ZIP 내보내기 도구 구현
@@ -46,31 +48,22 @@
 - 자동 업데이트 기본값은 `OFF`로 하여 기존 운영 장비가 예고 없이 갱신되지 않게 한다.
 - 사이니지가 사용 중일 때는 설치하지 않는다.
 
-## 3. 현재 구조와 해결할 문제
+## 3. 현재 구현 구조
 
-현재 앱은 `assets/config/menu.json`을 Flutter `rootBundle`에서 직접 읽는다. Windows
-배포본에서는 다음 위치의 파일을 운영자가 직접 수정한다.
+앱 기본값은 버전 패키지의 `assets/config/menu.defaults.json`에 포함하고, 운영자가 변경한
+설정은 프로그램 폴더의 `config/menu.override.json`에 저장한다. 앱은 시작할 때 두 설정을
+병합·검증하고 실패하면 `state/last-good-config.json`으로 복구한다.
 
-```text
-<설치 폴더>\data\flutter_assets\assets\config\menu.json
-```
-
-Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP에 포함한다. 새 패키지를
-기존 설치 폴더에 덮어쓰면 운영자가 수정한 `menu.json`과 사용자 이미지가 사라질 수
-있다. 반대로 기존 `menu.json` 전체를 새 버전에 복사하면 새로 추가된 기본 설정과 메뉴가
-반영되지 않을 수 있다.
-
-따라서 자동 업데이트 전에 다음 구조 변경이 선행되어야 한다.
-
-1. 앱 기본 설정과 운영자 변경 설정 분리
-2. 설정 병합 및 스키마 마이그레이션 도입
-3. 프로그램과 운영 데이터 저장 위치 분리
-4. 버전별 설치와 롤백이 가능한 실행 구조 도입
+Windows 실행 파일과 DLL은 `versions/<version>`에 버전별로 설치하며, 고정된
+`ysignage_launcher.exe`가 `current.json`을 읽어 현재 버전을 시작한다. 업데이트는 별도
+`ysignage_updater.exe`가 새 버전 설치, 실행 확인과 실패 시 롤백을 담당한다. 따라서
+운영 설정과 사용자 미디어는 앱 버전 교체의 영향을 받지 않는다.
 
 ## 4. 목표 디렉터리 구조
 
 ```text
-<ysignage.exe가 들어 있는 프로그램 폴더>\
+<프로그램 폴더>\
+  ysignage_launcher.exe             # 고정 네이티브 실행기
   current.json                     # 현재/직전 정상 버전 포인터
   config\
     menu.override.json             # 운영자가 변경한 값만 저장
@@ -80,8 +73,16 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
     update-state.json              # 확인/다운로드/설치 결과와 재시도 상태
     last-good-config.json          # 마지막으로 파싱에 성공한 최종 설정
   logs\
+    app.log
+    webview.log
+    update.log
+    api.log
     updater.log
+  diagnostics\                    # 내보낸 진단 자료
+  backups\                        # 설정 마이그레이션·복원 백업
   downloads\                       # 다운로드 중인 임시 파일
+  updater\
+    ysignage_updater.exe            # 고정 네이티브 업데이트 실행기
   versions\
     1.2.0\                         # 완전한 버전별 실행 패키지
     1.3.0\
@@ -138,8 +139,8 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
 - 오버라이드에 있는 키는 운영자 값을 우선한다.
 - `null`은 키 삭제가 아니라 명시적인 기본값 복원으로 정의한다.
 - 메뉴는 배열 위치가 아닌 변하지 않는 `items[].id`를 기준으로 병합한다.
-- 다국어 설정은 `languages` 배열 안에 언어별 독립 `items` 배열로 저장하며, 기존
-  schemaVersion 1의 최상위 `items` 오버라이드는 단일 언어 모드로 유지한다.
+- 다국어 설정은 `languages[].topics[].items` 구조로 언어·주제별 메뉴를 저장하며, 기존
+  최상위 `items`와 `languages[].items`는 단일 언어·단일 주제로 계속 지원한다.
 - 기본 메뉴의 URL·제목 등을 운영자가 수정한 경우 해당 필드만 보존한다.
 - 새 버전에 추가된 기본 메뉴는 `disabledIds`에 없는 한 기본 순서에 맞춰 추가한다.
 - 운영자가 추가한 메뉴는 `additions`에 완전한 항목으로 저장하고 업데이트 후에도 유지한다.
@@ -210,8 +211,8 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
 업데이트 채널       [ stable ]
 확인 주기           [ 6시간 ]
 설치 가능 시간      [ 02:00 ~ 05:00 ]
-현재 버전           1.2.0
-사용 가능한 버전    1.3.0
+현재 버전           1.2.18
+사용 가능한 버전    1.2.19
 마지막 확인         2026-08-13 14:30
 업데이트 상태       다운로드 완료 / 설치 대기
 [지금 업데이트 확인] [지금 설치]
@@ -223,11 +224,11 @@ Windows 패키징 스크립트는 빌드 결과의 `data` 폴더 전체를 ZIP�
 
 ## 7. GitHub Release 구성
 
-현재 태그 기반 GitHub Actions 릴리스 흐름을 확장한다. 각 Release에는 다음 파일을
-게시한다.
+태그 기반 GitHub Actions가 각 Release에 다음 파일을 게시한다.
 
 ```text
 simple-kiosk-windows-<version>.zip
+simple-kiosk-windows-setup-<version>.exe
 update-manifest.json
 ```
 
@@ -272,7 +273,7 @@ Manifest 초안:
 
 ## 9. 실행 구성 요소
 
-### Kiosk Launcher
+### Signage Launcher
 
 - 항상 고정된 위치에서 실행된다.
 - `current.json`을 읽어 현재 버전의 `ysignage.exe`를 시작한다.
@@ -280,17 +281,20 @@ Manifest 초안:
 - Windows 네이티브 `ysignage_launcher.exe`로 제공하며 일반 실행 시 PowerShell이나
   CMD 스크립트를 사용하지 않는다.
 
-### Kiosk App
+### Signage App
 
 - 현재 버전과 업데이트 상태를 관리자 화면에 표시한다.
 - 자동 업데이트 정책을 변경한다.
 - 화면 보호기 진입 및 설치 가능 상태를 업데이트 실행기에 알린다.
 - 설치 요청을 받은 경우 세션과 설정을 저장하고 정상 종료한다.
 
-### Kiosk Updater
+### Signage Updater
 
 - GitHub Release 확인, 다운로드, 검증과 설치를 담당한다.
 - 앱과 별도 프로세스로 실행되어 Windows 파일 잠금을 피한다.
+- Windows 네이티브 `ysignage_updater.exe`로 실행하며 PowerShell 실행 정책이나
+  스크립트 호스트에 의존하지 않는다.
+- ZIP 경로 검증, 버전 포인터 전환, 정상 실행 확인과 실패 시 롤백을 실행 파일 내부에서 처리한다.
 - 운영 설정과 사용자 미디어에는 쓰지 않는다.
 - 설치 결과와 오류를 `update-state.json` 및 로그에 기록한다.
 
@@ -310,7 +314,9 @@ Manifest 초안:
 - 설치 전후 설정 백업과 최근 정상 버전을 최소 1개 유지한다.
 - 로그에 토큰, 쿠키, URL 쿼리의 민감값을 기록하지 않는다.
 
-## 11. 단계별 구현 계획
+## 11. 단계별 구현 현황
+
+아래 1~6단계는 모두 구현되었습니다. 항목은 구현 범위와 회귀 테스트 기준으로 유지합니다.
 
 ### 1단계 — 외부 설정과 병합
 
@@ -414,9 +420,8 @@ Manifest 초안:
 - Windows 코드 서명은 GitHub Actions 비밀값이 있을 때 적용
 - macOS 및 Android 자동 업데이트를 같은 범위에 포함할 시점
 
-## 14. 1차 권장 범위
+## 14. 현재 운영 범위
 
-첫 구현은 Windows와 `stable` 채널로 제한한다. 자동 업데이트 기본값은 OFF로 두고,
-관리자가 켠 장비만 GitHub Release를 확인한다. 운영 설정 분리와 병합을 먼저 완료한 뒤
-업데이트 설치 기능을 연결해야 한다. 설정 분리 없이 자동 설치부터 구현하면 운영 설정
-유실 위험을 제거할 수 없다.
+자동 설치는 Windows `stable` 채널을 대상으로 하며 기본값은 OFF입니다. 관리자가 자동
+업데이트를 켠 장비만 GitHub Release를 주기적으로 확인합니다. Android와 macOS는 각
+플랫폼의 서명·배포 정책이 필요하므로 현재 자동 설치 대상에 포함하지 않습니다.

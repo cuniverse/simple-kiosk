@@ -17,13 +17,16 @@ import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/model/webview_slot_id.dart';
 import 'package:simple_kiosk/model/webview_data_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
+import 'package:simple_kiosk/service/admin_api_controller.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/widget/admin_pin_keypad.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/service/menu_config_loader.dart';
+import 'package:simple_kiosk/service/menu_config_migrator.dart';
 import 'package:simple_kiosk/service/keyboard_controller.dart';
 import 'package:simple_kiosk/service/system_keyboard.dart';
 import 'package:simple_kiosk/service/update_service.dart';
+import 'package:simple_kiosk/service/update_controller.dart';
 import 'package:simple_kiosk/service/windows_startup_service.dart';
 import 'package:simple_kiosk/widget/idle_gate.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
@@ -32,6 +35,25 @@ import 'package:simple_kiosk/widget/kiosk_webview.dart';
 import 'package:simple_kiosk/widget/language_selection.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 import 'package:simple_kiosk/widget/webview_loading_overlay.dart';
+import 'package:simple_kiosk/widget/update_admin_dialog.dart';
+
+class _RunningAdminApiController extends AdminApiController {
+  _RunningAdminApiController({required this.port})
+      : super(
+          statusProvider: () async => const {},
+          actionHandler: (_) async => const {},
+          configReader: () async => const {'schemaVersion': 2},
+          configWriter: (_) async {},
+        );
+
+  final int port;
+
+  @override
+  bool get running => true;
+
+  @override
+  int? get actualPort => port;
+}
 
 void main() {
   test('WebView 슬롯은 언어·주제·메뉴 ID로 순서와 무관하게 식별된다', () {
@@ -77,15 +99,29 @@ void main() {
   test('웹 관리자에 전체·섹션·필드·메뉴 기본값 복원 기능이 포함된다', () {
     final page = File('assets/admin/index.html').readAsStringSync();
 
+    expect(page, contains('사이니지 구성'));
+    expect(page, isNot(contains('외부 메뉴 설정')));
     expect(page, contains('/api/config/defaults'));
     expect(page, contains('전체 기본값 복원'));
     expect(page, contains('이 섹션 기본값 복원'));
     expect(page, contains('이 값 복원'));
     expect(page, contains('이 메뉴 복원'));
+    expect(page, contains("function visibilityField(target,onRestore)"));
+    expect(page, contains("['false','표시'],['true','숨김']"));
     expect(page, contains('주제 선택 후 첫 메뉴'));
     expect(page, contains('주제 추가'));
     expect(page, contains("webViewData.idlePolicy"));
     expect(page, contains('Local Storage'));
+    expect(page, contains('id="reauthOverlay"'));
+    expect(page, contains('현재 화면과 저장하지 않은 설정은 그대로 유지됩니다.'));
+    expect(page, contains('function requireReauthentication'));
+    expect(page, contains('await requireReauthentication()'));
+    expect(page,
+        contains('sessionStorage.getItem(\'simpleKioskAdminExpiresAt\')'));
+    expect(page, isNot(contains('logout(false)')));
+    expect(page, contains('/api/session/refresh'));
+    expect(
+        page, contains("['pointerdown','keydown','input','change','wheel']"));
   });
 
   testWidgets('관리자 PIN 키패드로 숫자 입력과 삭제를 수행한다', (tester) async {
@@ -108,6 +144,67 @@ void main() {
 
     await tester.tap(find.text('전체 삭제'));
     expect(controller.text, isEmpty);
+  });
+
+  testWidgets('관리 API가 실행 중이면 PIN 창에 웹 관리자 링크를 표시한다', (
+    tester,
+  ) async {
+    final adminController = _RunningAdminApiController(port: 8181);
+    final updateController = UpdateController();
+    addTearDown(() {
+      updateController.dispose();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () {
+              UpdateAdminDialog.show(
+                context,
+                updateController,
+                adminApiController: adminController,
+              );
+            },
+            child: const Text('설정 열기'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('설정 열기'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const ValueKey('open-web-admin')), findsOneWidget);
+    expect(find.text('웹 관리자 열기'), findsOneWidget);
+
+    await tester.tap(find.text('취소'));
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
+  testWidgets('관리 API가 비활성화되면 PIN 창에 웹 관리자 링크를 숨긴다', (
+    tester,
+  ) async {
+    final updateController = UpdateController();
+    addTearDown(updateController.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () {
+              UpdateAdminDialog.show(context, updateController);
+            },
+            child: const Text('설정 열기'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('설정 열기'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const ValueKey('open-web-admin')), findsNothing);
+
+    await tester.tap(find.text('취소'));
+    await tester.pump(const Duration(milliseconds: 300));
   });
 
   test('관리자 PIN은 기본값, 변경 파일, 파일 삭제 순서로 동작한다', () async {
@@ -168,6 +265,126 @@ void main() {
     final items = merged['items'] as List;
     expect(items.map((item) => item['id']), ['home', 'custom', 'new']);
     expect(items.first['url'], 'https://custom.example');
+  });
+
+  test('구형 items 패치 설정을 시작 마이그레이션용 현재 구조로 변환한다', () {
+    final defaults = {
+      'schemaVersion': 2,
+      'languages': [
+        {
+          'id': 'ko',
+          'label': '한국어',
+          'topics': [
+            {
+              'id': 'general',
+              'label': '전체',
+              'items': [
+                {'id': 'home', 'title': '홈', 'url': 'https://default'},
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    final legacy = {
+      'schemaVersion': 1,
+      'items': {
+        'overrides': {
+          'home': {'url': 'https://custom'},
+        },
+        'additions': [
+          {'id': 'new', 'title': '추가', 'url': 'https://new'},
+        ],
+      },
+    };
+
+    expect(MenuConfigMigrator.needsMigration(defaults, legacy), isTrue);
+    final migrated = MenuConfigMigrator.migrate(defaults, legacy);
+    final language = (migrated['languages'] as List).single as Map;
+    final topic = (language['topics'] as List).single as Map;
+    final items = topic['items'] as List;
+
+    expect(migrated['schemaVersion'], 2);
+    expect(migrated, isNot(contains('items')));
+    expect(language['defaultTopic'], 'default');
+    expect(items.map((item) => item['id']), ['home', 'new']);
+    expect((items.first as Map)['url'], 'https://custom');
+    expect(() => MenuConfigLoader.parse(migrated), returnsNormally);
+  });
+
+  test('합성된 단일 default 주제를 새 기본 주제들과 병합한다', () {
+    final defaults = {
+      'schemaVersion': 2,
+      'defaultLanguage': 'ko',
+      'languages': [
+        {
+          'id': 'ko',
+          'label': '한국어',
+          'defaultTopic': 'wyd',
+          'topics': [
+            {
+              'id': 'wyd',
+              'label': 'WYD',
+              'items': [
+                {'id': 'home', 'title': 'WYD', 'url': 'https://default'},
+                {'id': 'aos', 'title': '교구', 'url': 'https://aos'},
+              ],
+            },
+            {
+              'id': 'parish',
+              'label': '본당',
+              'items': [
+                {'id': 'parish', 'title': '본당', 'url': 'https://parish'},
+                {'id': 'aos', 'title': '교구', 'url': 'https://aos'},
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    final legacy = {
+      'schemaVersion': 2,
+      'layout': {'toolbarAutoHideSec': 25},
+      'languages': [
+        {
+          'id': 'ko',
+          'label': '한국어 사용자 설정',
+          'defaultTopic': 'default',
+          'topics': [
+            {
+              'id': 'default',
+              'label': '기본 주제',
+              'defaultMenu': 'home',
+              'items': [
+                {'id': 'home', 'title': '사용자 홈', 'url': 'https://custom'},
+                {'id': 'aos', 'title': '사용자 교구', 'url': 'https://aos'},
+                {
+                  'id': 'parish',
+                  'title': '사용자 본당',
+                  'url': 'https://parish',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(MenuConfigMigrator.needsMigration(defaults, legacy), isTrue);
+    final migrated = MenuConfigMigrator.migrate(defaults, legacy);
+    final language = (migrated['languages'] as List).single as Map;
+    final topics = language['topics'] as List;
+    final wyd = topics.first as Map;
+    final parish = topics.last as Map;
+
+    expect(topics.map((topic) => topic['id']), ['wyd', 'parish']);
+    expect(language['defaultTopic'], 'wyd');
+    expect(language['label'], '한국어 사용자 설정');
+    expect(((wyd['items'] as List).first as Map)['url'], 'https://custom');
+    expect(((parish['items'] as List).first as Map)['title'], '사용자 본당');
+    expect((migrated['layout'] as Map)['toolbarAutoHideSec'], 25);
+    expect(() => MenuConfigLoader.parse(migrated), returnsNormally);
+    expect(MenuConfigMigrator.needsMigration(defaults, migrated), isFalse);
   });
 
   test('언어별 메뉴 설정을 파싱하고 기본 언어를 선택한다', () {
@@ -257,6 +474,146 @@ void main() {
     expect(language.defaultTopic.id, 'pilgrimage');
     expect(language.defaultItem.id, 'map');
     expect(config.skipSingleTopic, isFalse);
+  });
+
+  test('숨긴 언어·주제·메뉴를 제외하고 숨긴 기본값은 표시 항목으로 대체한다', () {
+    final config = MenuConfigLoader.parse({
+      'defaultLanguage': 'ko',
+      'languages': [
+        {
+          'id': 'ko',
+          'label': '한국어',
+          'hidden': true,
+          'items': [
+            {'id': 'home', 'title': '홈', 'url': 'https://ko.example'},
+          ],
+        },
+        {
+          'id': 'en',
+          'label': 'English',
+          'defaultTopic': 'hidden-topic',
+          'topics': [
+            {
+              'id': 'hidden-topic',
+              'label': 'Hidden',
+              'hidden': true,
+              'items': [
+                {
+                  'id': 'hidden-home',
+                  'title': 'Hidden home',
+                  'url': 'https://hidden.example',
+                },
+              ],
+            },
+            {
+              'id': 'visible-topic',
+              'label': 'Visible',
+              'defaultMenu': 'hidden-menu',
+              'items': [
+                {
+                  'id': 'hidden-menu',
+                  'title': 'Hidden menu',
+                  'url': 'https://hidden-menu.example',
+                  'hidden': true,
+                },
+                {
+                  'id': 'visible-menu',
+                  'title': 'Visible menu',
+                  'url': 'https://visible.example',
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(config.languages.map((language) => language.id), ['en']);
+    expect(config.defaultLanguageId, 'en');
+    expect(config.language(config.defaultLanguageId).defaultTopic.id,
+        'visible-topic');
+    expect(config.language(config.defaultLanguageId).defaultItem.id,
+        'visible-menu');
+  });
+
+  test('모든 언어 또는 한 주제의 모든 메뉴를 숨긴 설정은 거부한다', () {
+    expect(
+      () => MenuConfigLoader.parse({
+        'languages': [
+          {
+            'id': 'ko',
+            'label': '한국어',
+            'hidden': true,
+            'items': [
+              {'id': 'home', 'title': '홈', 'url': 'https://example.com'},
+            ],
+          },
+        ],
+      }),
+      throwsFormatException,
+    );
+
+    expect(
+      () => MenuConfigLoader.parse({
+        'languages': [
+          {
+            'id': 'ko',
+            'label': '한국어',
+            'topics': [
+              {
+                'id': 'default',
+                'label': '기본',
+                'items': [
+                  {
+                    'id': 'home',
+                    'title': '홈',
+                    'url': 'https://example.com',
+                    'hidden': true,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('숨긴 언어에서는 모든 하위 주제와 메뉴를 함께 숨길 수 있다', () {
+    final config = MenuConfigLoader.parse({
+      'languages': [
+        {
+          'id': 'hidden',
+          'label': '숨긴 언어',
+          'hidden': true,
+          'topics': [
+            {
+              'id': 'hidden-topic',
+              'label': '숨긴 주제',
+              'hidden': true,
+              'items': [
+                {
+                  'id': 'hidden-menu',
+                  'title': '숨긴 메뉴',
+                  'url': 'https://hidden.example',
+                  'hidden': true,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          'id': 'visible',
+          'label': '표시 언어',
+          'items': [
+            {'id': 'home', 'title': '홈', 'url': 'https://example.com'},
+          ],
+        },
+      ],
+    });
+
+    expect(config.languages.map((language) => language.id), ['visible']);
   });
 
   test('WebView 데이터 정책과 로그인 유지 하위 도메인을 파싱한다', () {
@@ -425,6 +782,14 @@ void main() {
     expect(tester.getTopLeft(selectedLanguageButton).dy, lessThan(initialTop));
     expect(find.byKey(const ValueKey('topic-parish')), findsOneWidget);
     expect(find.byKey(const ValueKey('topic-pilgrimage')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('return-to-idle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('language-step')), findsOneWidget);
+    expect(find.byKey(const ValueKey('topic-parish')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('language-ko')));
+    await tester.pumpAndSettle();
 
     final pilgrimage = find.byKey(const ValueKey('topic-pilgrimage'));
     await tester.ensureVisible(pilgrimage);
@@ -1027,21 +1392,55 @@ void main() {
     expect(LayoutConfig.defaults.toolbarInitiallyHidden, isTrue);
     expect(LayoutConfig.defaults.toolbarAutoHideSec, 10);
     expect(LayoutConfig.defaults.keyboardMode, KeyboardMode.windows);
+    expect(LayoutConfig.defaults.showSelectedTopic, isTrue);
+    expect(LayoutConfig.defaults.windowsKioskLockdown, isTrue);
+    expect(LayoutConfig.defaults.windowsAlwaysOnTop, isFalse);
 
     final config = LayoutConfig.fromJson({
       'toolbarInitiallyHidden': false,
       'toolbarAutoHideSec': 25,
       'barColor': '#123456',
       'keyboardMode': 'builtin',
+      'showSelectedTopic': false,
+      'windowsKioskLockdown': false,
+      'windowsAlwaysOnTop': true,
     });
     expect(config.toolbarInitiallyHidden, isFalse);
     expect(config.toolbarAutoHideSec, 25);
     expect(config.barColor, const Color(0xFF123456));
     expect(config.keyboardMode, KeyboardMode.builtIn);
+    expect(config.showSelectedTopic, isFalse);
+    expect(config.windowsKioskLockdown, isFalse);
+    expect(config.windowsAlwaysOnTop, isTrue);
     expect(
       () => LayoutConfig.fromJson({'keyboardMode': 'unknown'}),
       throwsFormatException,
     );
+  });
+
+  test('Windows 키오스크 잠금은 앱 전환과 셸 단축키를 차단한다', () {
+    final source = File('windows/runner/flutter_window.cpp').readAsStringSync();
+
+    expect(source, contains('simple_kiosk/windows_kiosk_mode'));
+    expect(source, contains('VK_LWIN'));
+    expect(source, contains('VK_RWIN'));
+    expect(source, contains('VK_TAB'));
+    expect(source, contains('VK_ESCAPE'));
+    expect(source, contains('VK_LAUNCH_APP1'));
+    expect(source, contains('ArmEmergencyExit'));
+    expect(source, contains('compare_exchange_strong'));
+    expect(source, contains('g_emergency_exit_sequence'));
+    expect(source, contains('FlutterViewTouchProc'));
+    expect(source, contains('WM_POINTERDOWN'));
+    expect(source, contains('g_active_touch_points'));
+    expect(source, contains('8000'));
+    expect(source, contains('RecoverRenderingSurface'));
+    expect(source, contains('kSurfaceWatchdogTimerId'));
+    expect(source, contains('TerminateProcess'));
+
+    final windowSource =
+        File('windows/runner/win32_window.cpp').readAsStringSync();
+    expect(windowSource, contains('BLACK_BRUSH'));
   });
 
   test('Windows 키보드 토글은 실제 창 상태를 확인해 반복 동작한다', () async {
@@ -1239,6 +1638,66 @@ void main() {
     await tester.tap(button);
     await tester.pump();
     expect(enterCount, 1);
+  });
+
+  testWidgets('현재 주제는 버튼이 아닌 작은 라벨로 툴바 시작 위치에 표시된다', (tester) async {
+    const items = [
+      MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: 220,
+              height: 500,
+              child: NavigationMenu(
+                items: items,
+                selectedIndex: 0,
+                onSelected: (_) {},
+                orientation: NavigationOrientation.side,
+                selectedTopicLabel: '여의도동 성당',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final sideLabel = find.byKey(const ValueKey('selected-topic-label'));
+    expect(sideLabel, findsOneWidget);
+    expect(
+      find.ancestor(of: sideLabel, matching: find.byType(FilledButton)),
+      findsNothing,
+    );
+    expect(tester.getTopLeft(sideLabel).dy,
+        lessThan(tester.getTopLeft(find.text('홈')).dy));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 96,
+            child: NavigationMenu(
+              items: items,
+              selectedIndex: 0,
+              onSelected: (_) {},
+              orientation: NavigationOrientation.bottom,
+              selectedTopicLabel: '여의도동 성당',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final horizontalLabel = find.byKey(const ValueKey('selected-topic-label'));
+    expect(
+      tester.getTopLeft(horizontalLabel).dx,
+      lessThan(tester.getTopLeft(find.text('홈')).dx),
+    );
+    expect(tester.getSize(horizontalLabel).width, lessThanOrEqualTo(150));
   });
 
   testWidgets('시작 화면 보호기는 첫 프레임부터 표시하고 진입 콜백은 한 번만 호출한다', (tester) async {

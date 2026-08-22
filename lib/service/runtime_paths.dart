@@ -29,6 +29,7 @@ class RuntimePaths {
   static String? get appState => child('state/app-state.json');
   static String? get downloads => child('downloads');
   static String? get logs => child('logs');
+  static String? get backups => child('backups');
 
   static Future<void> ensureStructure() async {
     final root = dataRoot;
@@ -41,6 +42,7 @@ class RuntimePaths {
       'downloads',
       'versions',
       'diagnostics',
+      'backups',
     ]) {
       await Directory(child(relative)!).create(recursive: true);
     }

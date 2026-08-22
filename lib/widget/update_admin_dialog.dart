@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../model/admin_api_settings.dart';
 import '../model/layout_config.dart';
@@ -16,6 +17,32 @@ class UpdateAdminDialog {
 
   static bool get isConfigured => true;
 
+  static Uri? _webAdminUri(AdminApiController? controller) {
+    if (controller == null || !controller.running) return null;
+    final port = controller.actualPort;
+    if (port == null) return null;
+    return Uri(
+      scheme: 'http',
+      host: '127.0.0.1',
+      port: port == 80 ? null : port,
+    );
+  }
+
+  static Future<void> _openWebAdmin(
+    BuildContext context,
+    Uri uri,
+  ) async {
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened) throw StateError('기본 브라우저를 실행할 수 없습니다.');
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('웹 관리자를 열지 못했습니다: $error')),
+      );
+    }
+  }
+
   static Future<void> show(
     BuildContext context,
     UpdateController controller, {
@@ -25,21 +52,39 @@ class UpdateAdminDialog {
     Future<void> Function(KeyboardMode mode)? onKeyboardModeChanged,
   }) async {
     final pinController = TextEditingController();
+    final webAdminUri = _webAdminUri(adminApiController);
     final authenticated = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('관리자 PIN'),
-        content: AdminPinKeypad(
-          controller: pinController,
-          onSubmitted: () => Navigator.pop(context, true),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AdminPinKeypad(
+              controller: pinController,
+              onSubmitted: () => Navigator.pop(dialogContext, true),
+            ),
+            if (webAdminUri != null) ...[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                key: const ValueKey('open-web-admin'),
+                onPressed: () {
+                  Navigator.pop(dialogContext, false);
+                  unawaited(_openWebAdmin(context, webAdminUri));
+                },
+                icon: const Icon(Icons.open_in_browser),
+                label: const Text('웹 관리자 열기'),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('취소'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('확인'),
           ),
         ],

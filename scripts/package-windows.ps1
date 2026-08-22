@@ -83,6 +83,23 @@ function Find-VisualCppRuntimeDirectory {
     throw 'Visual C++ x64 재배포 DLL 폴더를 찾을 수 없습니다.'
 }
 
+function Find-EditBin {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (-not (Test-Path -LiteralPath $vswhere)) {
+        throw 'Visual Studio vswhere.exe를 찾을 수 없습니다.'
+    }
+    $installation = & $vswhere -latest -products * `
+        -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+        -property installationPath
+    $editBin = Get-ChildItem -LiteralPath (Join-Path $installation 'VC\Tools\MSVC') `
+        -Filter editbin.exe -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '\\Hostx64\\x64\\editbin\.exe$' } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+    if (-not $editBin) { throw 'x64 editbin.exe를 찾을 수 없습니다.' }
+    return $editBin.FullName
+}
+
 function Assert-MicrosoftAuthenticodeSignature([string]$Path) {
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
@@ -133,6 +150,17 @@ try {
     }
     Write-Host "Bundled Visual C++ Runtime $($vcRuntime.Version): $vcRuntimeDir"
 
+    # 업데이트 설치·재시작·롤백을 PowerShell 없이 처리하는 독립 실행 파일.
+    $nativeUpdater = Join-Path $releaseDir 'ysignage_updater.exe'
+    dart compile exe 'tool\windows_updater.dart' -o $nativeUpdater
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $nativeUpdater)) {
+        throw '네이티브 Windows 업데이트 실행기 빌드 실패'
+    }
+    # Dart AOT EXE의 콘솔 창이 나타나지 않도록 PE 서브시스템을 GUI로 변경한다.
+    $editBin = Find-EditBin
+    & $editBin /SUBSYSTEM:WINDOWS $nativeUpdater
+    if ($LASTEXITCODE -ne 0) { throw '네이티브 업데이트 실행기 GUI 변환 실패' }
+
     # 1.2.11 updater validates this legacy filename before extraction. Keep a
     # compatibility copy while the actual app and new launchers use ysignage.exe.
     $appExe = Join-Path $releaseDir 'ysignage.exe'
@@ -155,7 +183,12 @@ try {
             Sort-Object FullName -Descending |
             Select-Object -First 1
         if (-not $signTool) { throw 'signtool.exe를 찾을 수 없습니다.' }
-        foreach ($targetName in @('ysignage.exe', 'simple_kiosk.exe', 'ysignage_launcher.exe')) {
+        foreach ($targetName in @(
+            'ysignage.exe',
+            'simple_kiosk.exe',
+            'ysignage_launcher.exe',
+            'ysignage_updater.exe'
+        )) {
             $targetExe = Join-Path $releaseDir $targetName
             if (-not (Test-Path -LiteralPath $targetExe)) {
                 throw "코드 서명 대상이 없습니다: $targetName"
@@ -171,6 +204,7 @@ try {
     New-Item -ItemType Directory -Force -Path $stage, $distDir | Out-Null
     # 실행 테스트가 만든 WebView2 사용자 프로필(쿠키/캐시/세션)은 배포하지 않는다.
     Get-ChildItem -Path $releaseDir -File |
+        Where-Object { $_.Name -ne 'ysignage_updater.exe' } |
         Copy-Item -Destination $stage -Force
     Copy-Item (Join-Path $releaseDir 'data') $stage -Recurse -Force
     Copy-Item 'release\guides\WINDOWS_INSTALL_GUIDE.md' (Join-Path $stage 'INSTALL_GUIDE.md')
@@ -181,6 +215,10 @@ try {
     Copy-Item 'RELEASE_NOTES.md' (Join-Path $stage 'RELEASE_NOTES.md')
     $updaterDir = Join-Path $stage 'updater'
     New-Item -ItemType Directory -Force -Path $updaterDir | Out-Null
+    Copy-Item -LiteralPath $nativeUpdater `
+        -Destination (Join-Path $updaterDir 'ysignage_updater.exe') -Force
+    # 구버전(1.2.17 이하)이 이 릴리스를 한 번 설치할 수 있도록 전환용
+    # 스크립트는 패키지에만 둔다. 네이티브 업데이트 성공 후 설치본에서 삭제된다.
     Copy-Item 'scripts\update.ps1' (Join-Path $updaterDir 'update.ps1')
     Copy-Item 'scripts\launcher.ps1' (Join-Path $updaterDir 'launcher.ps1')
     Copy-Item 'scripts\launcher.cmd' (Join-Path $updaterDir 'launcher.cmd')
@@ -217,8 +255,14 @@ try {
     $vcRedistributableVersion = (Get-Item -LiteralPath $packagedVcRedistributable).VersionInfo.FileVersion
     Write-Host "Verified Microsoft signature: Visual C++ Redistributable $vcRedistributableVersion"
 
-    $hashLines = foreach ($targetName in @('ysignage.exe', 'simple_kiosk.exe')) {
-        $exe = Join-Path $stage $targetName
+    $hashTargets = @(
+        @{ Name = 'ysignage.exe'; Path = (Join-Path $stage 'ysignage.exe') },
+        @{ Name = 'simple_kiosk.exe'; Path = (Join-Path $stage 'simple_kiosk.exe') },
+        @{ Name = 'updater/ysignage_updater.exe'; Path = (Join-Path $updaterDir 'ysignage_updater.exe') }
+    )
+    $hashLines = foreach ($target in $hashTargets) {
+        $targetName = $target.Name
+        $exe = $target.Path
         if (-not (Test-Path -LiteralPath $exe)) { throw "$targetName를 찾을 수 없습니다." }
         $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
         "$hash  $targetName"

@@ -260,6 +260,7 @@ class _KioskHomeState extends State<_KioskHome> {
   late String _selectedTopicId;
   late String _selectedMenuId;
   bool _showLanguageSelection = false;
+  int _languageSelectionGeneration = 0;
   bool _languageSelectionTransitioning = false;
   final IdleGateController _idleGateController = IdleGateController();
   late final UpdateController _updateController;
@@ -394,6 +395,8 @@ class _KioskHomeState extends State<_KioskHome> {
     _trayController = KioskTrayController(
       onOpenSettings: _showAdminSettings,
       onOpenManual: _showUserManual,
+      shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
+      alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
     );
     const configLoader = MenuConfigLoader();
     _adminApiController = AdminApiController(
@@ -529,6 +532,15 @@ class _KioskHomeState extends State<_KioskHome> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.layout.keyboardMode != widget.layout.keyboardMode) {
       SystemKeyboard.configure(widget.layout.keyboardMode);
+    }
+    if (oldWidget.layout.windowsKioskLockdown !=
+            widget.layout.windowsKioskLockdown ||
+        oldWidget.layout.windowsAlwaysOnTop !=
+            widget.layout.windowsAlwaysOnTop) {
+      unawaited(_trayController.configureKioskMode(
+        shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
+        alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
+      ));
     }
     if (oldWidget.layout.toolbarInitiallyHidden !=
         widget.layout.toolbarInitiallyHidden) {
@@ -874,6 +886,9 @@ class _KioskHomeState extends State<_KioskHome> {
     }
     setState(() {
       _toolbarHidden = true;
+      // 화면보호기에서 다시 깨어날 때 이전 주제 선택 상태가 남지 않도록
+      // 언어 선택 화면의 State를 새로 만든다.
+      _languageSelectionGeneration += 1;
       _webViewGeneration.next();
       _selectedMenuId = _defaultMenu.id;
       _pendingSlot = null;
@@ -1367,6 +1382,9 @@ class _KioskHomeState extends State<_KioskHome> {
                         showHistoryButtons: widget.layout.showHistoryButtons,
                         historyController: _currentController,
                         showKeyboardToggle: widget.layout.showKeyboardToggle,
+                        selectedTopicLabel: widget.layout.showSelectedTopic
+                            ? _selectedTopic.label
+                            : null,
                         barColor: widget.layout.barColor,
                         buttonColor: widget.layout.buttonColor,
                         buttonForegroundColor:
@@ -1421,6 +1439,9 @@ class _KioskHomeState extends State<_KioskHome> {
                 if (_showLanguageSelection)
                   Positioned.fill(
                     child: LanguageSelection(
+                      key: ValueKey(
+                        'language-selection-$_languageSelectionGeneration',
+                      ),
                       languages: widget.languages,
                       title: widget.languageSelectionTitle,
                       subtitle: widget.languageSelectionSubtitle,

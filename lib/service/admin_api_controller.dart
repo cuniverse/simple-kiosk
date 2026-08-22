@@ -49,7 +49,7 @@ class AdminApiController extends ChangeNotifier {
         _onConfigurationImported = onConfigurationImported;
 
   static const int _maxBodyBytes = 1024 * 1024;
-  static const Duration _sessionLifetime = Duration(hours: 12);
+  static const Duration _sessionLifetime = Duration(minutes: 30);
   static const Duration _attemptWindow = Duration(minutes: 5);
   static const int _maxFailedAttempts = 10;
 
@@ -67,8 +67,10 @@ class AdminApiController extends ChangeNotifier {
   final DiagnosticsService _diagnosticsService;
   final Future<void> Function()? _onConfigurationImported;
   final Random _random = Random.secure();
-  final Map<String, DateTime> _sessions = {};
-  final Map<String, List<DateTime>> _failedAttempts = {};
+  // 메뉴 설정 적용 시 KioskHome과 API 컨트롤러가 재생성되더라도 같은 프로그램
+  // 프로세스 안에서는 로그인 세션과 시도 제한을 유지한다.
+  static final Map<String, DateTime> _sessions = {};
+  static final Map<String, List<DateTime>> _failedAttempts = {};
 
   AdminApiSettings settings = const AdminApiSettings();
   HttpServer? _server;
@@ -118,8 +120,6 @@ class AdminApiController extends ChangeNotifier {
 
   Future<void> close() async {
     await _stop();
-    _sessions.clear();
-    _failedAttempts.clear();
   }
 
   Future<void> _start() async {
@@ -188,6 +188,12 @@ class AdminApiController extends ChangeNotifier {
       if (request.method == 'POST' && path == '/api/logout') {
         _sessions.remove(sessionToken);
         return await _sendJson(request.response, 200, {'ok': true});
+      }
+      if (request.method == 'POST' && path == '/api/session/refresh') {
+        return await _sendJson(request.response, 200, {
+          'ok': true,
+          'expiresInSeconds': _sessionLifetime.inSeconds,
+        });
       }
       if (request.method == 'GET' && path == '/api/status') {
         final status = await statusProvider();
@@ -430,7 +436,11 @@ class AdminApiController extends ChangeNotifier {
         request.headers.value(HttpHeaders.authorizationHeader);
     if (authorization != null && authorization.startsWith('Bearer ')) {
       final token = authorization.substring(7).trim();
-      if (_sessions.containsKey(token)) return token;
+      if (_sessions.containsKey(token)) {
+        // 고정 만료가 아니라 마지막 관리 작업으로부터 30분 동안 유지한다.
+        _sessions[token] = DateTime.now().add(_sessionLifetime);
+        return token;
+      }
     }
 
     String? pin = request.headers.value('x-admin-pin');

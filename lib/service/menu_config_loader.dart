@@ -8,15 +8,17 @@ import '../model/layout_config.dart';
 import '../model/menu_config.dart';
 import '../model/menu_language.dart';
 import '../model/webview_data_policy.dart';
+import 'app_logger.dart';
+import 'menu_config_migrator.dart';
 import 'menu_config_merger.dart';
 import 'runtime_paths.dart';
 
-/// `assets/config/menu.json`에서 메뉴 설정을 읽어오는 로더.
+/// 기본 설정과 외부 운영 설정을 읽고 구형 형식을 자동 마이그레이션하는 로더.
 ///
 /// 두 가지 최상위 JSON 구조를 모두 지원한다.
 ///
-/// - 객체: `{ "layout": {...}, "items": [...] }`
-/// - 배열: `[ ... ]`  (구버전, layout은 기본값)
+/// - 현재 형식: `{ "languages": [{ "topics": [...] }] }`
+/// - 구형 형식: 최상위 `items` 또는 `languages[].items`
 class MenuConfigLoader {
   /// 기본 에셋 경로.
   static const String defaultAssetPath = 'assets/config/menu.defaults.json';
@@ -101,11 +103,28 @@ class MenuConfigLoader {
       Map<String, dynamic>? override;
       final overridePath = RuntimePaths.menuOverride;
       if (overridePath != null && await File(overridePath).exists()) {
-        final decoded = json.decode(await File(overridePath).readAsString());
+        final overrideFile = File(overridePath);
+        final original = await overrideFile.readAsString();
+        final decoded = json.decode(original);
         if (decoded is! Map<String, dynamic>) {
           throw const FormatException('menu.override.json: 최상위 객체 필요');
         }
         override = decoded;
+        if (MenuConfigMigrator.needsMigration(defaults, override)) {
+          final migrated = MenuConfigMigrator.migrate(defaults, override);
+          final validated = MenuConfigMerger.merge(defaults, migrated).json;
+          parse(validated);
+          await _backupBeforeMigration(original);
+          await RuntimePaths.atomicWrite(
+            overridePath,
+            const JsonEncoder.withIndent('  ').convert(migrated),
+          );
+          override = migrated;
+          AppLogger.info(
+            LogCategory.app,
+            '구형 메뉴 설정을 schemaVersion 2 구조로 마이그레이션했습니다.',
+          );
+        }
       }
       final merged = MenuConfigMerger.merge(defaults, override).json;
       _resolveExternalMediaPaths(merged);
@@ -118,7 +137,8 @@ class MenuConfigLoader {
         );
       }
       return config;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      AppLogger.error(LogCategory.app, error, stackTrace);
       final lastGoodPath = RuntimePaths.lastGoodConfig;
       if (lastGoodPath != null && await File(lastGoodPath).exists()) {
         final decoded = json.decode(await File(lastGoodPath).readAsString());
@@ -126,6 +146,15 @@ class MenuConfigLoader {
       }
       rethrow;
     }
+  }
+
+  static Future<void> _backupBeforeMigration(String original) async {
+    final backupRoot = RuntimePaths.backups;
+    if (backupRoot == null) return;
+    final timestamp = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final path = '$backupRoot${Platform.pathSeparator}'
+        'menu.override.before-migration-$timestamp.json';
+    await RuntimePaths.atomicWrite(path, original);
   }
 
   /// 이미 병합된 JSON을 검증하고 모델로 변환한다.
@@ -140,6 +169,7 @@ class MenuConfigLoader {
     var topicSelectionSubtitle = 'Please select a topic';
     var skipSingleTopic = true;
     var webViewDataPolicy = WebViewDataPolicy.defaults;
+    final registeredLanguageIds = <String>{};
 
     if (decoded is List) {
       // 구버전: 배열 = items만 정의된 형식.
@@ -194,7 +224,13 @@ class MenuConfigLoader {
             throw FormatException(
                 'menu.json languages: 언어 id 중복 (${language.id})');
           }
-          languages.add(language);
+          registeredLanguageIds.add(language.id);
+          if (!language.hidden) languages.add(language);
+        }
+        if (languages.isEmpty) {
+          throw const FormatException(
+            'menu.json languages: 표시할 언어가 한 개 이상 필요',
+          );
         }
       } else {
         final itemsValue = decoded['items'];
@@ -260,15 +296,21 @@ class MenuConfigLoader {
       );
     }
 
-    final defaultLanguageId =
-        requestedDefaultLanguage?.trim().isNotEmpty == true
-            ? requestedDefaultLanguage!.trim()
-            : languages.first.id;
-    if (!languages.any((language) => language.id == defaultLanguageId)) {
+    final requestedId = requestedDefaultLanguage?.trim().isNotEmpty == true
+        ? requestedDefaultLanguage!.trim()
+        : null;
+    if (requestedId != null &&
+        registeredLanguageIds.isNotEmpty &&
+        !registeredLanguageIds.contains(requestedId)) {
       throw FormatException(
-        'menu.json defaultLanguage: 등록되지 않은 언어 ($defaultLanguageId)',
+        'menu.json defaultLanguage: 등록되지 않은 언어 ($requestedId)',
       );
     }
+    final defaultLanguageId = languages.any(
+      (language) => language.id == requestedId,
+    )
+        ? requestedId!
+        : languages.first.id;
     return MenuConfig(
       layout: layout,
       idle: idle,
