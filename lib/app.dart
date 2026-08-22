@@ -397,6 +397,8 @@ class _KioskHomeState extends State<_KioskHome> {
       onOpenManual: _showUserManual,
       shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
       alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
+      preventScreenSaver: widget.layout.windowsPreventScreenSaver,
+      preventDisplaySleep: widget.layout.windowsPreventDisplaySleep,
     );
     const configLoader = MenuConfigLoader();
     _adminApiController = AdminApiController(
@@ -536,10 +538,16 @@ class _KioskHomeState extends State<_KioskHome> {
     if (oldWidget.layout.windowsKioskLockdown !=
             widget.layout.windowsKioskLockdown ||
         oldWidget.layout.windowsAlwaysOnTop !=
-            widget.layout.windowsAlwaysOnTop) {
+            widget.layout.windowsAlwaysOnTop ||
+        oldWidget.layout.windowsPreventScreenSaver !=
+            widget.layout.windowsPreventScreenSaver ||
+        oldWidget.layout.windowsPreventDisplaySleep !=
+            widget.layout.windowsPreventDisplaySleep) {
       unawaited(_trayController.configureKioskMode(
         shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
         alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
+        preventScreenSaver: widget.layout.windowsPreventScreenSaver,
+        preventDisplaySleep: widget.layout.windowsPreventDisplaySleep,
       ));
     }
     if (oldWidget.layout.toolbarInitiallyHidden !=

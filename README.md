@@ -201,6 +201,8 @@ flutter pub get
 | `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
 | `windowsKioskLockdown` | bool | `true` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단 |
 | `windowsAlwaysOnTop` | bool | `false` | Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
+| `windowsPreventScreenSaver` | bool | `true` | 사이니지 표시 중 Windows 화면보호기 실행 방지 |
+| `windowsPreventDisplaySleep` | bool | `true` | 사이니지 표시 중 Windows 화면 자동 끄기 방지 |
 | `keyboardMode` | `windows`/`builtin` | `windows` | Windows 기본 화면 키보드 또는 앱 내장 키보드 선택 |
 | `keepStateOnTap` | bool | `false` | **기본 동작**: 같은 메뉴 단일 탭 시 상태 유지(아무 동작 없음), 더블 탭(300ms 이내) 시 강제 재로드. 항목별 `items[].keepStateOnTap` 으로 오버라이드 가능 |
 | `toolbarInitiallyHidden` | bool | `false` | 앱 시작 시 툴바를 감춘 상태로 표시 |
@@ -229,6 +231,8 @@ flutter pub get
     "showSelectedTopic": true,
     "windowsKioskLockdown": true,
     "windowsAlwaysOnTop": false,
+    "windowsPreventScreenSaver": true,
+    "windowsPreventDisplaySleep": true,
     "keepStateOnTap": false,
     "toolbarInitiallyHidden": true,
     "toolbarAutoHideSec": 10,

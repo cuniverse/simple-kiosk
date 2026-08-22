@@ -83,10 +83,13 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 ### Windows 키오스크 잠금
 
-기본값 `layout.windowsKioskLockdown: true`에서는 사이니지 창을 항상 위에 유지하고 표시
-중 `Alt+Tab`, `Alt+Esc`, `Alt+F4`, `Win` 키 조합(`Win+Tab`, `Win+D`, `Win+R` 포함),
+기본값 `layout.windowsKioskLockdown: true`에서는 사이니지 표시 중 `Alt+Tab`, `Alt+Esc`,
+`Alt+F4`, `Win` 키 조합(`Win+Tab`, `Win+D`, `Win+R` 포함),
 `Ctrl+Esc`, `Ctrl+Shift+Esc`와 앱 실행 전용 키를 차단합니다. 트레이·관리 API·숨김 제스처로
-사이니지를 감추면 잠금과 최상위 상태가 즉시 해제되고 다시 표시하면 자동 적용됩니다.
+사이니지를 감추면 잠금과 선택적인 최상위 상태가 즉시 해제되고 다시 표시하면 자동 적용됩니다.
+`windowsPreventScreenSaver`와 `windowsPreventDisplaySleep`의 기본값은 모두 `true`이며,
+사이니지가 보이는 동안 각각 Windows 화면보호기와 화면 자동 끄기를 방지합니다. 사이니지를
+감추거나 종료하면 시스템의 원래 전원 정책이 즉시 다시 적용됩니다.
 
 Windows 보안 화면인 `Ctrl+Alt+Del`, 서비스·예약 작업 등 외부 정책으로 실행되는 프로세스는
 일반 프로그램의 키보드 훅으로 차단할 수 없습니다. 완전한 단말 잠금이 필요한 운영 환경에서는

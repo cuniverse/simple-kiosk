@@ -52,31 +52,13 @@ class UpdateAdminDialog {
     Future<void> Function(KeyboardMode mode)? onKeyboardModeChanged,
   }) async {
     final pinController = TextEditingController();
-    final webAdminUri = _webAdminUri(adminApiController);
     final authenticated = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('관리자 PIN'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AdminPinKeypad(
-              controller: pinController,
-              onSubmitted: () => Navigator.pop(dialogContext, true),
-            ),
-            if (webAdminUri != null) ...[
-              const SizedBox(height: 12),
-              TextButton.icon(
-                key: const ValueKey('open-web-admin'),
-                onPressed: () {
-                  Navigator.pop(dialogContext, false);
-                  unawaited(_openWebAdmin(context, webAdminUri));
-                },
-                icon: const Icon(Icons.open_in_browser),
-                label: const Text('웹 관리자 열기'),
-              ),
-            ],
-          ],
+        content: AdminPinKeypad(
+          controller: pinController,
+          onSubmitted: () => Navigator.pop(dialogContext, true),
         ),
         actions: [
           TextButton(
@@ -457,6 +439,8 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
         ]),
         builder: (context, _) {
           final controller = widget.controller;
+          final webAdminUri =
+              UpdateAdminDialog._webAdminUri(widget.adminApiController);
           return AlertDialog(
             title: const Text('설정'),
             content: SizedBox(
@@ -785,6 +769,15 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
             ),
             actionsAlignment: MainAxisAlignment.spaceBetween,
             actions: [
+              if (webAdminUri != null)
+                TextButton.icon(
+                  key: const ValueKey('open-web-admin'),
+                  onPressed: () => unawaited(
+                    UpdateAdminDialog._openWebAdmin(context, webAdminUri),
+                  ),
+                  icon: const Icon(Icons.open_in_browser),
+                  label: const Text('웹 관리자 열기'),
+                ),
               TextButton.icon(
                 onPressed: widget.onExit == null ? null : _confirmExit,
                 style: TextButton.styleFrom(

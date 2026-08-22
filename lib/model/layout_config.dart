@@ -149,6 +149,12 @@ class LayoutConfig {
   /// Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지할지 여부.
   final bool windowsAlwaysOnTop;
 
+  /// Windows 사이니지 표시 중 시스템 화면보호기 실행을 차단할지 여부.
+  final bool windowsPreventScreenSaver;
+
+  /// Windows 사이니지 표시 중 화면 자동 끄기를 차단할지 여부.
+  final bool windowsPreventDisplaySleep;
+
   /// Windows 기본 화면 키보드 또는 앱 내장 키보드 선택.
   final KeyboardMode keyboardMode;
 
@@ -197,6 +203,8 @@ class LayoutConfig {
     this.showSelectedTopic = true,
     this.windowsKioskLockdown = true,
     this.windowsAlwaysOnTop = false,
+    this.windowsPreventScreenSaver = true,
+    this.windowsPreventDisplaySleep = true,
     this.keyboardMode = KeyboardMode.windows,
     this.keepStateOnTap = false,
     this.toolbarInitiallyHidden = true,
@@ -286,6 +294,22 @@ class LayoutConfig {
         if (v is bool) return v;
         throw const FormatException(
           'menu.json layout.windowsAlwaysOnTop: bool 필요',
+        );
+      }(),
+      windowsPreventScreenSaver: () {
+        final v = json['windowsPreventScreenSaver'];
+        if (v == null) return defaults.windowsPreventScreenSaver;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.windowsPreventScreenSaver: bool 필요',
+        );
+      }(),
+      windowsPreventDisplaySleep: () {
+        final v = json['windowsPreventDisplaySleep'];
+        if (v == null) return defaults.windowsPreventDisplaySleep;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.windowsPreventDisplaySleep: bool 필요',
         );
       }(),
       keyboardMode: _parseKeyboardMode(json['keyboardMode']),

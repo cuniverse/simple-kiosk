@@ -350,6 +350,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
 | `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
 | `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
+| `windowsPreventScreenSaver` | bool | `true` | 사이니지 표시 중 Windows 화면보호기 실행 방지 |
+| `windowsPreventDisplaySleep` | bool | `true` | 사이니지 표시 중 Windows 화면 자동 끄기 방지 |
 | `keepStateOnTap` | bool | `false` | 모든 메뉴의 기본 상태 유지 동작 |
 | `toolbarInitiallyHidden` | bool | `false` | 앱 시작 시 툴바를 감춘 상태로 표시 |
 | `toolbarAutoHideSec` | 0 이상의 숫자 | `0` | 펼친 툴바를 입력 없이 표시할 시간(초). `0`이면 자동 숨김 해제 |

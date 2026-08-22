@@ -21,13 +21,24 @@ constexpr UINT kShowManualMessage = WM_APP + 3;
 constexpr UINT_PTR kSurfaceWatchdogTimerId = 1;
 constexpr UINT kSurfaceWatchdogIntervalMs = 15000;
 HWND g_kiosk_window = nullptr;
+std::atomic_bool g_kiosk_mode_active = false;
 std::atomic_bool g_kiosk_lockdown_enabled = false;
+std::atomic_bool g_prevent_screen_saver = false;
+std::atomic_bool g_prevent_display_sleep = false;
 std::atomic_uint64_t g_emergency_exit_sequence = 0;
 std::atomic_uint64_t g_keyboard_emergency_exit_token = 0;
 std::atomic_uint64_t g_touch_emergency_exit_token = 0;
 HWND g_flutter_view_window = nullptr;
 WNDPROC g_flutter_view_wndproc = nullptr;
 std::unordered_map<UINT32, POINT> g_active_touch_points;
+
+void ApplyDisplayPowerPolicy() {
+  EXECUTION_STATE state = ES_CONTINUOUS;
+  if (g_kiosk_mode_active.load() && g_prevent_display_sleep.load()) {
+    state |= ES_DISPLAY_REQUIRED;
+  }
+  ::SetThreadExecutionState(state);
+}
 
 void ArmEmergencyExit(std::atomic_uint64_t* active_token,
                       int hold_milliseconds) {
@@ -90,7 +101,7 @@ void UpdateTouchEmergencyExit() {
         break;
     }
   }
-  if (left && right && g_kiosk_lockdown_enabled.load()) {
+  if (left && right && g_kiosk_mode_active.load()) {
     ArmEmergencyExit(&g_touch_emergency_exit_token, 8000);
   } else {
     g_touch_emergency_exit_token.store(0);
@@ -374,13 +385,12 @@ LRESULT CALLBACK KioskKeyboardHook(int code, WPARAM wparam, LPARAM lparam) {
         return 1;
       }
     }
-    if (g_kiosk_lockdown_enabled.load()) {
-      const bool alt = (event->flags & LLKHF_ALTDOWN) != 0 ||
-                       (::GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-      const bool control = (::GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-      const bool shift = (::GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-      const DWORD key = event->vkCode;
-
+    const bool alt = (event->flags & LLKHF_ALTDOWN) != 0 ||
+                     (::GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    const bool control = (::GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+    const bool shift = (::GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const DWORD key = event->vkCode;
+    if (g_kiosk_mode_active.load()) {
       if (key_down && key == VK_F4 && control && alt && shift) {
         ArmEmergencyExit(&g_keyboard_emergency_exit_token, 3000);
         return 1;
@@ -391,7 +401,9 @@ LRESULT CALLBACK KioskKeyboardHook(int code, WPARAM wparam, LPARAM lparam) {
                      key == VK_SHIFT || key == VK_LSHIFT || key == VK_RSHIFT)) {
         g_keyboard_emergency_exit_token.store(0);
       }
+    }
 
+    if (g_kiosk_lockdown_enabled.load()) {
       // Windows 셸, 작업 전환, 실행 창, 바탕화면 및 작업 관리자로 빠져나가는
       // 일반 단축키를 사이니지 표시 중에 차단한다.
       if (key == VK_LWIN || key == VK_RWIN ||
@@ -466,10 +478,21 @@ bool FlutterWindow::OnCreate() {
          std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
              result) {
         if (call.method_name() == "setEnabled") {
-          const bool enabled = MethodBoolArgument(call, "enabled");
-          g_kiosk_lockdown_enabled.store(enabled);
-          if (!enabled) {
+          const bool legacy_enabled = MethodBoolArgument(call, "enabled");
+          const bool active =
+              MethodBoolArgument(call, "active", legacy_enabled);
+          const bool shortcut_lockdown = MethodBoolArgument(
+              call, "shortcutLockdownEnabled", legacy_enabled);
+          g_kiosk_mode_active.store(active);
+          g_kiosk_lockdown_enabled.store(active && shortcut_lockdown);
+          g_prevent_screen_saver.store(
+              active && MethodBoolArgument(call, "preventScreenSaver"));
+          g_prevent_display_sleep.store(
+              active && MethodBoolArgument(call, "preventDisplaySleep"));
+          ApplyDisplayPowerPolicy();
+          if (!active) {
             g_active_touch_points.clear();
+            g_keyboard_emergency_exit_token.store(0);
             g_touch_emergency_exit_token.store(0);
           }
           result->Success(flutter::EncodableValue(true));
@@ -560,7 +583,11 @@ void FlutterWindow::RecoverRenderingSurface() {
 }
 
 void FlutterWindow::OnDestroy() {
+  g_kiosk_mode_active.store(false);
   g_kiosk_lockdown_enabled.store(false);
+  g_prevent_screen_saver.store(false);
+  g_prevent_display_sleep.store(false);
+  ApplyDisplayPowerPolicy();
   g_keyboard_emergency_exit_token.store(0);
   g_touch_emergency_exit_token.store(0);
   if (g_kiosk_window != nullptr) {
@@ -595,6 +622,12 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == WM_SYSCOMMAND &&
+      (wparam & 0xFFF0) == SC_SCREENSAVE &&
+      g_kiosk_mode_active.load() && g_prevent_screen_saver.load()) {
+    return 0;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -608,7 +641,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   switch (message) {
     case WM_TIMER:
       if (wparam == kSurfaceWatchdogTimerId &&
-          g_kiosk_lockdown_enabled.load() && ::IsWindowVisible(hwnd)) {
+          g_kiosk_mode_active.load() && ::IsWindowVisible(hwnd)) {
         // 주기 감시는 WebView 자식창을 강제 갱신해 깜빡임을 만들지 않고
         // Flutter 합성 프레임만 요청한다. 전체 복구는 DWM/화면 이벤트에서 수행한다.
         if (flutter_controller_) flutter_controller_->ForceRedraw();
@@ -626,7 +659,7 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       break;
     case WM_ACTIVATE:
       if (LOWORD(wparam) != WA_INACTIVE &&
-          g_kiosk_lockdown_enabled.load()) {
+          g_kiosk_mode_active.load()) {
         RecoverRenderingSurface();
       }
       break;

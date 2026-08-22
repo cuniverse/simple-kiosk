@@ -14,6 +14,8 @@
     "showSelectedTopic": true,
     "windowsKioskLockdown": true,
     "windowsAlwaysOnTop": false,
+    "windowsPreventScreenSaver": true,
+    "windowsPreventDisplaySleep": true,
     "keyboardMode": "windows",
     "toolbarInitiallyHidden": false,
     "toolbarAutoHideSec": 0,

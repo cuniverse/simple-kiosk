@@ -14,8 +14,12 @@ class KioskTrayController with TrayListener, WindowListener {
     required this.onOpenManual,
     required bool shortcutLockdownEnabled,
     required bool alwaysOnTopEnabled,
+    required bool preventScreenSaver,
+    required bool preventDisplaySleep,
   })  : _shortcutLockdownEnabled = shortcutLockdownEnabled,
-        _alwaysOnTopEnabled = alwaysOnTopEnabled;
+        _alwaysOnTopEnabled = alwaysOnTopEnabled,
+        _preventScreenSaver = preventScreenSaver,
+        _preventDisplaySleep = preventDisplaySleep;
 
   final Future<void> Function() onOpenSettings;
   final Future<void> Function() onOpenManual;
@@ -24,6 +28,8 @@ class KioskTrayController with TrayListener, WindowListener {
   bool _allowExit = false;
   bool _shortcutLockdownEnabled;
   bool _alwaysOnTopEnabled;
+  bool _preventScreenSaver;
+  bool _preventDisplaySleep;
 
   bool get supported => Platform.isWindows;
 
@@ -69,6 +75,8 @@ class KioskTrayController with TrayListener, WindowListener {
       await WindowsKioskMode.configure(
         shortcutLockdownEnabled: _shortcutLockdownEnabled,
         alwaysOnTopEnabled: _alwaysOnTopEnabled,
+        preventScreenSaver: _preventScreenSaver,
+        preventDisplaySleep: _preventDisplaySleep,
       );
     } catch (_) {
       if (listenersAdded) {
@@ -124,12 +132,18 @@ class KioskTrayController with TrayListener, WindowListener {
   Future<void> configureKioskMode({
     required bool shortcutLockdownEnabled,
     required bool alwaysOnTopEnabled,
+    required bool preventScreenSaver,
+    required bool preventDisplaySleep,
   }) async {
     _shortcutLockdownEnabled = shortcutLockdownEnabled;
     _alwaysOnTopEnabled = alwaysOnTopEnabled;
+    _preventScreenSaver = preventScreenSaver;
+    _preventDisplaySleep = preventDisplaySleep;
     await WindowsKioskMode.configure(
       shortcutLockdownEnabled: shortcutLockdownEnabled,
       alwaysOnTopEnabled: alwaysOnTopEnabled,
+      preventScreenSaver: preventScreenSaver,
+      preventDisplaySleep: preventDisplaySleep,
     );
   }
 

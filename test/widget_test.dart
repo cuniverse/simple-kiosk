@@ -17,7 +17,6 @@ import 'package:simple_kiosk/model/update_policy.dart';
 import 'package:simple_kiosk/model/webview_slot_id.dart';
 import 'package:simple_kiosk/model/webview_data_policy.dart';
 import 'package:simple_kiosk/service/gallery_feed_loader.dart';
-import 'package:simple_kiosk/service/admin_api_controller.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/widget/admin_pin_keypad.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
@@ -26,7 +25,6 @@ import 'package:simple_kiosk/service/menu_config_migrator.dart';
 import 'package:simple_kiosk/service/keyboard_controller.dart';
 import 'package:simple_kiosk/service/system_keyboard.dart';
 import 'package:simple_kiosk/service/update_service.dart';
-import 'package:simple_kiosk/service/update_controller.dart';
 import 'package:simple_kiosk/service/windows_startup_service.dart';
 import 'package:simple_kiosk/widget/idle_gate.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
@@ -35,25 +33,6 @@ import 'package:simple_kiosk/widget/kiosk_webview.dart';
 import 'package:simple_kiosk/widget/language_selection.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
 import 'package:simple_kiosk/widget/webview_loading_overlay.dart';
-import 'package:simple_kiosk/widget/update_admin_dialog.dart';
-
-class _RunningAdminApiController extends AdminApiController {
-  _RunningAdminApiController({required this.port})
-      : super(
-          statusProvider: () async => const {},
-          actionHandler: (_) async => const {},
-          configReader: () async => const {'schemaVersion': 2},
-          configWriter: (_) async {},
-        );
-
-  final int port;
-
-  @override
-  bool get running => true;
-
-  @override
-  int? get actualPort => port;
-}
 
 void main() {
   test('WebView 슬롯은 언어·주제·메뉴 ID로 순서와 무관하게 식별된다', () {
@@ -146,65 +125,18 @@ void main() {
     expect(controller.text, isEmpty);
   });
 
-  testWidgets('관리 API가 실행 중이면 PIN 창에 웹 관리자 링크를 표시한다', (
-    tester,
-  ) async {
-    final adminController = _RunningAdminApiController(port: 8181);
-    final updateController = UpdateController();
-    addTearDown(() {
-      updateController.dispose();
-    });
+  test('웹 관리자 링크는 PIN 입력창이 아니라 인증 후 설정창 하단에 표시한다', () {
+    final source =
+        File('lib/widget/update_admin_dialog.dart').readAsStringSync();
+    final pinDialogEnd = source.indexOf('final validPin');
+    final adminPanelStart = source.indexOf('class _UpdateAdminPanelState');
+    const link = "ValueKey('open-web-admin')";
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () {
-              UpdateAdminDialog.show(
-                context,
-                updateController,
-                adminApiController: adminController,
-              );
-            },
-            child: const Text('설정 열기'),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('설정 열기'));
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(find.byKey(const ValueKey('open-web-admin')), findsOneWidget);
-    expect(find.text('웹 관리자 열기'), findsOneWidget);
-
-    await tester.tap(find.text('취소'));
-    await tester.pump(const Duration(milliseconds: 300));
-  });
-
-  testWidgets('관리 API가 비활성화되면 PIN 창에 웹 관리자 링크를 숨긴다', (
-    tester,
-  ) async {
-    final updateController = UpdateController();
-    addTearDown(updateController.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () {
-              UpdateAdminDialog.show(context, updateController);
-            },
-            child: const Text('설정 열기'),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('설정 열기'));
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(find.byKey(const ValueKey('open-web-admin')), findsNothing);
-
-    await tester.tap(find.text('취소'));
-    await tester.pump(const Duration(milliseconds: 300));
+    expect(pinDialogEnd, greaterThan(0));
+    expect(adminPanelStart, greaterThan(pinDialogEnd));
+    expect(source.substring(0, pinDialogEnd), isNot(contains(link)));
+    expect(source.substring(adminPanelStart), contains(link));
+    expect(source.substring(adminPanelStart), contains('actions: ['));
   });
 
   test('관리자 PIN은 기본값, 변경 파일, 파일 삭제 순서로 동작한다', () async {
@@ -1395,6 +1327,8 @@ void main() {
     expect(LayoutConfig.defaults.showSelectedTopic, isTrue);
     expect(LayoutConfig.defaults.windowsKioskLockdown, isTrue);
     expect(LayoutConfig.defaults.windowsAlwaysOnTop, isFalse);
+    expect(LayoutConfig.defaults.windowsPreventScreenSaver, isTrue);
+    expect(LayoutConfig.defaults.windowsPreventDisplaySleep, isTrue);
 
     final config = LayoutConfig.fromJson({
       'toolbarInitiallyHidden': false,
@@ -1404,6 +1338,8 @@ void main() {
       'showSelectedTopic': false,
       'windowsKioskLockdown': false,
       'windowsAlwaysOnTop': true,
+      'windowsPreventScreenSaver': false,
+      'windowsPreventDisplaySleep': false,
     });
     expect(config.toolbarInitiallyHidden, isFalse);
     expect(config.toolbarAutoHideSec, 25);
@@ -1412,6 +1348,8 @@ void main() {
     expect(config.showSelectedTopic, isFalse);
     expect(config.windowsKioskLockdown, isFalse);
     expect(config.windowsAlwaysOnTop, isTrue);
+    expect(config.windowsPreventScreenSaver, isFalse);
+    expect(config.windowsPreventDisplaySleep, isFalse);
     expect(
       () => LayoutConfig.fromJson({'keyboardMode': 'unknown'}),
       throwsFormatException,
@@ -1437,6 +1375,10 @@ void main() {
     expect(source, contains('RecoverRenderingSurface'));
     expect(source, contains('kSurfaceWatchdogTimerId'));
     expect(source, contains('TerminateProcess'));
+    expect(source, contains('SetThreadExecutionState'));
+    expect(source, contains('ES_DISPLAY_REQUIRED'));
+    expect(source, contains('SC_SCREENSAVE'));
+    expect(source, contains('preventDisplaySleep'));
 
     final windowSource =
         File('windows/runner/win32_window.cpp').readAsStringSync();

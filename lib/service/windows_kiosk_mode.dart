@@ -12,13 +12,19 @@ class WindowsKioskMode {
 
   static bool _shortcutLockdownEnabled = true;
   static bool _alwaysOnTopEnabled = false;
+  static bool _preventScreenSaver = true;
+  static bool _preventDisplaySleep = true;
 
   static Future<void> configure({
     required bool shortcutLockdownEnabled,
     required bool alwaysOnTopEnabled,
+    required bool preventScreenSaver,
+    required bool preventDisplaySleep,
   }) async {
     _shortcutLockdownEnabled = shortcutLockdownEnabled;
     _alwaysOnTopEnabled = alwaysOnTopEnabled;
+    _preventScreenSaver = preventScreenSaver;
+    _preventDisplaySleep = preventDisplaySleep;
     if (!Platform.isWindows) return;
     if (await windowManager.isVisible()) {
       await activate();
@@ -31,19 +37,26 @@ class WindowsKioskMode {
   static Future<void> activate() async {
     if (!Platform.isWindows) return;
     await windowManager.setAlwaysOnTop(_alwaysOnTopEnabled);
-    await _setNativeEnabled(_shortcutLockdownEnabled);
+    await _setNativeState(active: true);
   }
 
   /// 사이니지를 감추거나 종료할 때 Windows를 정상적으로 사용할 수 있게 해제한다.
   static Future<void> deactivate() async {
     if (!Platform.isWindows) return;
-    await _setNativeEnabled(false);
+    await _setNativeState(active: false);
     await windowManager.setAlwaysOnTop(false);
   }
 
-  static Future<void> _setNativeEnabled(bool enabled) async {
+  static Future<void> _setNativeState({required bool active}) async {
     try {
-      await _channel.invokeMethod<bool>('setEnabled', {'enabled': enabled});
+      await _channel.invokeMethod<bool>('setEnabled', {
+        // 이전 Windows runner와 함께 실행되는 복구 상황에서도 단축키 잠금은 유지한다.
+        'enabled': active && _shortcutLockdownEnabled,
+        'active': active,
+        'shortcutLockdownEnabled': _shortcutLockdownEnabled,
+        'preventScreenSaver': _preventScreenSaver,
+        'preventDisplaySleep': _preventDisplaySleep,
+      });
     } on MissingPluginException {
       // Windows 이외의 테스트 환경이나 이전 네이티브 실행기에서는 무시한다.
     }
