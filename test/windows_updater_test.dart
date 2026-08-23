@@ -72,4 +72,14 @@ void main() {
       throwsA(isA<FormatException>()),
     );
   });
+
+  test('Windows 실행 파일 경로는 대소문자와 무관하게 비교한다', () {
+    expect(
+      sameWindowsPath(
+        r'C:\Signage\updater\ysignage_updater.exe',
+        r'c:\signage\UPDATER\ysignage_updater.exe',
+      ),
+      isTrue,
+    );
+  });
 }

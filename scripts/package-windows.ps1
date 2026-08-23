@@ -214,9 +214,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw '사용자 매뉴얼 HTML 생성 실패' }
     Copy-Item 'RELEASE_NOTES.md' (Join-Path $stage 'RELEASE_NOTES.md')
     $updaterDir = Join-Path $stage 'updater'
-    New-Item -ItemType Directory -Force -Path $updaterDir | Out-Null
+    $updaterPayloadDir = Join-Path $updaterDir 'payload'
+    New-Item -ItemType Directory -Force -Path $updaterDir, $updaterPayloadDir | Out-Null
     Copy-Item -LiteralPath $nativeUpdater `
-        -Destination (Join-Path $updaterDir 'ysignage_updater.exe') -Force
+        -Destination (Join-Path $updaterPayloadDir 'ysignage_updater.exe') -Force
     # 구버전(1.2.17 이하)이 이 릴리스를 한 번 설치할 수 있도록 전환용
     # 스크립트는 패키지에만 둔다. 네이티브 업데이트 성공 후 설치본에서 삭제된다.
     Copy-Item 'scripts\update.ps1' (Join-Path $updaterDir 'update.ps1')
@@ -258,7 +259,7 @@ try {
     $hashTargets = @(
         @{ Name = 'ysignage.exe'; Path = (Join-Path $stage 'ysignage.exe') },
         @{ Name = 'simple_kiosk.exe'; Path = (Join-Path $stage 'simple_kiosk.exe') },
-        @{ Name = 'updater/ysignage_updater.exe'; Path = (Join-Path $updaterDir 'ysignage_updater.exe') }
+        @{ Name = 'updater/payload/ysignage_updater.exe'; Path = (Join-Path $updaterPayloadDir 'ysignage_updater.exe') }
     )
     $hashLines = foreach ($target in $hashTargets) {
         $targetName = $target.Name

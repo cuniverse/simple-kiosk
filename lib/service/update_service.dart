@@ -166,6 +166,18 @@ class UpdateService {
   }
 
   Future<File> _updaterTool(String name) async {
+    // Keep the native updater inside the immutable application version.
+    // A legacy updater copies only direct children of `updater`, so placing the
+    // new executable in `updater/payload` also lets installations affected by
+    // the self-overwrite bug upgrade without touching their running EXE.
+    if (name == 'ysignage_updater.exe') {
+      final bundledPayload = File(
+        '${File(Platform.resolvedExecutable).parent.path}'
+        '${Platform.pathSeparator}updater${Platform.pathSeparator}payload'
+        '${Platform.pathSeparator}$name',
+      );
+      if (await bundledPayload.exists()) return bundledPayload;
+    }
     final fixed = RuntimePaths.child('updater/$name');
     if (fixed != null) {
       final file = File(fixed);

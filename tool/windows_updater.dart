@@ -311,7 +311,17 @@ class NativeUpdateInstaller {
     }
     for (final entity in sourceUpdater.listSync(followLinks: false)) {
       if (entity is File) {
-        entity.copySync(_join(targetUpdater.path, _fileName(entity.path)));
+        final target = File(
+          _join(targetUpdater.path, _fileName(entity.path)),
+        ).absolute;
+        if (sameWindowsPath(target.path, Platform.resolvedExecutable)) {
+          await _log(
+            'Deferring replacement of the currently running updater: '
+            '${target.path}',
+          );
+          continue;
+        }
+        entity.copySync(target.path);
       }
     }
 
@@ -480,6 +490,10 @@ int _asInt(Object? value) => value is num ? value.toInt() : 0;
 
 String _fileName(String path) =>
     path.replaceAll('\\', '/').split('/').where((part) => part.isNotEmpty).last;
+
+bool sameWindowsPath(String left, String right) =>
+    File(left).absolute.path.toLowerCase() ==
+    File(right).absolute.path.toLowerCase();
 
 String _join(String first, String second, [String? third]) {
   final separator = Platform.pathSeparator;
