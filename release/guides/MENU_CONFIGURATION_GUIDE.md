@@ -357,10 +357,10 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `buttonWidth` | 0 이상 | `0` | 상하 툴바 버튼 폭(dp), `0`은 가용 공간 분배 |
 | `buttonGap` | 0 이상 | `8` | 버튼 사이 간격(dp) |
 | `buttonAlignment` | 문자열 | `stretch` | `start`, `center`, `end`, `spaceBetween`, `spaceAround`, `spaceEvenly`, `stretch` |
-| `showHistoryButtons` | bool | `true` | 뒤로·앞으로 버튼 표시 |
+| `showHistoryButtons` | bool | `true` | 하단 기능 버튼 묶음의 가장 앞에 WebView 뒤로·앞으로 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 가상 키보드 켜기·끄기 버튼 표시 |
-| `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
-| `selectedTopicLabelColor` | color | `#f8fafc` | 현재 주제 라벨 글자색. 라벨을 누르면 언어 선택으로 이동 |
+| `showSelectedTopic` | bool | `true` | 현재 주제만 작은 읽기 전용 상태 라벨로 표시 |
+| `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
 | `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
@@ -374,6 +374,9 @@ search, help, link, web, music, mic, camera, image, download, qr
 현재 배포 기본값은 툴바를 표시하고 자동 숨김을 사용하지 않습니다. 필요하면
 `toolbarInitiallyHidden`을 켜거나 `toolbarAutoHideSec`을 1 이상으로 설정할 수 있습니다.
 자동 숨김을 사용하면 화면 터치, 드래그 또는 스크롤 입력 시 제한 시간이 다시 계산됩니다.
+WebView 앞·뒤, 키보드·설정·화면 보호기·툴바 감추기 기능 버튼은 표시 개수와 툴바 크기에
+따라 같은 크기로 자동 조절됩니다. 사이드 툴바에서는 최소 40px 크기를 유지하며, 한 줄 폭이
+부족할 때 균형 잡힌 여러 줄로 정렬됩니다. 기능 버튼이 6개면 3개씩 두 줄로 배치됩니다.
 
 `windowsKioskShortcuts`의 `windowsKey`, `altTab`, `altEscape`, `altF4`,
 `altSpace`, `ctrlEscape`, `ctrlShiftEscape`, `launchApp1`, `launchApp2`,

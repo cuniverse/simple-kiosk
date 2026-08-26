@@ -197,10 +197,10 @@ flutter pub get
 | `buttonWidth` | number(dp) | `0`(균등) | 하단 모드에서 버튼 폭. `0` 이고 `stretch` 이면 균등 분배 |
 | `buttonGap` | number(dp) | `8` | 버튼 간 간격 |
 | `buttonAlignment` | `start`/`center`/`end`/`spaceBetween`/`spaceAround`/`spaceEvenly`/`stretch` | `stretch` | 정렬 방식 |
-| `showHistoryButtons` | bool | `true` | 네비 시작 위치에 WebView ←/→ 버튼 표시 |
+| `showHistoryButtons` | bool | `true` | 하단 기능 버튼 묶음의 가장 앞에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
-| `showSelectedTopic` | bool | `true` | 현재 주제를 세로 툴바 최상단 또는 가로 툴바 가장 왼쪽에 작은 상태 라벨로 표시 |
-| `selectedTopicLabelColor` | color | `#f8fafc` | 현재 주제 라벨 글자색. 라벨을 누르면 언어 선택으로 이동 |
+| `showSelectedTopic` | bool | `true` | 현재 주제만 작은 읽기 전용 상태 라벨로 표시 |
+| `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
 | `windowsKioskLockdown` | bool | `true` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsAlwaysOnTop` | bool | `false` | Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지 |

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -151,6 +152,13 @@ class NavigationMenu extends StatelessWidget {
         : buttonAlignment;
     final mainAxisAlign = _toMainAxisAlignment(align);
     final useSeparator = !_isSpaceAlignment(align);
+    final actionCount = (showHistoryButtons ? 2 : 0) +
+        [
+          showKeyboardToggle,
+          onOpenAdmin != null,
+          onEnterIdle != null,
+          onHide != null,
+        ].where((visible) => visible).length;
 
     return Material(
       color: barColor ?? theme.colorScheme.surfaceContainerHighest,
@@ -162,21 +170,20 @@ class NavigationMenu extends StatelessWidget {
           // 메뉴 영역(스크롤) + 하단 푸터(고정) 구조로 나눈다.
           child: Column(
             children: [
+              if (onSelectLanguage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                  child: _LanguageSelectionBackButton(
+                    orientation: NavigationOrientation.side,
+                    onPressed: onSelectLanguage!,
+                  ),
+                ),
               if (selectedTopicLabel != null)
                 _SelectedTopicLabel(
                   label: selectedTopicLabel!,
                   orientation: NavigationOrientation.side,
                   color: selectedTopicLabelColor,
                   fontFamily: fontFamily,
-                  onTap: onSelectLanguage,
-                ),
-              if (showHistoryButtons)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-                  child: _HistoryControls(
-                    controller: historyController,
-                    orientation: NavigationOrientation.side,
-                  ),
                 ),
               Expanded(
                 child: LayoutBuilder(
@@ -250,49 +257,65 @@ class NavigationMenu extends StatelessWidget {
                   },
                 ),
               ),
-              if (showKeyboardToggle ||
-                  onSelectLanguage != null ||
+              if (showHistoryButtons ||
+                  showKeyboardToggle ||
                   onEnterIdle != null ||
                   onOpenAdmin != null ||
                   onHide != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: buttonGap,
-                    runSpacing: buttonGap,
-                    children: [
-                      if (onSelectLanguage != null)
-                        _ToolbarVisibilityButton(
-                          icon: Icons.translate,
-                          tooltip: '언어 선택',
-                          onPressed: onSelectLanguage!,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final metrics = _sideActionMetrics(
+                        constraints.maxWidth,
+                        actionCount,
+                        buttonGap,
+                      );
+                      return Center(
+                        child: SizedBox(
+                          width: metrics.rowWidth,
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: metrics.gap,
+                            runSpacing: metrics.gap,
+                            children: [
+                              if (showHistoryButtons)
+                                _HistoryControls(
+                                  controller: historyController,
+                                  orientation: NavigationOrientation.side,
+                                  buttonSize: metrics.size,
+                                  gap: metrics.gap,
+                                ),
+                              if (showKeyboardToggle)
+                                _KeyboardToggle(size: metrics.size),
+                              if (onOpenAdmin != null)
+                                _ToolbarVisibilityButton(
+                                  icon: Icons.admin_panel_settings_outlined,
+                                  tooltip: '설정',
+                                  size: metrics.size,
+                                  onPressed: onOpenAdmin!,
+                                ),
+                              if (onEnterIdle != null)
+                                _ToolbarVisibilityButton(
+                                  icon: Icons.wallpaper_outlined,
+                                  tooltip: '화면 보호기 시작',
+                                  size: metrics.size,
+                                  onPressed: onEnterIdle!,
+                                  onDoublePressed: onPrepareHideKiosk,
+                                ),
+                              if (onHide != null)
+                                _ToolbarVisibilityButton(
+                                  icon: Icons.visibility_off_outlined,
+                                  tooltip: '툴바 감추기',
+                                  size: metrics.size,
+                                  onPressed: onHide!,
+                                  onDoublePressed: onHideKiosk,
+                                ),
+                            ],
+                          ),
                         ),
-                      if (showKeyboardToggle)
-                        const _KeyboardToggle(
-                          orientation: NavigationOrientation.side,
-                        ),
-                      if (onOpenAdmin != null)
-                        _ToolbarVisibilityButton(
-                          icon: Icons.admin_panel_settings_outlined,
-                          tooltip: '설정',
-                          onPressed: onOpenAdmin!,
-                        ),
-                      if (onEnterIdle != null)
-                        _ToolbarVisibilityButton(
-                          icon: Icons.wallpaper_outlined,
-                          tooltip: '화면 보호기 시작',
-                          onPressed: onEnterIdle!,
-                          onDoublePressed: onPrepareHideKiosk,
-                        ),
-                      if (onHide != null)
-                        _ToolbarVisibilityButton(
-                          icon: Icons.visibility_off_outlined,
-                          tooltip: '툴바 감추기',
-                          onPressed: onHide!,
-                          onDoublePressed: onHideKiosk,
-                        ),
-                    ],
+                      );
+                    },
                   ),
                 ),
             ],
@@ -305,24 +328,40 @@ class NavigationMenu extends StatelessWidget {
   Widget _buildBottom(BuildContext context) {
     final theme = Theme.of(context);
     final align = buttonAlignment;
+    final actionCount = (showHistoryButtons ? 2 : 0) +
+        [
+          showKeyboardToggle,
+          onHide != null,
+          onEnterIdle != null,
+          onOpenAdmin != null,
+        ].where((visible) => visible).length;
+    final actionMetrics = _horizontalActionMetrics(
+      MediaQuery.sizeOf(context).width,
+      barHeight,
+      actionCount,
+      buttonGap,
+    );
     final controls = <Widget>[];
     void addControl(Widget control) {
-      if (controls.isNotEmpty) controls.add(SizedBox(width: buttonGap));
+      if (controls.isNotEmpty) {
+        controls.add(SizedBox(width: actionMetrics.gap));
+      }
       controls.add(control);
     }
 
-    if (onSelectLanguage != null) {
+    if (showHistoryButtons) {
       addControl(
-        _ToolbarVisibilityButton(
-          icon: Icons.translate,
-          tooltip: '언어 선택',
-          onPressed: onSelectLanguage!,
+        _HistoryControls(
+          controller: historyController,
+          orientation: NavigationOrientation.bottom,
+          buttonSize: actionMetrics.size,
+          gap: actionMetrics.gap,
         ),
       );
     }
     if (showKeyboardToggle) {
       addControl(
-        const _KeyboardToggle(orientation: NavigationOrientation.bottom),
+        _KeyboardToggle(size: actionMetrics.size),
       );
     }
     if (onHide != null) {
@@ -330,6 +369,7 @@ class NavigationMenu extends StatelessWidget {
         _ToolbarVisibilityButton(
           icon: Icons.keyboard_arrow_down,
           tooltip: '툴바 감추기',
+          size: actionMetrics.size,
           onPressed: onHide!,
           onDoublePressed: onHideKiosk,
         ),
@@ -340,6 +380,7 @@ class NavigationMenu extends StatelessWidget {
         _ToolbarVisibilityButton(
           icon: Icons.wallpaper_outlined,
           tooltip: '화면 보호기 시작',
+          size: actionMetrics.size,
           onPressed: onEnterIdle!,
           onDoublePressed: onPrepareHideKiosk,
         ),
@@ -350,6 +391,7 @@ class NavigationMenu extends StatelessWidget {
         _ToolbarVisibilityButton(
           icon: Icons.admin_panel_settings_outlined,
           tooltip: '설정',
+          size: actionMetrics.size,
           onPressed: onOpenAdmin!,
         ),
       );
@@ -365,20 +407,22 @@ class NavigationMenu extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: [
+                if (onSelectLanguage != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: _LanguageSelectionBackButton(
+                      orientation: NavigationOrientation.bottom,
+                      onPressed: onSelectLanguage!,
+                    ),
+                  ),
+                  SizedBox(width: buttonGap),
+                ],
                 if (selectedTopicLabel != null) ...[
                   _SelectedTopicLabel(
                     label: selectedTopicLabel!,
                     orientation: NavigationOrientation.bottom,
                     color: selectedTopicLabelColor,
                     fontFamily: fontFamily,
-                    onTap: onSelectLanguage,
-                  ),
-                  SizedBox(width: buttonGap),
-                ],
-                if (showHistoryButtons) ...[
-                  _HistoryControls(
-                    controller: historyController,
-                    orientation: NavigationOrientation.bottom,
                   ),
                   SizedBox(width: buttonGap),
                 ],
@@ -468,20 +512,18 @@ class NavigationMenu extends StatelessWidget {
   }
 }
 
-/// 메뉴 버튼과 혼동되지 않는 작은 라벨이며, 누르면 언어 선택으로 돌아간다.
+/// 메뉴 버튼과 혼동되지 않는 읽기 전용 현재 주제 라벨.
 class _SelectedTopicLabel extends StatelessWidget {
   final String label;
   final NavigationOrientation orientation;
   final Color color;
   final String? fontFamily;
-  final VoidCallback? onTap;
 
   const _SelectedTopicLabel({
     required this.label,
     required this.orientation,
     required this.color,
     this.fontFamily,
-    this.onTap,
   });
 
   @override
@@ -518,26 +560,20 @@ class _SelectedTopicLabel extends StatelessWidget {
     );
     return Semantics(
       label: '현재 주제: $label',
-      button: onTap != null,
-      onTap: onTap,
       child: Tooltip(
-        message: onTap == null ? '현재 주제: $label' : '언어 선택으로 돌아가기',
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: side
-              ? Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                  child: SizedBox(height: 36, child: content),
-                )
-              : ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 150),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: content,
-                  ),
+        message: '현재 주제: $label',
+        child: side
+            ? Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                child: SizedBox(height: 36, child: content),
+              )
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 150),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: content,
                 ),
-        ),
+              ),
       ),
     );
   }
@@ -844,9 +880,7 @@ class _CollapsedToolbarOverlayState extends State<CollapsedToolbarOverlay> {
                 onPressed: widget.onShowToolbar,
               ),
               const SizedBox(width: 8),
-              const _KeyboardToggle(
-                orientation: NavigationOrientation.bottom,
-              ),
+              const _KeyboardToggle(size: 56),
             ],
           ),
         ),
@@ -904,15 +938,115 @@ class _CollapsedToolbarOverlayState extends State<CollapsedToolbarOverlay> {
   }
 }
 
+class _LanguageSelectionBackButton extends StatelessWidget {
+  final NavigationOrientation orientation;
+  final VoidCallback onPressed;
+
+  const _LanguageSelectionBackButton({
+    required this.orientation,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final side = orientation == NavigationOrientation.side;
+    return SizedBox(
+      key: const ValueKey('language-selection-back-button'),
+      width: side ? double.infinity : 108,
+      height: 56,
+      child: Tooltip(
+        message: '언어 선택으로 돌아가기',
+        child: FilledButton.icon(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            backgroundColor: scheme.primaryContainer.withValues(alpha: 0.82),
+            foregroundColor: scheme.onPrimaryContainer,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            padding: EdgeInsets.symmetric(horizontal: side ? 16 : 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: BorderSide(
+                color: scheme.primary.withValues(alpha: 0.22),
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.arrow_back_rounded, size: 24),
+          label: Text(
+            side ? '언어 선택으로 돌아가기' : '언어 선택',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: side ? 14 : 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionMetrics {
+  final double size;
+  final double gap;
+  final int columns;
+
+  const _ActionMetrics(this.size, this.gap, this.columns);
+
+  double get rowWidth => size * columns + gap * (columns - 1);
+}
+
+_ActionMetrics _sideActionMetrics(
+  double availableWidth,
+  int count,
+  double requestedGap,
+) {
+  if (count <= 0 || !availableWidth.isFinite) {
+    return const _ActionMetrics(56, 8, 1);
+  }
+  const minimumSize = 40.0;
+  final gap = requestedGap.clamp(2.0, count >= 5 ? 4.0 : 10.0);
+  final singleRowSize = (availableWidth - gap * (count - 1)) / count;
+  final maximumColumns =
+      ((availableWidth + gap) / (minimumSize + gap)).floor().clamp(1, count);
+  final columns = singleRowSize >= minimumSize
+      ? count
+      : (count / (count / maximumColumns).ceil()).ceil();
+  final fitted = (availableWidth - gap * (columns - 1)) / columns;
+  return _ActionMetrics(fitted.clamp(minimumSize, 60.0), gap, columns);
+}
+
+_ActionMetrics _horizontalActionMetrics(
+  double toolbarWidth,
+  double toolbarHeight,
+  int count,
+  double requestedGap,
+) {
+  if (count <= 0) return const _ActionMetrics(56, 8, 1);
+  final gap = requestedGap.clamp(4.0, count >= 4 ? 7.0 : 10.0);
+  final heightLimit = (toolbarHeight - 16).clamp(40.0, 60.0);
+  final widthBudget = (toolbarWidth * 0.30).clamp(120.0, 280.0);
+  final fitted = (widthBudget - gap * (count - 1)) / count;
+  return _ActionMetrics(
+    math.min(heightLimit, fitted.clamp(40.0, 60.0)),
+    gap,
+    count,
+  );
+}
+
 class _ToolbarVisibilityButton extends StatefulWidget {
   final IconData icon;
   final String tooltip;
+  final double size;
   final VoidCallback onPressed;
   final VoidCallback? onDoublePressed;
 
   const _ToolbarVisibilityButton({
     required this.icon,
     required this.tooltip,
+    this.size = 56,
     required this.onPressed,
     this.onDoublePressed,
   });
@@ -952,15 +1086,17 @@ class _ToolbarVisibilityButtonState extends State<_ToolbarVisibilityButton> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final radius = (widget.size * 0.27).clamp(12.0, 16.0);
+    final iconSize = (widget.size * 0.48).clamp(21.0, 29.0);
     return SizedBox(
-      width: 56,
-      height: 56,
+      width: widget.size,
+      height: widget.size,
       child: Tooltip(
         message: widget.tooltip,
         child: ElevatedButton(
           onPressed: _handlePressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: scheme.surface,
+            backgroundColor: scheme.surface.withValues(alpha: 0.88),
             foregroundColor: scheme.onSurface,
             elevation: 0,
             shadowColor: Colors.transparent,
@@ -970,10 +1106,13 @@ class _ToolbarVisibilityButtonState extends State<_ToolbarVisibilityButton> {
             animationDuration: Duration.zero,
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(radius),
+              side: BorderSide(
+                color: scheme.outlineVariant.withValues(alpha: 0.72),
+              ),
             ),
           ),
-          child: Icon(widget.icon, size: 30),
+          child: Icon(widget.icon, size: iconSize),
         ),
       ),
     );
@@ -1011,10 +1150,14 @@ bool _isSpaceAlignment(NavAlignment a) =>
 class _HistoryControls extends StatelessWidget {
   final KioskWebViewController? controller;
   final NavigationOrientation orientation;
+  final double buttonSize;
+  final double gap;
 
   const _HistoryControls({
     required this.controller,
     required this.orientation,
+    this.buttonSize = 56,
+    this.gap = 8,
   });
 
   @override
@@ -1037,12 +1180,14 @@ class _HistoryControls extends StatelessWidget {
       icon: Icons.arrow_back,
       tooltip: '뒤로',
       enabled: controller != null && state.canGoBack,
+      size: buttonSize,
       onPressed: () => controller?.goBack(),
     );
     final forward = _HistoryButton(
       icon: Icons.arrow_forward,
       tooltip: '앞으로',
       enabled: controller != null && state.canGoForward,
+      size: buttonSize,
       onPressed: () => controller?.goForward(),
     );
     // 컨트롤러 준비 전에도 같은 크기의 비활성 버튼을 유지해 메뉴가 움직이지 않는다.
@@ -1051,7 +1196,7 @@ class _HistoryControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         back,
-        const SizedBox(width: 8),
+        SizedBox(width: gap),
         forward,
       ],
     );
@@ -1062,21 +1207,25 @@ class _HistoryButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final bool enabled;
+  final double size;
   final VoidCallback onPressed;
 
   const _HistoryButton({
     required this.icon,
     required this.tooltip,
     required this.enabled,
+    this.size = 56,
     required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final radius = (size * 0.27).clamp(11.0, 15.0);
+    final iconSize = (size * 0.50).clamp(21.0, 28.0);
     return SizedBox(
-      width: 56,
-      height: 56,
+      width: size,
+      height: size,
       child: Tooltip(
         message: tooltip,
         child: ElevatedButton(
@@ -1089,10 +1238,13 @@ class _HistoryButton extends StatelessWidget {
             elevation: enabled ? 1 : 0,
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(radius),
+              side: BorderSide(
+                color: scheme.outlineVariant.withValues(alpha: 0.70),
+              ),
             ),
           ),
-          child: Icon(icon, size: 28),
+          child: Icon(icon, size: iconSize),
         ),
       ),
     );
@@ -1103,9 +1255,9 @@ class _HistoryButton extends StatelessWidget {
 ///
 /// 실제 Windows 키보드 창 상태를 확인해 표시/감춤을 전환한다.
 class _KeyboardToggle extends StatefulWidget {
-  final NavigationOrientation orientation;
+  final double size;
 
-  const _KeyboardToggle({required this.orientation});
+  const _KeyboardToggle({this.size = 56});
 
   @override
   State<_KeyboardToggle> createState() => _KeyboardToggleState();
@@ -1115,9 +1267,11 @@ class _KeyboardToggleState extends State<_KeyboardToggle> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final radius = (widget.size * 0.27).clamp(12.0, 16.0);
+    final iconSize = (widget.size * 0.48).clamp(21.0, 29.0);
     return SizedBox(
-      width: 56,
-      height: 56,
+      width: widget.size,
+      height: widget.size,
       child: ValueListenableBuilder<bool>(
         valueListenable: KeyboardController.instance.visible,
         builder: (context, shown, _) {
@@ -1131,12 +1285,17 @@ class _KeyboardToggleState extends State<_KeyboardToggle> {
                 elevation: 1,
                 padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(radius),
+                  side: BorderSide(
+                    color: shown
+                        ? scheme.primary
+                        : scheme.outlineVariant.withValues(alpha: 0.72),
+                  ),
                 ),
               ),
               child: Icon(
                 shown ? Icons.keyboard_hide : Icons.keyboard,
-                size: 28,
+                size: iconSize,
               ),
             ),
           );
@@ -1187,11 +1346,14 @@ class _NavButton extends StatelessWidget {
 
     // 선택 상태에 따른 색 결정 (설정 > 테마).
     final background = selected
-        ? (selectedButtonColor ?? scheme.primary)
-        : (buttonColor ?? scheme.surface);
+        ? (selectedButtonColor ?? scheme.primaryContainer)
+        : (buttonColor ?? scheme.surface.withValues(alpha: 0.78));
     final foreground = selected
-        ? (selectedButtonForegroundColor ?? scheme.onPrimary)
+        ? (selectedButtonForegroundColor ?? scheme.onPrimaryContainer)
         : (buttonForegroundColor ?? scheme.onSurface);
+    final borderColor = selected
+        ? scheme.primary.withValues(alpha: 0.62)
+        : scheme.outlineVariant.withValues(alpha: 0.68);
 
     final hasIcon = iconPath != null && iconPath!.isNotEmpty;
     // 아이콘 없으면 텍스트는 무조건 보여줘야 빈 버튼이 안 된다.
@@ -1205,30 +1367,57 @@ class _NavButton extends StatelessWidget {
       // 터치 사이니지를 위한 큰 버튼 (최소 64dp 이상).
       height: height,
       width: double.infinity,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: background,
-          foregroundColor: foreground,
-          // 큰 터치 버튼의 기본 splash/highlight와 elevation 전환은 사이니지
-          // 화면에서 메뉴바 전체가 번쩍이는 것처럼 보일 수 있어 제거한다.
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          overlayColor: Colors.transparent,
-          splashFactory: NoSplash.splashFactory,
-          animationDuration: Duration.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ElevatedButton(
+            onPressed: onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: background,
+              foregroundColor: foreground,
+              // 큰 터치 버튼의 기본 splash/highlight와 elevation 전환은 사이니지
+              // 화면에서 메뉴바 전체가 번쩍이는 것처럼 보일 수 있어 제거한다.
+              elevation: selected ? 1 : 0,
+              shadowColor: scheme.shadow.withValues(alpha: 0.20),
+              surfaceTintColor: Colors.transparent,
+              overlayColor: Colors.transparent,
+              splashFactory: NoSplash.splashFactory,
+              animationDuration: Duration.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: borderColor,
+                  width: selected ? 1.5 : 1,
+                ),
+              ),
+              textStyle: TextStyle(
+                fontSize: 18,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                fontFamily: fontFamily,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+            child: _buildContent(foreground, hasIcon, showLabel),
           ),
-          textStyle: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            fontFamily: fontFamily,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        ),
-        child: _buildContent(foreground, hasIcon, showLabel),
+          if (selected)
+            Positioned(
+              left: orientation == NavigationOrientation.side ? 4 : 18,
+              right: orientation == NavigationOrientation.side ? null : 18,
+              top: orientation == NavigationOrientation.side ? 14 : null,
+              bottom: orientation == NavigationOrientation.side ? 14 : 4,
+              width: orientation == NavigationOrientation.side ? 4 : null,
+              height: orientation == NavigationOrientation.side ? null : 4,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  key: const ValueKey('selected-navigation-indicator'),
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
 

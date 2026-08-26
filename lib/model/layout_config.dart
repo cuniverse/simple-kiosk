@@ -253,7 +253,7 @@ class LayoutConfig {
   /// 표시할지 여부. 운영자가 수동으로 키보드를 띄울 수 있게 해준다.
   final bool showKeyboardToggle;
 
-  /// 현재 선택한 주제 이름을 툴바 시작 위치에 작은 상태 라벨로 표시할지 여부.
+  /// 현재 선택한 주제 이름만 작은 읽기 전용 상태 라벨로 표시할지 여부.
   final bool showSelectedTopic;
 
   /// 현재 주제 라벨의 글자색.

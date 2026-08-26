@@ -963,6 +963,52 @@ void main() {
         tester.widget<Text>(find.text('홈')).style?.fontFamily, 'NanumGothic');
   });
 
+  testWidgets('네비게이션 버튼은 카드 테두리와 선택 표시 막대를 사용한다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NavigationMenu(
+            items: const [
+              MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
+              MenuItem(
+                  id: 'news', title: '소식', url: 'https://example.com/news'),
+            ],
+            selectedIndex: 0,
+            onSelected: (_) {},
+            orientation: NavigationOrientation.bottom,
+          ),
+        ),
+      ),
+    );
+
+    final selectedButton = find.ancestor(
+      of: find.text('홈'),
+      matching: find.byType(ElevatedButton),
+    );
+    final unselectedButton = find.ancestor(
+      of: find.text('소식'),
+      matching: find.byType(ElevatedButton),
+    );
+    final selectedShape = tester
+        .widget<ElevatedButton>(selectedButton)
+        .style
+        ?.shape
+        ?.resolve({}) as RoundedRectangleBorder?;
+    final unselectedShape = tester
+        .widget<ElevatedButton>(unselectedButton)
+        .style
+        ?.shape
+        ?.resolve({}) as RoundedRectangleBorder?;
+
+    expect(selectedShape?.borderRadius, BorderRadius.circular(18));
+    expect(selectedShape?.side.width, 1.5);
+    expect(unselectedShape?.side.width, 1);
+    expect(
+      find.byKey(const ValueKey('selected-navigation-indicator')),
+      findsOneWidget,
+    );
+  });
+
   test('semantic versions and overnight install windows are handled', () {
     expect(
       SemanticVersion.parse('1.3.0').compareTo(SemanticVersion.parse('1.2.9')),
@@ -1719,7 +1765,7 @@ void main() {
     expect(enterCount, 1);
   });
 
-  testWidgets('현재 주제는 버튼이 아닌 작은 라벨로 툴바 시작 위치에 표시된다', (tester) async {
+  testWidgets('툴바 시작 위치의 뒤로가기는 언어 선택으로 이동하고 주제 라벨은 읽기 전용이다', (tester) async {
     var languageSelectionCount = 0;
     const items = [
       MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
@@ -1738,6 +1784,8 @@ void main() {
                 selectedIndex: 0,
                 onSelected: (_) {},
                 orientation: NavigationOrientation.side,
+                showHistoryButtons: true,
+                showKeyboardToggle: true,
                 selectedTopicLabel: '여의도동 성당',
                 selectedTopicLabelColor: const Color(0xFFABCDEF),
                 onSelectLanguage: () => languageSelectionCount += 1,
@@ -1748,7 +1796,12 @@ void main() {
       ),
     );
 
+    final sideBackButton =
+        find.byKey(const ValueKey('language-selection-back-button'));
     final sideLabel = find.byKey(const ValueKey('selected-topic-label'));
+    expect(sideBackButton, findsOneWidget);
+    expect(find.text('언어 선택으로 돌아가기'), findsOneWidget);
+    expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
     expect(sideLabel, findsOneWidget);
     expect(
       find.ancestor(of: sideLabel, matching: find.byType(FilledButton)),
@@ -1758,9 +1811,26 @@ void main() {
       tester.widget<Text>(sideLabel).style?.color,
       const Color(0xFFABCDEF),
     );
-    expect(tester.getTopLeft(sideLabel).dy,
-        lessThan(tester.getTopLeft(find.text('홈')).dy));
+    expect(
+      tester.getTopLeft(sideBackButton).dy,
+      lessThan(tester.getTopLeft(sideLabel).dy),
+    );
+    expect(
+      tester.getTopLeft(sideLabel).dy,
+      lessThan(tester.getTopLeft(find.text('홈')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('홈')).dy,
+      lessThan(tester.getTopLeft(find.byTooltip('뒤로')).dy),
+    );
+    expect(
+      tester.getCenter(find.byTooltip('뒤로')).dy,
+      tester.getCenter(find.byTooltip('키보드 열기')).dy,
+    );
     await tester.tap(sideLabel);
+    await tester.pump();
+    expect(languageSelectionCount, 0);
+    await tester.tap(sideBackButton);
     await tester.pump();
     expect(languageSelectionCount, 1);
 
@@ -1774,19 +1844,43 @@ void main() {
               selectedIndex: 0,
               onSelected: (_) {},
               orientation: NavigationOrientation.bottom,
+              showHistoryButtons: true,
+              showKeyboardToggle: true,
               selectedTopicLabel: '여의도동 성당',
+              onSelectLanguage: () => languageSelectionCount += 1,
             ),
           ),
         ),
       ),
     );
 
+    final horizontalBackButton =
+        find.byKey(const ValueKey('language-selection-back-button'));
     final horizontalLabel = find.byKey(const ValueKey('selected-topic-label'));
+    expect(find.text('언어 선택'), findsOneWidget);
+    expect(
+      tester.getTopLeft(horizontalBackButton).dx,
+      lessThan(tester.getTopLeft(horizontalLabel).dx),
+    );
     expect(
       tester.getTopLeft(horizontalLabel).dx,
       lessThan(tester.getTopLeft(find.text('홈')).dx),
     );
+    expect(
+      tester.getTopLeft(find.text('홈')).dx,
+      lessThan(tester.getTopLeft(find.byTooltip('뒤로')).dx),
+    );
+    expect(
+      tester.getTopLeft(find.byTooltip('앞으로')).dx,
+      lessThan(tester.getTopLeft(find.byTooltip('키보드 열기')).dx),
+    );
     expect(tester.getSize(horizontalLabel).width, lessThanOrEqualTo(150));
+    await tester.tap(horizontalLabel);
+    await tester.pump();
+    expect(languageSelectionCount, 1);
+    await tester.tap(horizontalBackButton);
+    await tester.pump();
+    expect(languageSelectionCount, 2);
   });
 
   testWidgets('시작 화면 보호기는 첫 프레임부터 표시하고 진입 콜백은 한 번만 호출한다', (tester) async {
@@ -1895,8 +1989,8 @@ void main() {
     );
 
     expect(find.byIcon(Icons.keyboard), findsOneWidget);
-    expect(find.byIcon(Icons.translate), findsOneWidget);
-    final languageButton = find.byTooltip('언어 선택');
+    expect(find.byIcon(Icons.arrow_back_rounded), findsOneWidget);
+    final languageButton = find.byTooltip('언어 선택으로 돌아가기');
     expect(languageButton, findsOneWidget);
     await tester.tap(languageButton);
     expect(languageCount, 1);
@@ -1909,6 +2003,134 @@ void main() {
     await tester.tap(hideButton);
     await tester.pump(const Duration(milliseconds: 350));
     expect(hideCount, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('기능 버튼은 표시 개수와 툴바 크기에 맞춰 동일 크기로 정렬된다', (tester) async {
+    Future<void> pumpSide(double width, {bool history = false}) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  width: width,
+                  height: 600,
+                  child: NavigationMenu(
+                    items: const [],
+                    selectedIndex: 0,
+                    onSelected: (_) {},
+                    orientation: NavigationOrientation.side,
+                    sideWidth: width,
+                    showHistoryButtons: history,
+                    showKeyboardToggle: true,
+                    onOpenAdmin: () {},
+                    onEnterIdle: () {},
+                    onHide: () {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    Finder button(String tooltip) => find.descendant(
+          of: find.byTooltip(tooltip),
+          matching: find.byType(ElevatedButton),
+        );
+
+    await pumpSide(220);
+    final keyboard = button('키보드 열기');
+    final settings = button('설정');
+    final idle = button('화면 보호기 시작');
+    final hide = button('툴바 감추기');
+    final wideSize = tester.getSize(keyboard);
+
+    expect(wideSize.width, inInclusiveRange(40, 60));
+    expect(tester.getSize(settings), wideSize);
+    expect(tester.getSize(idle), wideSize);
+    expect(tester.getSize(hide), wideSize);
+    expect(tester.getCenter(keyboard).dy, tester.getCenter(settings).dy);
+    expect(tester.getCenter(keyboard).dy, tester.getCenter(idle).dy);
+    expect(tester.getCenter(keyboard).dy, tester.getCenter(hide).dy);
+    expect(wideSize.width, lessThan(56));
+
+    await pumpSide(220, history: true);
+    final historyBack = button('뒤로');
+    final historyForward = button('앞으로');
+    final keyboardWithHistory = button('키보드 열기');
+    final settingsWithHistory = button('설정');
+    final idleWithHistory = button('화면 보호기 시작');
+    final hideWithHistory = button('툴바 감추기');
+    expect(
+      tester.getTopLeft(historyBack).dx,
+      lessThan(tester.getTopLeft(historyForward).dx),
+    );
+    expect(
+      tester.getTopLeft(historyForward).dx,
+      lessThan(tester.getTopLeft(keyboardWithHistory).dx),
+    );
+    expect(
+      tester.getCenter(historyBack).dy,
+      tester.getCenter(keyboardWithHistory).dy,
+    );
+    expect(
+      tester.getCenter(settingsWithHistory).dy,
+      greaterThan(tester.getCenter(keyboardWithHistory).dy),
+    );
+    expect(
+      tester.getCenter(settingsWithHistory).dy,
+      tester.getCenter(idleWithHistory).dy,
+    );
+    expect(
+      tester.getCenter(settingsWithHistory).dy,
+      tester.getCenter(hideWithHistory).dy,
+    );
+    expect(tester.getSize(historyBack).width, inInclusiveRange(56, 60));
+
+    await pumpSide(110);
+    final narrowSize = tester.getSize(button('키보드 열기'));
+    expect(narrowSize.width, inInclusiveRange(40, 60));
+    expect(narrowSize.width, lessThan(wideSize.width));
+
+    Future<void> pumpHorizontal(double width) => tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(size: Size(width, 600)),
+              child: Scaffold(
+                body: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SizedBox(
+                    width: width,
+                    height: 96,
+                    child: NavigationMenu(
+                      items: const [],
+                      selectedIndex: 0,
+                      onSelected: (_) {},
+                      orientation: NavigationOrientation.bottom,
+                      showKeyboardToggle: true,
+                      onOpenAdmin: () {},
+                      onEnterIdle: () {},
+                      onHide: () {},
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    await pumpHorizontal(360);
+    final compactHorizontalSize = tester.getSize(button('키보드 열기'));
+    expect(compactHorizontalSize.width, 40);
+    expect(tester.getSize(button('설정')), compactHorizontalSize);
+    expect(tester.getSize(button('화면 보호기 시작')), compactHorizontalSize);
+    expect(tester.getSize(button('툴바 감추기')), compactHorizontalSize);
+
+    await pumpHorizontal(760);
+    final wideHorizontalSize = tester.getSize(button('키보드 열기'));
+    expect(wideHorizontalSize.width, greaterThan(compactHorizontalSize.width));
+    expect(wideHorizontalSize.width, lessThanOrEqualTo(60));
     expect(tester.takeException(), isNull);
   });
 
