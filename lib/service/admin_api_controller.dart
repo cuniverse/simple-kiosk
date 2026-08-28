@@ -15,6 +15,7 @@ import 'diagnostics_service.dart';
 import 'exdata_file_service.dart';
 import 'menu_config_loader.dart';
 import 'mdns_service_controller.dart';
+import 'screen_preview_service.dart';
 import 'ui_theme_service.dart';
 import 'web_admin_ssh_tunnel_controller.dart';
 
@@ -47,6 +48,7 @@ class AdminApiController extends ChangeNotifier {
     WebAdminSshTunnelController? webAdminSshTunnelController,
     Future<void> Function()? onConfigurationImported,
     AdminNetworkSettingsSynchronizer? beforeNetworkStart,
+    ScreenPreviewService? screenPreviewService,
   })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
         _defaultConfigReader =
             defaultConfigReader ?? effectiveConfigReader ?? configReader,
@@ -61,7 +63,8 @@ class AdminApiController extends ChangeNotifier {
         _webAdminSshTunnelController =
             webAdminSshTunnelController ?? WebAdminSshTunnelController(),
         _onConfigurationImported = onConfigurationImported,
-        _beforeNetworkStart = beforeNetworkStart {
+        _beforeNetworkStart = beforeNetworkStart,
+        _screenPreviewService = screenPreviewService ?? ScreenPreviewService() {
     _webAdminSshTunnelController.addListener(_handleSshTunnelChanged);
   }
 
@@ -69,6 +72,10 @@ class AdminApiController extends ChangeNotifier {
   static const Duration _sessionLifetime = Duration(minutes: 30);
   static const Duration _attemptWindow = Duration(minutes: 5);
   static const int _maxFailedAttempts = 10;
+  // 설정 재적용으로 컨트롤러가 교체될 때 이전 인스턴스의 SSH/mDNS/HTTP
+  // 종료가 끝난 뒤 새 인스턴스가 같은 포트를 열도록 프로세스 전체에서
+  // 네트워크 생명주기를 직렬화한다.
+  static Future<void> _networkLifecycleQueue = Future<void>.value();
 
   final AdminStatusProvider statusProvider;
   final AdminActionHandler actionHandler;
@@ -87,6 +94,7 @@ class AdminApiController extends ChangeNotifier {
   final WebAdminSshTunnelController _webAdminSshTunnelController;
   final Future<void> Function()? _onConfigurationImported;
   final AdminNetworkSettingsSynchronizer? _beforeNetworkStart;
+  final ScreenPreviewService _screenPreviewService;
   final Random _random = Random.secure();
   // 메뉴 설정 적용 시 KioskHome과 API 컨트롤러가 재생성되더라도 같은 프로그램
   // 프로세스 안에서는 로그인 세션과 시도 제한을 유지한다.
@@ -128,42 +136,46 @@ class AdminApiController extends ChangeNotifier {
     await _uiThemeService.ensureReady();
     settings = await _settingsStore.load();
     await _beforeNetworkStart?.call(settings);
-    if (settings.enabled) await _start();
+    await _serializeNetworkLifecycle(() async {
+      if (settings.enabled) await _start();
+    });
     notifyListeners();
   }
 
   Future<void> updateSettings(AdminApiSettings updated) async {
     await _validateSettings(updated);
-    final previous = settings;
-    busy = true;
-    notifyListeners();
-    try {
-      await _settingsStore.save(updated);
-      settings = updated;
-      await _beforeNetworkStart?.call(settings);
-      await _stop();
-      lastError = null;
-      if (settings.enabled) await _start(throwOnFailure: true);
-    } catch (error, stackTrace) {
-      try {
-        await _stop();
-      } catch (stopError, stopStackTrace) {
-        AppLogger.error(LogCategory.api, stopError, stopStackTrace);
-      }
-      settings = previous;
-      try {
-        await _settingsStore.save(previous);
-        await _beforeNetworkStart?.call(previous);
-        if (previous.enabled) await _start(throwOnFailure: true);
-      } catch (rollbackError, rollbackStackTrace) {
-        AppLogger.error(LogCategory.api, rollbackError, rollbackStackTrace);
-        lastError = '관리 API 설정 복구 실패: $rollbackError';
-      }
-      Error.throwWithStackTrace(error, stackTrace);
-    } finally {
-      busy = false;
+    await _serializeNetworkLifecycle(() async {
+      final previous = settings;
+      busy = true;
       notifyListeners();
-    }
+      try {
+        await _settingsStore.save(updated);
+        settings = updated;
+        await _beforeNetworkStart?.call(settings);
+        await _stop();
+        lastError = null;
+        if (settings.enabled) await _start(throwOnFailure: true);
+      } catch (error, stackTrace) {
+        try {
+          await _stop();
+        } catch (stopError, stopStackTrace) {
+          AppLogger.error(LogCategory.api, stopError, stopStackTrace);
+        }
+        settings = previous;
+        try {
+          await _settingsStore.save(previous);
+          await _beforeNetworkStart?.call(previous);
+          if (previous.enabled) await _start(throwOnFailure: true);
+        } catch (rollbackError, rollbackStackTrace) {
+          AppLogger.error(LogCategory.api, rollbackError, rollbackStackTrace);
+          lastError = '관리 API 설정 복구 실패: $rollbackError';
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      } finally {
+        busy = false;
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _validateSettings(AdminApiSettings updated) async {
@@ -207,7 +219,29 @@ class AdminApiController extends ChangeNotifier {
   }
 
   Future<void> close() async {
-    await _stop();
+    await _serializeNetworkLifecycle(_stop);
+  }
+
+  Future<void> _serializeNetworkLifecycle(
+    Future<void> Function() action,
+  ) {
+    final previous = _networkLifecycleQueue;
+    final operation = () async {
+      try {
+        await previous;
+      } catch (_) {
+        // 앞선 컨트롤러의 실패가 다음 인스턴스의 복구 시작을 막지 않게 한다.
+      }
+      await action();
+    }();
+    _networkLifecycleQueue = () async {
+      try {
+        await operation;
+      } catch (_) {
+        // 호출자에게는 원래 오류를 전달하되 공유 큐는 계속 진행 가능하게 한다.
+      }
+    }();
+    return operation;
   }
 
   Future<void> _start({bool throwOnFailure = false}) async {
@@ -359,6 +393,80 @@ class AdminApiController extends ChangeNotifier {
               'error': _webAdminSshTunnelController.lastError,
             },
           },
+        });
+      }
+      if (request.method == 'GET' && path == '/api/screen-preview') {
+        try {
+          final frame = await _screenPreviewService.capture(
+            maxFramesPerSecond: settings.screenPreviewFps,
+            maximumWidth: settings.screenPreviewWidth,
+            jpegQuality: settings.screenPreviewJpegQuality,
+          );
+          request.response.headers
+            ..set('X-Screen-Width', frame.width)
+            ..set('X-Screen-Height', frame.height)
+            ..set('X-Signage-State', frame.windowState.name)
+            ..set('X-Captured-At', frame.capturedAt.toUtc().toIso8601String());
+          return await _sendBytes(
+            request.response,
+            frame.jpegBytes,
+            ContentType('image', 'jpeg'),
+          );
+        } on ScreenPreviewException catch (error) {
+          final statusCode = error.code == 'unsupported' ? 501 : 409;
+          if (error.windowState != null) {
+            request.response.headers.set(
+              'X-Signage-State',
+              error.windowState!.name,
+            );
+          }
+          return await _sendJson(request.response, statusCode, {
+            'error': error.code,
+            'message': error.message,
+          });
+        }
+      }
+      if (request.method == 'PUT' && path == '/api/screen-preview/settings') {
+        final body = await _readJsonObject(request, maxBytes: 4096);
+        final fps = body['fps'] ?? settings.screenPreviewFps;
+        final width = body['width'] ?? settings.screenPreviewWidth;
+        final quality = body['quality'] ?? settings.screenPreviewJpegQuality;
+        if (fps is! int ||
+            fps < 1 ||
+            fps > AdminApiSettings.maxScreenPreviewFps) {
+          return await _sendJson(request.response, 400, {
+            'error': 'invalid-screen-preview-fps',
+            'message': '화면 미리보기 FPS는 1~5 사이의 정수여야 합니다.',
+          });
+        }
+        if (width is! int ||
+            width < AdminApiSettings.minScreenPreviewWidth ||
+            width > AdminApiSettings.maxScreenPreviewWidth) {
+          return await _sendJson(request.response, 400, {
+            'error': 'invalid-screen-preview-width',
+            'message': '화면 미리보기 너비는 640~1920 사이의 정수여야 합니다.',
+          });
+        }
+        if (quality is! int ||
+            quality < AdminApiSettings.minScreenPreviewJpegQuality ||
+            quality > AdminApiSettings.maxScreenPreviewJpegQuality) {
+          return await _sendJson(request.response, 400, {
+            'error': 'invalid-screen-preview-quality',
+            'message': '화면 미리보기 JPEG 품질은 20~80 사이의 정수여야 합니다.',
+          });
+        }
+        settings = settings.copyWith(
+          screenPreviewFps: fps,
+          screenPreviewWidth: width,
+          screenPreviewJpegQuality: quality,
+        );
+        await _settingsStore.save(settings);
+        notifyListeners();
+        return await _sendJson(request.response, 200, {
+          'ok': true,
+          'fps': settings.screenPreviewFps,
+          'width': settings.screenPreviewWidth,
+          'quality': settings.screenPreviewJpegQuality,
         });
       }
       if (request.method == 'GET' && path == '/api/files/list') {
@@ -856,7 +964,8 @@ class AdminApiController extends ChangeNotifier {
       ..set(
         'Content-Security-Policy',
         "default-src 'self'; style-src 'self' 'unsafe-inline'; "
-            "script-src 'self' 'unsafe-inline'; connect-src 'self'",
+            "script-src 'self' 'unsafe-inline'; connect-src 'self'; "
+            "img-src 'self' blob:",
       );
   }
 

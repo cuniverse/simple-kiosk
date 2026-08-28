@@ -84,13 +84,8 @@ Future<void> _applyInitialWindowState({
   required bool windowed,
 }) async {
   try {
-    if (!windowed) await windowManager.setFullScreen(true);
-
-    // 전체화면 resize가 완료된 뒤 실제 표면 resize를 한 번 발생시키고 나서
-    // 창을 공개한다. Windows 이외 플랫폼에서는 no-op이다.
-    await WindowsKioskMode.recoverRenderingSurface();
-
     if (startupMode == 'hidden') {
+      if (!windowed) await windowManager.setFullScreen(true);
       await windowManager.setSkipTaskbar(true);
       await windowManager.hide();
       return;
@@ -98,6 +93,15 @@ Future<void> _applyInitialWindowState({
 
     await windowManager.setSkipTaskbar(false);
     await windowManager.show();
+    await windowManager.focus();
+    // 숨겨진 창을 먼저 전체화면 크기로 바꾸면 Flutter swapchain이 표시되지 않은
+    // 표면 크기에 고정될 수 있다. 창을 정상 크기로 먼저 합성한 뒤 전체화면으로
+    // 전환해 DWM이 유효한 첫 표면을 확보하도록 한다.
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!windowed) await windowManager.setFullScreen(true);
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await WindowsKioskMode.recoverRenderingSurface();
+    await WindowsKioskMode.activate();
     await windowManager.focus();
     AppLogger.info(LogCategory.app, 'Initial window surface ready');
   } catch (error, stackTrace) {
@@ -108,6 +112,32 @@ Future<void> _applyInitialWindowState({
       await windowManager.show();
       await windowManager.focus();
     }
+  } finally {
+    // 앞선 전체화면 전환이나 첫 표면 복구가 실패한 경우가 오히려 후속 복구가
+    // 가장 필요한 상황이다. 정상 시작 모드에서는 성공 여부와 무관하게 예약한다.
+    if (startupMode != 'hidden') _scheduleInitialSurfaceRecovery();
+  }
+}
+
+void _scheduleInitialSurfaceRecovery() {
+  for (final delay in const [
+    Duration(milliseconds: 400),
+    Duration(milliseconds: 1500),
+  ]) {
+    unawaited(
+      Future<void>.delayed(delay, () async {
+        try {
+          if (!await windowManager.isVisible()) return;
+          await WindowsKioskMode.recoverRenderingSurface();
+          AppLogger.info(
+            LogCategory.app,
+            'Initial window surface recovery (${delay.inMilliseconds}ms)',
+          );
+        } catch (error, stackTrace) {
+          AppLogger.error(LogCategory.app, error, stackTrace);
+        }
+      }),
+    );
   }
 }
 

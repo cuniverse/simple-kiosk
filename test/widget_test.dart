@@ -182,6 +182,47 @@ void main() {
     expect(page, contains(r'선택한 ${entries.length}개 항목'));
   });
 
+  test('웹 관리자 화면 미리보기는 기본 2fps, 최대 5fps로 필요할 때만 동작한다', () {
+    final page = File('assets/admin/index.html').readAsStringSync();
+
+    expect(page, contains('data-admin-tab="preview"'));
+    expect(page, contains('id="adminTabPreview"'));
+    expect(page, contains('2 fps (기본)'));
+    expect(page, contains('5 fps (최대)'));
+    expect(page, contains('1280 px (기본)'));
+    expect(page, contains('45 (기본)'));
+    expect(page, contains('X-Signage-State'));
+    expect(page, contains("hidden:'숨김'"));
+    final service = File(
+      'lib/service/screen_preview_service.dart',
+    ).readAsStringSync();
+    expect(service, contains('MonitorFromWindow'));
+    expect(service, contains('monitorInfo.ref.rcMonitor'));
+    expect(service, contains('BitBlt('));
+    expect(service, isNot(contains('PrintWindow(')));
+    expect(
+      service.indexOf('final selectedBitmap = SelectObject'),
+      lessThan(service.indexOf('if (GetDIBits(')),
+    );
+    expect(page, contains('/api/screen-preview'));
+    expect(page, contains("activeAdminTab==='preview'"));
+    expect(page, contains('document.hidden'));
+    expect(page, contains('stopScreenPreview(true)'));
+    expect(
+      page,
+      contains(
+        "if(activeAdminTab==='preview'&&previewActive)"
+        'scheduleScreenPreview(0)',
+      ),
+    );
+    expect(
+      page,
+      isNot(
+        contains("if(activeAdminTab==='preview')startScreenPreview()"),
+      ),
+    );
+  });
+
   test('웹 관리자에서 로그인 없이 GitHub 이슈 중계 서버에 등록한다', () {
     final page = File('assets/admin/index.html').readAsStringSync();
 
@@ -2353,10 +2394,48 @@ void main() {
 
     expect(mainSource, contains('addPostFrameCallback'));
     expect(mainSource, contains('recoverRenderingSurface'));
+    expect(
+      mainSource.indexOf('await windowManager.show()'),
+      lessThan(
+        mainSource.indexOf(
+          'await WindowsKioskMode.recoverRenderingSurface()',
+        ),
+      ),
+    );
+    expect(
+      mainSource.indexOf('await windowManager.show()'),
+      lessThan(
+          mainSource.lastIndexOf('await windowManager.setFullScreen(true)')),
+    );
+    expect(mainSource, contains('Duration(milliseconds: 120)'));
+    expect(mainSource, contains('Duration(milliseconds: 80)'));
+    expect(mainSource, contains('_scheduleInitialSurfaceRecovery()'));
+    expect(mainSource, contains('Duration(milliseconds: 400)'));
+    expect(mainSource, contains('Duration(milliseconds: 1500)'));
+    expect(mainSource, contains('await WindowsKioskMode.activate()'));
+    final initialStateSource = mainSource.substring(
+      mainSource.indexOf('Future<void> _applyInitialWindowState'),
+      mainSource.indexOf('void _scheduleInitialSurfaceRecovery'),
+    );
+    expect(initialStateSource, contains('} finally {'));
+    expect(
+      initialStateSource.lastIndexOf('_scheduleInitialSurfaceRecovery()'),
+      greaterThan(initialStateSource.indexOf('} finally {')),
+    );
     expect(nativeSource, contains('call.method_name() == "recoverSurface"'));
     expect(nativeSource, contains('width - 1'));
     expect(nativeSource, isNot(contains('this->Show();')));
     expect(traySource, contains('recoverRenderingSurface'));
+  });
+
+  test('관리 API는 네트워크 종료를 마친 뒤 컨트롤러를 폐기한다', () {
+    final appSource = File('lib/app.dart').readAsStringSync();
+    final closeIndex = appSource.indexOf('await _adminApiController.close()');
+    final disposeIndex = appSource.indexOf('_adminApiController.dispose()');
+
+    expect(closeIndex, greaterThanOrEqualTo(0));
+    expect(disposeIndex, greaterThan(closeIndex));
+    expect(appSource, contains('_closeAndDisposeAdminApiController()'));
   });
 
   test('Windows 키보드 토글은 실제 창 상태를 확인해 반복 동작한다', () async {

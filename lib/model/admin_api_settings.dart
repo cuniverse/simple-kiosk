@@ -4,6 +4,14 @@ const _notProvided = Object();
 
 class AdminApiSettings {
   static const int defaultPort = 80;
+  static const int defaultScreenPreviewFps = 2;
+  static const int maxScreenPreviewFps = 5;
+  static const int defaultScreenPreviewWidth = 1280;
+  static const int minScreenPreviewWidth = 640;
+  static const int maxScreenPreviewWidth = 1920;
+  static const int defaultScreenPreviewJpegQuality = 45;
+  static const int minScreenPreviewJpegQuality = 20;
+  static const int maxScreenPreviewJpegQuality = 80;
 
   final bool enabled;
   final int port;
@@ -11,6 +19,9 @@ class AdminApiSettings {
   final String mdnsHostname;
   final bool webAdminSshForwardingEnabled;
   final String? webAdminSshForwardingId;
+  final int screenPreviewFps;
+  final int screenPreviewWidth;
+  final int screenPreviewJpegQuality;
 
   const AdminApiSettings({
     this.enabled = true,
@@ -19,6 +30,9 @@ class AdminApiSettings {
     this.mdnsHostname = defaultMdnsHostname,
     this.webAdminSshForwardingEnabled = true,
     this.webAdminSshForwardingId,
+    this.screenPreviewFps = defaultScreenPreviewFps,
+    this.screenPreviewWidth = defaultScreenPreviewWidth,
+    this.screenPreviewJpegQuality = defaultScreenPreviewJpegQuality,
   });
 
   factory AdminApiSettings.fromJson(Map<String, dynamic> json) {
@@ -28,6 +42,9 @@ class AdminApiSettings {
     final mdnsHostname = json['mdnsHostname'];
     final sshEnabled = json['webAdminSshForwardingEnabled'];
     final sshId = json['webAdminSshForwardingId'];
+    final screenPreviewFps = json['screenPreviewFps'];
+    final screenPreviewWidth = json['screenPreviewWidth'];
+    final screenPreviewJpegQuality = json['screenPreviewJpegQuality'];
     if (enabled != null && enabled is! bool) {
       throw const FormatException('admin-api.json enabled: bool 필요');
     }
@@ -54,6 +71,24 @@ class AdminApiSettings {
         'admin-api.json webAdminSshForwardingId: ysignage{숫자} 형식 필요',
       );
     }
+    if (screenPreviewFps != null &&
+        (screenPreviewFps is! int ||
+            screenPreviewFps < 1 ||
+            screenPreviewFps > maxScreenPreviewFps)) {
+      throw const FormatException('화면 미리보기 FPS는 1~5 사이의 정수여야 합니다.');
+    }
+    if (screenPreviewWidth != null &&
+        (screenPreviewWidth is! int ||
+            screenPreviewWidth < minScreenPreviewWidth ||
+            screenPreviewWidth > maxScreenPreviewWidth)) {
+      throw const FormatException('화면 미리보기 너비는 640~1920 사이의 정수여야 합니다.');
+    }
+    if (screenPreviewJpegQuality != null &&
+        (screenPreviewJpegQuality is! int ||
+            screenPreviewJpegQuality < minScreenPreviewJpegQuality ||
+            screenPreviewJpegQuality > maxScreenPreviewJpegQuality)) {
+      throw const FormatException('화면 미리보기 JPEG 품질은 20~80 사이의 정수여야 합니다.');
+    }
     return AdminApiSettings(
       enabled: enabled as bool? ?? true,
       port: port as int? ?? defaultPort,
@@ -62,11 +97,16 @@ class AdminApiSettings {
           (mdnsHostname as String? ?? defaultMdnsHostname).trim().toLowerCase(),
       webAdminSshForwardingEnabled: sshEnabled as bool? ?? true,
       webAdminSshForwardingId: (sshId as String?)?.trim().toLowerCase(),
+      screenPreviewFps: screenPreviewFps as int? ?? defaultScreenPreviewFps,
+      screenPreviewWidth:
+          screenPreviewWidth as int? ?? defaultScreenPreviewWidth,
+      screenPreviewJpegQuality:
+          screenPreviewJpegQuality as int? ?? defaultScreenPreviewJpegQuality,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'schemaVersion': 3,
+        'schemaVersion': 5,
         'enabled': enabled,
         'port': port,
         'mdnsEnabled': mdnsEnabled,
@@ -74,6 +114,9 @@ class AdminApiSettings {
         'webAdminSshForwardingEnabled': webAdminSshForwardingEnabled,
         if (webAdminSshForwardingId != null)
           'webAdminSshForwardingId': webAdminSshForwardingId,
+        'screenPreviewFps': screenPreviewFps,
+        'screenPreviewWidth': screenPreviewWidth,
+        'screenPreviewJpegQuality': screenPreviewJpegQuality,
       };
 
   AdminApiSettings copyWith({
@@ -83,6 +126,9 @@ class AdminApiSettings {
     String? mdnsHostname,
     bool? webAdminSshForwardingEnabled,
     Object? webAdminSshForwardingId = _notProvided,
+    int? screenPreviewFps,
+    int? screenPreviewWidth,
+    int? screenPreviewJpegQuality,
   }) =>
       AdminApiSettings(
         enabled: enabled ?? this.enabled,
@@ -95,6 +141,10 @@ class AdminApiSettings {
             identical(webAdminSshForwardingId, _notProvided)
                 ? this.webAdminSshForwardingId
                 : webAdminSshForwardingId as String?,
+        screenPreviewFps: screenPreviewFps ?? this.screenPreviewFps,
+        screenPreviewWidth: screenPreviewWidth ?? this.screenPreviewWidth,
+        screenPreviewJpegQuality:
+            screenPreviewJpegQuality ?? this.screenPreviewJpegQuality,
       );
 
   static bool isValidMdnsHostname(String value) {

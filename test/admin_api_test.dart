@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +11,7 @@ import 'package:simple_kiosk/service/admin_api_settings_store.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/service/exdata_file_service.dart';
 import 'package:simple_kiosk/service/mdns_service_controller.dart';
+import 'package:simple_kiosk/service/screen_preview_service.dart';
 import 'package:simple_kiosk/service/ui_theme_service.dart';
 import 'package:simple_kiosk/service/web_admin_ssh_tunnel_controller.dart';
 
@@ -29,6 +32,19 @@ class _FakeMdnsPublisher implements MdnsPublisher {
   Future<void> stop() async => running = false;
 }
 
+class _BlockingStopMdnsPublisher extends _FakeMdnsPublisher {
+  final Completer<void> stopStarted = Completer<void>();
+  final Completer<void> allowStop = Completer<void>();
+
+  @override
+  Future<void> stop() async {
+    if (!running) return;
+    if (!stopStarted.isCompleted) stopStarted.complete();
+    await allowStop.future;
+    running = false;
+  }
+}
+
 void main() {
   test('mDNS 설정은 ysignage.local을 기본값으로 사용한다', () {
     final settings = AdminApiSettings.fromJson(const {});
@@ -37,10 +53,27 @@ void main() {
     expect(settings.mdnsHostname, 'ysignage.local');
     expect(settings.webAdminSshForwardingEnabled, isTrue);
     expect(settings.webAdminSshForwardingId, isNull);
-    expect(settings.toJson()['schemaVersion'], 3);
+    expect(settings.screenPreviewFps, 2);
+    expect(settings.screenPreviewWidth, 1280);
+    expect(settings.screenPreviewJpegQuality, 45);
+    expect(settings.toJson()['schemaVersion'], 5);
     expect(
       () => AdminApiSettings.fromJson(
         const {'mdnsHostname': 'not-a-local-name'},
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => AdminApiSettings.fromJson(const {'screenPreviewFps': 6}),
+      throwsFormatException,
+    );
+    expect(
+      () => AdminApiSettings.fromJson(const {'screenPreviewWidth': 2000}),
+      throwsFormatException,
+    );
+    expect(
+      () => AdminApiSettings.fromJson(
+        const {'screenPreviewJpegQuality': 10},
       ),
       throwsFormatException,
     );
@@ -112,6 +145,14 @@ void main() {
         ],
       ),
       mdnsPublisher: mdnsPublisher,
+      screenPreviewService: ScreenPreviewService(
+        frameCapturer: (_) async => ScreenPreviewFrame(
+          jpegBytes: Uint8List.fromList([0xff, 0xd8, 0xff, 0xd9]),
+          width: 1280,
+          height: 720,
+          capturedAt: DateTime.utc(2026, 8, 29, 12),
+        ),
+      ),
       pageLoader: () async => '<html>admin</html>',
       statusProvider: () async => {
         'running': true,
@@ -208,6 +249,45 @@ void main() {
         json.decode(serverSettings.body)['webAdminSshForwardingState'],
         contains('실제 reverse forwarding'),
       );
+      expect(json.decode(serverSettings.body)['screenPreviewFps'], 2);
+      expect(json.decode(serverSettings.body)['screenPreviewWidth'], 1280);
+      expect(json.decode(serverSettings.body)['screenPreviewJpegQuality'], 45);
+
+      final unauthorizedPreview = await client.get(
+        Uri.parse('http://127.0.0.1:$port/api/screen-preview'),
+      );
+      expect(unauthorizedPreview.statusCode, 401);
+
+      final preview = await client.get(
+        Uri.parse('http://127.0.0.1:$port/api/screen-preview'),
+        headers: headers,
+      );
+      expect(preview.statusCode, 200);
+      expect(preview.headers['content-type'], startsWith('image/jpeg'));
+      expect(preview.headers['x-screen-width'], '1280');
+      expect(preview.headers['x-screen-height'], '720');
+      expect(preview.headers['x-signage-state'], 'visible');
+      expect(preview.bodyBytes, [0xff, 0xd8, 0xff, 0xd9]);
+
+      final savePreviewFps = await client.put(
+        Uri.parse('http://127.0.0.1:$port/api/screen-preview/settings'),
+        headers: headers,
+        body: json.encode({'fps': 5, 'width': 1920, 'quality': 35}),
+      );
+      expect(savePreviewFps.statusCode, 200);
+      expect(json.decode(savePreviewFps.body)['fps'], 5);
+      expect(json.decode(savePreviewFps.body)['width'], 1920);
+      expect(json.decode(savePreviewFps.body)['quality'], 35);
+      expect((await settingsStore.load()).screenPreviewFps, 5);
+      expect((await settingsStore.load()).screenPreviewWidth, 1920);
+      expect((await settingsStore.load()).screenPreviewJpegQuality, 35);
+
+      final invalidPreviewFps = await client.put(
+        Uri.parse('http://127.0.0.1:$port/api/screen-preview/settings'),
+        headers: headers,
+        body: json.encode({'fps': 6}),
+      );
+      expect(invalidPreviewFps.statusCode, 400);
 
       final effectiveConfigResponse = await client.get(
         Uri.parse('http://127.0.0.1:$port/api/config/effective'),
@@ -514,6 +594,71 @@ void main() {
       client.close();
       await controller.close();
       controller.dispose();
+      await directory.delete(recursive: true);
+    }
+  });
+
+  test('이전 API 서버 종료가 끝난 뒤 새 컨트롤러가 같은 포트를 연다', () async {
+    final directory = await Directory.systemTemp
+        .createTemp('admin-api-lifecycle-serialization-test-');
+    final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final port = probe.port;
+    await probe.close();
+    final settingsStore = AdminApiSettingsStore(
+      file: File('${directory.path}${Platform.pathSeparator}admin-api.json'),
+    );
+    await settingsStore.save(
+      AdminApiSettings(
+        port: port,
+        webAdminSshForwardingEnabled: false,
+      ),
+    );
+    final firstMdns = _BlockingStopMdnsPublisher();
+
+    AdminApiController createController(MdnsPublisher mdnsPublisher) =>
+        AdminApiController(
+          settingsStore: settingsStore,
+          exdataFileService: ExdataFileService(
+            rootPath: '${directory.path}${Platform.pathSeparator}exdata',
+          ),
+          uiThemeService: UiThemeService(
+            userThemeDirectory:
+                '${directory.path}${Platform.pathSeparator}themes',
+            preloadedThemeLoader: () async => [],
+          ),
+          mdnsPublisher: mdnsPublisher,
+          pageLoader: () async => '<html>admin</html>',
+          statusProvider: () async => {'running': true},
+          actionHandler: (value) async => {'message': value},
+          configReader: () async => {'schemaVersion': 2},
+          configWriter: (_) async {},
+        );
+
+    final first = createController(firstMdns);
+    final second = createController(_FakeMdnsPublisher());
+    try {
+      await first.initialize();
+      final firstClose = first.close();
+      await firstMdns.stopStarted.future;
+
+      var secondInitializeCompleted = false;
+      final secondInitialize = second.initialize().then(
+            (_) => secondInitializeCompleted = true,
+          );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(secondInitializeCompleted, isFalse);
+
+      firstMdns.allowStop.complete();
+      await firstClose;
+      await secondInitialize;
+      expect(second.running, isTrue);
+      expect(second.actualPort, port);
+    } finally {
+      if (!firstMdns.allowStop.isCompleted) firstMdns.allowStop.complete();
+      await first.close();
+      first.dispose();
+      await second.close();
+      second.dispose();
       await directory.delete(recursive: true);
     }
   });

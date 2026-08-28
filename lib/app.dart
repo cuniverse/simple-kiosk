@@ -463,10 +463,19 @@ class _KioskHomeState extends State<_KioskHome> {
     _pendingTimeoutTimer?.cancel();
     unawaited(_trayController.dispose());
     _adminApiController.removeListener(_updateTrayWebAdminState);
-    unawaited(_adminApiController.close());
-    _adminApiController.dispose();
+    unawaited(_closeAndDisposeAdminApiController());
     _updateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _closeAndDisposeAdminApiController() async {
+    try {
+      await _adminApiController.close();
+    } catch (error, stackTrace) {
+      AppLogger.error(LogCategory.api, error, stackTrace);
+    } finally {
+      _adminApiController.dispose();
+    }
   }
 
   Future<void> _initializeTray() async {

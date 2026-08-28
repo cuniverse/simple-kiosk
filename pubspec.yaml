@@ -1,7 +1,7 @@
 name: simple_kiosk
 description: 성당 로비용 Flutter 디지털 사이니지 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.32
+version: 1.2.33
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -19,6 +19,9 @@ dependencies:
   archive: ^4.1.0
   # 네이티브 업데이트 실행기에서 앱 프로세스 종료를 안전하게 대기.
   win32: ^5.15.0
+  ffi: ^2.1.4
+  # Windows 사이니지 화면을 저부하 JPEG 미리보기 프레임으로 인코딩.
+  image: ^4.5.4
   # 관리자 PIN 창에서 웹 관리자 페이지를 기본 브라우저로 열기.
   url_launcher: ^6.3.2
   package_info_plus: ^8.3.1
