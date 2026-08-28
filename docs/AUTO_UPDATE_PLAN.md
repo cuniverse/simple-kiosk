@@ -1,6 +1,6 @@
-# 여의도성당Signage Git 기반 자동 업데이트 계획
+# 여의도성당Signage Git 기반 업데이트 설계와 구현 현황
 
-> 상태: Windows stable 운영 구현 완료, installer·네이티브 Launcher·Updater 지원 (v1.2.18)
+> 상태: Windows stable 운영 구현 완료, installer·네이티브 Launcher·Updater·Setup 보조 설치 지원 (v1.2.25)
 > 1차 대상: Windows 사이니지 배포본
 > 업데이트 원본: GitHub Releases
 
@@ -23,6 +23,9 @@
 - manifest/설정 스키마와 최소 Updater 버전 호환성 검사 구현
 - 서명 배포본의 Authenticode 신뢰 체인 및 인증서 지문 설치 전 재검증 구현
 - `F12` 버전 정보 및 `F9` 수동 업데이트·재시작 단축키 구현
+- 수동 설치의 실패 차단 우회와 사용자 승인형 Setup 다운로드·SHA-256 검증·실행 구현
+- 자동 설치 3회 실패 차단, 대상 버전 변경 또는 24시간 경과 시 실패 창 초기화 구현
+- 실제 Updater 오류 표시, 선택 가능한 상태 문구와 진단 내보내기 후 이슈 등록 연결 구현
 
 현재 구현은 공개 저장소의 Windows stable 채널을 대상으로 한다. 비공개 배포 저장소는
 장기 토큰을 단말기에 저장하지 않는 인증 중계 설계가 선행되어야 하며, Android/macOS
@@ -85,7 +88,7 @@ Windows 실행 파일과 DLL은 `versions/<version>`에 버전별로 설치하�
     ysignage_updater.exe            # 고정 네이티브 업데이트 실행기
   versions\
     1.2.0\                         # 완전한 버전별 실행 패키지
-    1.3.0\
+    1.2.25\
 ```
 
 앱의 기본 설정은 각 버전 패키지 안에 `menu.defaults.json`으로 포함한다. 운영 데이터는
@@ -193,6 +196,7 @@ Windows 실행 파일과 DLL은 `versions/<version>`에 버전별로 설치하�
 - 이미 다운로드한 버전도 자동 설치하지 않는다.
 - 관리자의 `지금 업데이트 확인`과 `지금 설치`는 사용할 수 있다.
 - 현재 버전, 운영 설정과 사용자 데이터는 그대로 유지한다.
+- `F9`, 설정, WEB 관리자에서 시작한 수동 설치는 이전 3회 실패 차단과 관계없이 시도한다.
 
 ### ON
 
@@ -201,6 +205,8 @@ Windows 실행 파일과 DLL은 `versions/<version>`에 버전별로 설치하�
 - `installWhenIdle`이 켜져 있으면 화면 보호기 상태에서만 설치를 시작한다.
 - 설치 가능 시간대가 지정되어 있으면 화면 보호기 상태와 시간 조건을 모두 만족해야 한다.
 - 설치 직전에 앱을 정상 종료하고 별도 업데이트 실행기가 파일을 전환한다.
+- 같은 대상 버전에서 자동 설치가 3회 실패하면 추가 자동 시도를 차단한다.
+- 대상 버전이 바뀌거나 첫 실패 후 24시간이 지나면 실패 횟수와 시간 창을 초기화한다.
 
 ### 관리자 UI
 
@@ -211,9 +217,9 @@ Windows 실행 파일과 DLL은 `versions/<version>`에 버전별로 설치하�
 업데이트 채널       [ stable ]
 확인 주기           [ 6시간 ]
 설치 가능 시간      [ 02:00 ~ 05:00 ]
-현재 버전           1.2.18
-사용 가능한 버전    1.2.19
-마지막 확인         2026-08-13 14:30
+현재 버전           1.2.24
+사용 가능한 버전    1.2.25
+마지막 확인         2026-08-28 21:30
 업데이트 상태       다운로드 완료 / 설치 대기
 [지금 업데이트 확인] [지금 설치]
 ```
@@ -221,6 +227,10 @@ Windows 실행 파일과 DLL은 `versions/<version>`에 버전별로 설치하�
 정책 저장은 임시 파일에 쓴 뒤 이름을 교체하는 원자적 방식으로 처리한다. 앱과 업데이트
 실행기는 같은 정책 파일을 읽어야 하며, 업데이트 패키지는 이 파일을 포함하거나
 덮어쓰면 안 된다.
+
+수동 설치에서 기본 Updater가 실패하면 실제 오류를 표시하고 Setup 보조 설치 여부를
+사용자에게 확인한다. 승인한 경우에만 동일 Release의 Setup EXE를 다운로드하고 GitHub
+자산 SHA-256을 검증한 뒤 실행한다. 자동 업데이트는 Setup을 자동 실행하지 않는다.
 
 ## 7. GitHub Release 구성
 
@@ -232,19 +242,21 @@ simple-kiosk-windows-setup-<version>.exe
 update-manifest.json
 ```
 
-Manifest 초안:
+현재 manifest 구조 예시:
 
 ```json
 {
   "schemaVersion": 1,
-  "version": "1.3.0",
+  "version": "1.2.25",
   "channel": "stable",
-  "publishedAt": "2026-08-13T00:00:00Z",
-  "minimumUpdaterVersion": "1.0.0",
+  "publishedAt": "2026-08-28T12:41:20Z",
+  "minimumUpdaterVersion": "1.1.0",
   "configSchemaVersion": 1,
   "package": {
-    "file": "simple-kiosk-windows-1.3.0.zip",
-    "sha256": "<ZIP SHA-256>"
+    "file": "simple-kiosk-windows-1.2.25.zip",
+    "sha256": "<ZIP SHA-256>",
+    "authenticodeRequired": false,
+    "signerThumbprint": null
   }
 }
 ```
@@ -376,7 +388,7 @@ Manifest 초안:
 완료 기준: 운영자가 개발 도구 없이 업데이트 상태 확인, 중지, 재시도와 복구를 수행할
 수 있다.
 
-## 12. 테스트 계획
+## 12. 테스트 범위
 
 ### 설정 병합
 
@@ -401,6 +413,11 @@ Manifest 초안:
 - 다운로드 후 OFF 전환 시 자동 설치 취소
 - 새 버전 시작 실패 후 자동 롤백
 - 설치 도중 전원 종료 후 정상 버전 재시작
+- 버전 변경 시 이전 버전의 실패 횟수와 오류가 새 버전에 승계되지 않음
+- 수동 설치가 같은 버전의 3회 실패 차단을 무시하고 다시 실행됨
+- 자동 설치 실패 창이 24시간 후 완전히 초기화됨
+- 수동 Updater 실패 후 Setup 승인·거절 흐름과 Setup SHA-256 검증
+- 진단 내보내기 후 WEB 관리자 이슈 작성 화면 연결
 
 ### 운영 데이터
 

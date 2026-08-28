@@ -5,6 +5,11 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
+- 최신 안정 버전: [`v1.2.25`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.25)
+- 변경 내역: [RELEASE_NOTES.md](RELEASE_NOTES.md)
+- 운영자 매뉴얼: [docs/MANUAL.md](docs/MANUAL.md)
+- Windows 최초 설치: [docs/WINDOWS_FIRST_INSTALL.md](docs/WINDOWS_FIRST_INSTALL.md)
+
 ## 지원 OS
 
 - Android
@@ -34,16 +39,17 @@ GitHub: https://github.com/cuniverse/simple-kiosk
   - 메뉴 클릭 후 3초 내 응답 없으면 WebView 재생성
   - 메뉴 JSON 로드 실패 시 5초 후 자동 재시도
 - **세션/메모리 위생**:
-  - 앱 시작 시 모든 쿠키 삭제 → 이전 사용자의 로그인 세션 단절
-  - 대기화면 진입 시 쿠키 삭제 + 홈 외 모든 WebView 언mount (메모리 회수)
+  - 대기화면 진입 시 설정에 따라 쿠키만 삭제(기본), 모든 사이트 데이터 삭제 또는 유지
+  - 보존 도메인을 제외한 세션 정리 + 홈 외 모든 WebView 마운트 해제(메모리 회수)
 - **자체 가상 키보드 (멀티 OS)**:
   - 한글(두벌식 자모 조합) / 영문(QWERTY) / 숫자·특수문자 모드
   - 드래그 가능한 플로팅 윈도우
   - WebView input 포커스 시 자동 호출 + 네비게이션 바 토글로 수동 호출 가능
   - 모든 OS (Windows / macOS / Linux / Android / iOS) 에서 동일 디자인/동작
 - **대기화면(Idle)**: 일정 시간 무조작 시 슬라이드쇼/단일 이미지/URL/폴더/웹 포토갤러리 모드로 전환
-- **Windows 자동 업데이트**: 자동 업데이트가 켜져 있으면 시작 직후 새 버전을 검사·설치하며, GitHub stable Release 확인, SHA-256 검증, 네이티브 EXE 설치, 시작 실패 자동 롤백 지원
+- **Windows 업데이트·복구**: GitHub stable Release와 SHA-256을 검증하는 자동·수동 업데이트, 네이티브 Updater, 시작 실패 자동 롤백, 사용자 승인형 Setup 보조 설치 지원
 - **원격 파일 관리**: WEB 관리자에서 업데이트에 유지되는 `exdata/` 폴더의 파일을 Windows 탐색기 형태로 업로드·다운로드·이름 변경·삭제
+- **원격 운영·진단**: 로컬·원격 WEB 관리자에서 상태 확인, 설정·업데이트·재시작, 진단 자료 내보내기와 GitHub 이슈 등록 지원
 - **UI 테마**: 레이아웃·동작과 UI 모양을 분리하고, 프리로드 테마 적용 및 편집한 모양의 사용자 테마 저장 지원
 
 ## 실행 방법
@@ -60,6 +66,62 @@ flutter run -d windows
 # macOS에서 실행
 flutter run -d macos
 ```
+
+## Windows 설치 및 업데이트
+
+처음 설치하는 PC에는 [최신 GitHub Release](https://github.com/cuniverse/simple-kiosk/releases/latest)의
+`simple-kiosk-windows-setup-<version>.exe` 사용을 권장합니다. 설치 없이 시험하거나 별도
+경로에서 운영하려면 `simple-kiosk-windows-<version>.zip`을 풀고 `ysignage.exe`를
+실행합니다. 새 PC에서 포터블 ZIP을 사용할 때는 먼저 `InstallPrerequisites.cmd`를
+실행하세요. 자세한 절차는 [Windows 최초 설치 문서](docs/WINDOWS_FIRST_INSTALL.md)에 있습니다.
+
+### 업데이트 동작
+
+- 자동 업데이트는 기본적으로 꺼져 있습니다. **설정 > 업데이트** 또는 WEB 관리자에서
+  켜면 앱 시작 직후 stable Release를 확인하고 새 버전을 설치합니다.
+- 수동 업데이트는 설정의 **지금 업데이트 확인 / 지금 설치**, WEB 관리자 또는 `F9`로
+  실행합니다. 사용자가 직접 요청한 설치는 같은 버전의 이전 실패 횟수와 관계없이 다시
+  시도합니다.
+- 자동 설치가 같은 버전에서 3회 실패하면 반복 재시작을 막기 위해 일시 차단합니다.
+  대상 버전이 바뀌거나 첫 실패 후 24시간이 지나면 실패 횟수와 시간 창을 초기화하고
+  정상적인 자동 설치 절차를 다시 시작합니다.
+- 기본 네이티브 Updater가 수동 설치 중 실패하면 실제 실패 사유를 표시하고 Setup 설치로
+  전환할지 묻습니다. 사용자가 승인한 경우에만 같은 GitHub Release의 Setup EXE를
+  다운로드하고 GitHub 자산의 SHA-256을 검증한 뒤 실행합니다. 자동 업데이트에서는
+  Setup을 임의로 실행하지 않습니다.
+- 업데이트 상태 문구는 마우스로 선택해 복사할 수 있습니다. 설치 실패 진단에는 종료
+  코드뿐 아니라 `update-state.json`에 기록된 실제 오류 내용도 표시됩니다.
+- 설치 후 새 버전이 정상 시작되지 않으면 이전 버전으로 자동 롤백합니다. 운영 설정,
+  사용자 테마와 `exdata/` 파일은 업데이트 후에도 유지됩니다.
+
+## WEB 관리자와 진단
+
+프로그램의 **설정 > 관리 API / 관리자 페이지**에서 관리 서버를 켤 수 있습니다. 같은
+PC에서는 로컬 관리자 주소를, 같은 네트워크에서는 기본적으로
+`http://ysignage.local`을 사용합니다. 원격 WEB 관리자 연결이 구성된 장비에는
+`http://ysignage<번호>.signage.cuniverse.net/` 형식의 주소가 배정됩니다.
+
+WEB 관리자는 다음 운영 기능을 제공합니다.
+
+- 실행 상태와 버전 확인, 사이니지 표시·감추기, 재시작과 완전 종료
+- 언어·주제·메뉴, 레이아웃, 화면보호기, UI 테마와 업데이트 정책 편집
+- 업데이트 후에도 유지되는 `exdata/` 전용 파일 탐색기와 다중·드래그 업로드
+- 설정 백업·복원 및 프로그램·WebView·Updater·관리 API 로그가 포함된 진단 자료 내보내기
+- 분류, 제목, 문제 설명, 재현 방법과 기대 결과를 작성하는 GitHub 이슈 등록
+
+앱 설정의 **진단 정보로 이슈 등록**을 누르면 먼저 진단 자료를 내보낸 뒤 WEB 관리자의
+진단·이슈 작성 화면을 바로 엽니다. GitHub 로그인이 없는 환경에서 실제 이슈를 등록하려면
+GW 서버에 [`deploy/github-issue-relay`](deploy/github-issue-relay/README.md)의 중계기를
+구성해야 합니다. 관리 페이지는 운영망의 접근 정책과 방화벽으로 보호하세요.
+
+## 운영 단축키
+
+| 키 | 기능 |
+|---|---|
+| `F1` | 앱 안에서 사용자 매뉴얼 열기 |
+| `F9` | 수동 업데이트 확인·설치 |
+| `F12` | 프로그램·Updater 버전과 GitHub 정보 표시 |
+| `Ctrl+Alt+Shift+F4` 3초 | 화면 장애 시 네이티브 경로로 강제 종료(최후 수단) |
 
 ## 플랫폼별 릴리스 패키지
 
@@ -82,12 +144,13 @@ bash scripts/package-macos.sh
 .\scripts\package-windows.ps1 -BuildInstaller
 
 # 패키지 파일명에 사용할 버전을 직접 지정
-.\scripts\package-windows.ps1 -PackageVersion 1.2.0
+.\scripts\package-windows.ps1 -PackageVersion 1.2.25
 ```
 
 GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
-`v1.2.0` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.0.zip`과 최초
-설치용 `simple-kiosk-windows-setup-1.2.0.exe`를 생성합니다. ZIP 안의
+`v1.2.25` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.25.zip`, 최초
+설치용 `simple-kiosk-windows-setup-1.2.25.exe`, 자동 업데이트용
+`update-manifest.json`을 생성합니다. ZIP 안의
 `ysignage.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
 `-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.
 
@@ -405,12 +468,20 @@ lib/
   service/
     menu_config_loader.dart          # 기본값·오버라이드 병합 설정 로더
     menu_config_merger.dart          # 설정 스키마 호환 병합
+    admin_api_controller.dart        # 로컬/원격 WEB 관리자 HTTP API
+    configuration_backup_service.dart # 운영 설정 백업·가져오기·직전 설정 복원
+    diagnostics_service.dart         # 로그·시스템·업데이트 진단 자료 생성
+    exdata_file_service.dart         # exdata 경계 내부 파일 관리
+    update_controller.dart           # 자동/수동 업데이트 UI 흐름 제어
+    update_service.dart              # Release 조회·다운로드·해시 검증·Updater 실행
+    web_admin_ssh_tunnel_controller.dart # 원격 WEB 관리자 SSH 터널과 ID 관리
     keyboard_controller.dart         # 가상 키보드 표시 상태/입력 이벤트 라우터
     system_keyboard.dart             # SystemKeyboard.show/hide (KeyboardController 래퍼)
     hangul_composer.dart             # 두벌식 한글 자모 조합기
     media_scanner.dart               # 대기화면 폴더 모드용 미디어 스캐너
     video_controller_factory.dart    # 대기화면 비디오 컨트롤러 팩토리
   widget/
+    update_admin_dialog.dart         # PIN 보호 설정·업데이트·진단 화면
     navigation_menu.dart             # 사이드/하단 공용 네비, 히스토리/키보드 토글
     kiosk_webview.dart               # WebView 위젯 (로딩/에러/차단/자동 복구/heartbeat/키보드 입력 주입)
     virtual_keyboard.dart            # 플로팅 가상 키보드 위젯
@@ -428,6 +499,8 @@ packages/
   dartssh2-3.3.1/                    # 소스 포함 SSH 및 stream-local forwarding 라이브러리
 deploy/
   github-issue-relay/                # 로그인 없는 GitHub 이슈 등록용 PHP/Nginx 예시
+tool/
+  windows_updater.dart               # 네이티브 Windows Updater 진입점
 ```
 
 원격 WEB 관리자용 개인 키는 `assets/ssh/web-admin-tunnel-key`에 추가합니다. 이 폴더는

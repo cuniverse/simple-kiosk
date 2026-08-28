@@ -2,6 +2,8 @@
 
 Windows 배포본은 installer EXE와 포터블 ZIP을 함께 제공합니다. 상세 절차와 문제 해결은
 [Windows 설치 및 운영 가이드](../release/guides/WINDOWS_INSTALL_GUIDE.md)를 참고하세요.
+배포 파일은 [최신 GitHub Release](https://github.com/cuniverse/simple-kiosk/releases/latest)에서
+받을 수 있습니다.
 
 ## 권장: installer 설치
 
@@ -31,12 +33,23 @@ installer는 앱과 함께 Microsoft Visual C++ Runtime 및 Microsoft Edge WebVi
 
 - 운영 설정: `<프로그램 폴더>\config\menu.override.json`
 - 사용자 미디어: `<프로그램 폴더>\media`
-- 자동 업데이트: 프로그램 설정 또는 웹 관리자의 업데이트 기능 사용
+- 업데이트 후 유지할 운영 파일: `<프로그램 폴더>\exdata`
+- 자동 업데이트: 기본 OFF. 프로그램 설정 또는 WEB 관리자에서 사용 여부와 정책 설정
+- 수동 업데이트: 설정의 **지금 업데이트 확인 / 지금 설치**, WEB 관리자 또는 `F9`
 - 메뉴 구성: 웹 관리자의 **사이니지 구성** 사용 권장
 
 기본 설정은 앱에 포함된 `assets/config/menu.defaults.json`이며 운영 환경에서는 이 파일을
 직접 수정하지 않습니다. 관리자 화면에서 저장한 설정은 외부 오버라이드 파일에 기록되어
 업데이트와 롤백 후에도 유지됩니다.
+
+수동으로 요청한 설치는 같은 버전의 이전 실패 횟수와 관계없이 다시 시도합니다. 기본
+Updater가 실패하면 오류 내용을 표시하고 Setup 설치로 전환할지 확인하며, 승인한 경우에만
+같은 Release의 Setup EXE를 내려받아 SHA-256 검증 후 실행합니다. 자동 업데이트는 같은
+버전에서 3회 실패하면 차단하고, 대상 버전이 바뀌거나 첫 실패 후 24시간이 지나면 실패
+횟수와 시간 창을 초기화합니다. 자동 업데이트에서는 Setup을 임의로 실행하지 않습니다.
+
+설정의 **진단 정보로 이슈 등록**은 진단 자료를 먼저 내보낸 뒤 원격 WEB 관리자의
+진단·GitHub 이슈 작성 화면을 엽니다. 업데이트 상태 문구는 선택해서 복사할 수 있습니다.
 
 ## 제거
 
