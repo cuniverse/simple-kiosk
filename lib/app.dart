@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_identity.dart';
@@ -19,6 +20,7 @@ import 'model/menu_topic.dart';
 import 'model/webview_slot_id.dart';
 import 'model/webview_data_policy.dart';
 import 'service/admin_api_controller.dart';
+import 'service/app_logger.dart';
 import 'service/configuration_backup_service.dart';
 import 'service/font_resource_service.dart';
 import 'service/menu_config_loader.dart';
@@ -37,6 +39,7 @@ import 'service/app_health_signal.dart';
 import 'service/update_controller.dart';
 import 'service/update_service.dart';
 import 'service/user_manual_service.dart';
+import 'service/windows_firewall_service.dart';
 import 'widget/kiosk_shortcuts.dart';
 import 'widget/language_selection.dart';
 import 'widget/update_admin_dialog.dart';
@@ -292,10 +295,13 @@ class _KioskHomeState extends State<_KioskHome> {
   late final UpdateController _updateController;
   late final KioskTrayController _trayController;
   late final AdminApiController _adminApiController;
+  final WindowsFirewallService _windowsFirewallService =
+      WindowsFirewallService();
   final DateTime _startedAt = DateTime.now();
   bool _versionDialogOpen = false;
   bool _manualDialogOpen = false;
   bool _manualUpdateRunning = false;
+  String? _versionLabel;
 
   /// 최초 방문 메뉴가 백그라운드에서 준비되는 동안 선택 표시할 슬롯.
   /// 언어와 메뉴 ID를 함께 사용해 순서 변경에도 동일 WebView를 추적한다.
@@ -419,9 +425,12 @@ class _KioskHomeState extends State<_KioskHome> {
     _toolbarHidden = widget.layout.toolbarInitiallyHidden;
     _updateController = UpdateController();
     unawaited(_updateController.initialize());
+    unawaited(_loadVersionLabel());
     _trayController = KioskTrayController(
       onOpenSettings: _showAdminSettings,
       onOpenManual: _showUserManual,
+      onOpenWebAdmin: _openWebAdminFromTray,
+      onRestart: () async => _restartApplication(),
       shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
       shortcutSettings: widget.layout.windowsKioskShortcuts,
       disableEdgeSwipe: widget.layout.windowsDisableEdgeSwipe,
@@ -439,7 +448,11 @@ class _KioskHomeState extends State<_KioskHome> {
       configWriter: _saveExternalConfig,
       backupService: const ConfigurationBackupService(),
       onConfigurationImported: () async => widget.onReloadConfig(),
+      beforeNetworkStart: (settings) async {
+        await _windowsFirewallService.reconcile(settings);
+      },
     );
+    _adminApiController.addListener(_updateTrayWebAdminState);
     unawaited(_initializeTray());
     unawaited(_initializeAdminApi());
   }
@@ -449,6 +462,7 @@ class _KioskHomeState extends State<_KioskHome> {
     _pendingOverlayTimer?.cancel();
     _pendingTimeoutTimer?.cancel();
     unawaited(_trayController.dispose());
+    _adminApiController.removeListener(_updateTrayWebAdminState);
     unawaited(_adminApiController.close());
     _adminApiController.dispose();
     _updateController.dispose();
@@ -463,11 +477,53 @@ class _KioskHomeState extends State<_KioskHome> {
     }
   }
 
+  Future<void> _loadVersionLabel() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _versionLabel = info.version);
+    } catch (error) {
+      if (kDebugMode) debugPrint('[version] 버전 읽기 실패: $error');
+    }
+  }
+
   Future<void> _initializeAdminApi() async {
     try {
       await _adminApiController.initialize();
     } catch (error) {
       if (kDebugMode) debugPrint('[admin-api] 초기화 실패: $error');
+    }
+  }
+
+  void _updateTrayWebAdminState() {
+    final tunnel = _adminApiController.webAdminSshTunnel;
+    final forwardingActive =
+        _adminApiController.settings.webAdminSshForwardingEnabled &&
+            tunnel.connected &&
+            tunnel.forwardingVerified;
+    _trayController.updateWebAdminState(
+      available: _adminApiController.running,
+      reverseForwardingStatus: forwardingActive ? '연결됨' : '연결 안 됨',
+      reverseForwardingUri:
+          forwardingActive ? _adminApiController.webAdminSshRemoteUri : null,
+    );
+  }
+
+  Future<void> _openWebAdminFromTray() async {
+    final port = _adminApiController.actualPort;
+    if (!_adminApiController.running || port == null) return;
+    final uri = Uri(
+      scheme: 'http',
+      host: '127.0.0.1',
+      port: port == 80 ? null : port,
+    );
+    try {
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw StateError('기본 브라우저를 실행할 수 없습니다.');
+    } catch (error, stackTrace) {
+      AppLogger.error(LogCategory.api, error, stackTrace);
     }
   }
 
@@ -1527,6 +1583,7 @@ class _KioskHomeState extends State<_KioskHome> {
                         onSelectLanguage: _showLanguageSelectionScreen,
                         onPrepareHideKiosk: _prepareHideSignageGesture,
                         onHideKiosk: _completeHideSignageGesture,
+                        versionLabel: _versionLabel,
                       ),
                     );
 
@@ -1547,6 +1604,7 @@ class _KioskHomeState extends State<_KioskHome> {
                         historyController: _currentController,
                         onShowToolbar: _showToolbar,
                       ),
+                      versionLabel: _versionLabel,
                     );
                   },
                 ),
@@ -1578,6 +1636,7 @@ class _KioskHomeState extends State<_KioskHome> {
                       skipSingleTopic: widget.skipSingleTopic,
                       onSelected: _selectLanguageAndTopic,
                       onReturnToIdle: _idleGateController.enterIdle,
+                      versionLabel: _versionLabel,
                     ),
                   ),
               ],

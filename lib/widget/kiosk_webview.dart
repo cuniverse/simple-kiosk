@@ -583,11 +583,14 @@ class _KioskWebViewState extends State<KioskWebView> {
     if (widget.active && !oldWidget.active) {
       KeyboardController.instance.attach(_handleKeyEvent);
       _startHealthCheck();
+      if (_errorMessage != null) _scheduleAutoRetry();
     } else if (!widget.active && oldWidget.active) {
       KeyboardController.instance.detach(_handleKeyEvent);
       // IndexedStack 뒤에 숨은 WebView의 JavaScript 타이머는 OS가 늦출 수 있다.
       // 비활성 메뉴를 heartbeat 실패로 오판하지 않도록 감시를 중지한다.
       _stopHealthCheck();
+      // 보이지 않는 메뉴가 백그라운드에서 계속 새로고침되지 않게 한다.
+      _cancelAutoRetry();
     }
   }
 
@@ -983,6 +986,8 @@ class _KioskWebViewState extends State<KioskWebView> {
             },
             onLoadStart: (controller, url) {
               if (!mounted) return;
+              // 새 탐색이 시작되면 이전 오류의 예약 재시도가 중간에 끼어들지 않게 한다.
+              _cancelAutoRetry();
               setState(() {
                 _isLoading = true;
                 _errorMessage = null;
@@ -1001,10 +1006,14 @@ class _KioskWebViewState extends State<KioskWebView> {
             },
             onLoadStop: (controller, url) {
               if (!mounted) return;
+              // WebView2는 메인 프레임 오류 뒤에도 onLoadStop을 보낼 수 있다.
+              // 이 경우 오류 화면과 자동 재시도 타이머를 그대로 유지해야 한다.
+              final failed = _errorMessage != null;
               setState(() {
                 _currentUrl = url?.toString();
               });
               _finishLoading();
+              if (failed) return;
               // 정상 로드 완료 → 자동 재시도 카운터/타이머 초기화.
               _consecutiveErrors = 0;
               _cancelAutoRetry();
@@ -1074,7 +1083,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                   _errorMessage = '페이지를 불러올 수 없습니다.\n(${error.description})';
                 });
                 _reportInitialLoadReady();
-                _scheduleAutoRetry();
+                if (widget.active) _scheduleAutoRetry();
               }
             },
             onReceivedHttpError: (controller, request, errorResponse) {
@@ -1091,7 +1100,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                       '${errorResponse.reasonPhrase ?? ''}';
                 });
                 _reportInitialLoadReady();
-                _scheduleAutoRetry();
+                if (widget.active) _scheduleAutoRetry();
               }
             },
             // Android: 렌더러 프로세스가 죽었을 때(OOM 포함). 컨트롤러는 무효

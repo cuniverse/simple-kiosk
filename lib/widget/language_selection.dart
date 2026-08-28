@@ -7,6 +7,7 @@ import '../model/menu_topic.dart';
 import '../service/font_resource_service.dart';
 import 'material_icon_registry.dart';
 import 'platform_file_image.dart';
+import 'version_overlay.dart';
 
 const double _selectionButtonMaxWidth = 400;
 const double _selectionButtonHeight = 190;
@@ -22,6 +23,7 @@ class LanguageSelection extends StatefulWidget {
   final String? fontFamily;
   final void Function(int languageIndex, int topicIndex) onSelected;
   final VoidCallback onReturnToIdle;
+  final String? versionLabel;
 
   const LanguageSelection({
     super.key,
@@ -34,6 +36,7 @@ class LanguageSelection extends StatefulWidget {
     this.fontFamily,
     required this.onSelected,
     required this.onReturnToIdle,
+    this.versionLabel,
   });
 
   @override
@@ -139,6 +142,12 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                 ),
               ),
             ),
+            if (widget.versionLabel != null)
+              Positioned(
+                right: 12,
+                bottom: 8,
+                child: VersionOverlay(version: widget.versionLabel!),
+              ),
           ],
         ),
       ),

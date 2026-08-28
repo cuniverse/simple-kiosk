@@ -35,6 +35,7 @@ import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
 import 'package:simple_kiosk/widget/kiosk_webview.dart';
 import 'package:simple_kiosk/widget/language_selection.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
+import 'package:simple_kiosk/widget/version_overlay.dart';
 import 'package:simple_kiosk/widget/webview_loading_overlay.dart';
 
 void main() {
@@ -316,12 +317,44 @@ void main() {
     expect(installer, contains('firewall-managed'));
     expect(firewall, contains('function Remove-ManagedFirewallRules'));
     expect(firewall, contains('catch {'));
+    expect(firewall, contains("'state\\firewall-managed'"));
     expect(firewall, contains('-Profile Domain, Private'));
     expect(firewall, contains('-RemoteAddress LocalSubnet'));
     expect(firewall, contains('-Protocol TCP'));
     expect(firewall, contains('-Protocol UDP'));
     expect(firewall, isNot(contains('-Profile Any')));
     expect(packager, contains("Copy-Item 'scripts\\configure-firewall.ps1'"));
+  });
+
+  test('Windows 트레이는 웹관리자와 리버스 포워딩 상태를 표시한다', () {
+    final tray = File(
+      'lib/service/kiosk_tray_controller.dart',
+    ).readAsStringSync();
+    final app = File('lib/app.dart').readAsStringSync();
+    final nativeTray = File(
+      'packages/tray_manager-0.5.3/windows/tray_manager_plugin.cpp',
+    ).readAsStringSync();
+
+    expect(tray, contains("key: 'web-admin'"));
+    expect(tray, contains("key: 'restart'"));
+    expect(tray, contains("label: '사이니지 재시작'"));
+    expect(tray, contains("label: '웹관리자 열기'"));
+    expect(tray, contains(r'리버스 포워딩: $_reverseForwardingStatus'));
+    expect(tray, contains("? 'status-connected'"));
+    expect(tray, contains(": 'status-disconnected'"));
+    expect(tray, contains('disabled: !reverseForwardingConnected'));
+    expect(app, contains("forwardingActive ? '연결됨' : '연결 안 됨'"));
+    expect(nativeTray, contains('CreateStatusBitmap'));
+    expect(nativeTray, contains('MIIM_BITMAP'));
+    expect(nativeTray, contains('status-connected'));
+    expect(nativeTray, contains('status-disconnected'));
+    expect(tray, contains(r"MenuItem(label: '주소: $uri'"));
+    expect(app, contains('tunnel.forwardingVerified'));
+    expect(app, contains('LaunchMode.externalApplication'));
+    expect(
+      tray,
+      contains('popUpContextMenu(bringAppToFront: true)'),
+    );
   });
 
   test('재생 불가능한 단일 폴더 동영상은 반복 재시도하지 않는다', () {
@@ -334,6 +367,20 @@ void main() {
       idleOverlay,
       contains("_error = '동영상을 재생할 수 없습니다:"),
     );
+  });
+
+  test('WebView 오류 화면은 종료 이벤트에 취소되지 않고 자동 재시도한다', () {
+    final webView = File('lib/widget/kiosk_webview.dart').readAsStringSync();
+    expect(
+        webView,
+        contains(
+            'static const Duration _autoRetryDelay = Duration(seconds: 5)'));
+    expect(webView, contains('final failed = _errorMessage != null;'));
+    expect(webView, contains('if (failed) return;'));
+    expect(webView, contains('if (widget.active) _scheduleAutoRetry();'));
+    expect(
+        webView, contains('if (_errorMessage != null) _scheduleAutoRetry();'));
+    expect(webView, contains('// 보이지 않는 메뉴가 백그라운드에서 계속 새로고침되지 않게 한다.'));
   });
 
   testWidgets('관리자 PIN 키패드로 숫자 입력과 삭제를 수행한다', (tester) async {
@@ -984,6 +1031,7 @@ void main() {
             selectedTopic = topic;
           },
           onReturnToIdle: () => returnCount += 1,
+          versionLabel: '1.2.32',
         ),
       ),
     );
@@ -995,6 +1043,11 @@ void main() {
     expect(tester.widget<Text>(find.text('언어를 선택하세요')).style?.fontFamily,
         'NanumSquare');
     expect(tester.widget<Text>(find.text('한국어')).style?.fontFamily, 'Catholic');
+    final version = find.byKey(const ValueKey('version-overlay'));
+    expect(version, findsOneWidget);
+    expect(find.text('v1.2.32'), findsOneWidget);
+    expect(tester.getBottomRight(version).dx, greaterThan(770));
+    expect(tester.getBottomRight(version).dy, greaterThan(570));
     await tester.tap(button);
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.byKey(const ValueKey('selected-language-ko')), findsOneWidget);
@@ -2448,6 +2501,83 @@ void main() {
     await tester.pumpWidget(buildHost(false));
     expect(probeKey.currentState, same(originalState));
     expect(originalState.disposeCount, 0);
+  });
+
+  testWidgets('버전 오버레이는 툴바 방향에 맞춰 배치되고 입력을 통과시킨다', (tester) async {
+    Future<Offset> pumpHost(NavPosition position) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ToolbarHost(
+              hidden: false,
+              position: position,
+              sideWidth: 220,
+              toolbarHeight: 96,
+              webView: const ColoredBox(color: Colors.white),
+              toolbar:
+                  position == NavPosition.left || position == NavPosition.right
+                      ? const SizedBox(width: 220)
+                      : const SizedBox(height: 96),
+              overlay: const SizedBox.shrink(),
+              versionLabel: '1.2.32',
+            ),
+          ),
+        ),
+      );
+      final version = find.byKey(const ValueKey('version-overlay'));
+      expect(version, findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(VersionOverlay),
+          matching: find.byType(IgnorePointer),
+        ),
+        findsOneWidget,
+      );
+      return tester.getBottomRight(version);
+    }
+
+    final bottomPosition = await pumpHost(NavPosition.bottom);
+    expect(bottomPosition.dx, greaterThan(770));
+    expect(bottomPosition.dy, lessThan(504));
+
+    final topPosition = await pumpHost(NavPosition.top);
+    expect(topPosition.dx, greaterThan(770));
+    expect(topPosition.dy, greaterThan(570));
+  });
+
+  testWidgets('사이드 툴바 버전은 하단 기능 버튼 아래에 표시된다', (tester) async {
+    Future<double> pumpMenu(String? versionLabel) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.centerLeft,
+              child: NavigationMenu(
+                items: const [],
+                selectedIndex: 0,
+                onSelected: (_) {},
+                orientation: NavigationOrientation.side,
+                sideWidth: 220,
+                onHide: () {},
+                versionLabel: versionLabel,
+              ),
+            ),
+          ),
+        ),
+      );
+      return tester.getBottomLeft(find.byTooltip('툴바 감추기')).dy;
+    }
+
+    final originalActionBottom = await pumpMenu(null);
+    final actionBottom = await pumpMenu('1.2.32');
+
+    final action = find.byTooltip('툴바 감추기');
+    final version = find.byType(VersionOverlay);
+    expect(action, findsOneWidget);
+    expect(version, findsOneWidget);
+    expect(tester.getTopLeft(version).dy,
+        greaterThan(tester.getBottomLeft(action).dy));
+    expect(originalActionBottom - actionBottom, lessThanOrEqualTo(10));
   });
 
   testWidgets('표시된 툴바는 입력이 없으면 자동 숨김을 요청한다', (tester) async {

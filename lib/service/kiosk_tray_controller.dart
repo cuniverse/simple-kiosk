@@ -13,6 +13,8 @@ class KioskTrayController with TrayListener, WindowListener {
   KioskTrayController({
     required this.onOpenSettings,
     required this.onOpenManual,
+    required this.onOpenWebAdmin,
+    required this.onRestart,
     required bool shortcutLockdownEnabled,
     required WindowsKioskShortcutSettings shortcutSettings,
     required bool disableEdgeSwipe,
@@ -28,6 +30,8 @@ class KioskTrayController with TrayListener, WindowListener {
 
   final Future<void> Function() onOpenSettings;
   final Future<void> Function() onOpenManual;
+  final Future<void> Function() onOpenWebAdmin;
+  final Future<void> Function() onRestart;
 
   bool _initialized = false;
   bool _allowExit = false;
@@ -37,6 +41,12 @@ class KioskTrayController with TrayListener, WindowListener {
   bool _alwaysOnTopEnabled;
   bool _preventScreenSaver;
   bool _preventDisplaySleep;
+  String? _versionLabel;
+  bool _webAdminAvailable = false;
+  String _reverseForwardingStatus = '확인 중';
+  Uri? _reverseForwardingUri;
+  String? _webAdminMenuSignature;
+  Future<void> _menuUpdateQueue = Future<void>.value();
 
   bool get supported => Platform.isWindows;
 
@@ -57,28 +67,16 @@ class KioskTrayController with TrayListener, WindowListener {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final versionLabel = '$appDisplayName v${packageInfo.version}';
+      _versionLabel = versionLabel;
       await trayManager.setIcon(iconPath);
       await trayManager.setToolTip(versionLabel);
-      await trayManager.setContextMenu(
-        Menu(
-          items: [
-            MenuItem(label: versionLabel, disabled: true),
-            MenuItem.separator(),
-            MenuItem(key: 'show', label: '사이니지 보이기'),
-            MenuItem(key: 'hide', label: '사이니지 감추기'),
-            MenuItem.separator(),
-            MenuItem(key: 'settings', label: '설정'),
-            MenuItem(key: 'manual', label: '사용자 매뉴얼'),
-            MenuItem.separator(),
-            MenuItem(key: 'exit', label: '완전 종료'),
-          ],
-        ),
-      );
+      await _applyContextMenu();
       trayManager.addListener(this);
       windowManager.addListener(this);
       listenersAdded = true;
       await windowManager.setPreventClose(true);
       _initialized = true;
+      await _applyContextMenu();
       await WindowsKioskMode.configure(
         shortcutLockdownEnabled: _shortcutLockdownEnabled,
         shortcutSettings: _shortcutSettings,
@@ -163,6 +161,60 @@ class KioskTrayController with TrayListener, WindowListener {
     );
   }
 
+  void updateWebAdminState({
+    required bool available,
+    required String reverseForwardingStatus,
+    Uri? reverseForwardingUri,
+  }) {
+    final signature =
+        '$available|$reverseForwardingStatus|${reverseForwardingUri ?? ''}';
+    if (_webAdminMenuSignature == signature) return;
+    _webAdminMenuSignature = signature;
+    _webAdminAvailable = available;
+    _reverseForwardingStatus = reverseForwardingStatus;
+    _reverseForwardingUri = reverseForwardingUri;
+    if (!_initialized) return;
+    _menuUpdateQueue =
+        _menuUpdateQueue.catchError((_) {}).then((_) => _applyContextMenu());
+  }
+
+  Future<void> _applyContextMenu() async {
+    final versionLabel = _versionLabel;
+    if (versionLabel == null) return;
+    final reverseForwardingConnected = _reverseForwardingUri != null;
+    await trayManager.setContextMenu(
+      Menu(
+        items: [
+          MenuItem(label: versionLabel, disabled: true),
+          MenuItem.separator(),
+          MenuItem(key: 'show', label: '사이니지 보이기'),
+          MenuItem(key: 'hide', label: '사이니지 감추기'),
+          MenuItem(key: 'restart', label: '사이니지 재시작'),
+          MenuItem.separator(),
+          MenuItem(
+            key: 'web-admin',
+            label: '웹관리자 열기',
+            disabled: !_webAdminAvailable,
+          ),
+          MenuItem(
+            label: '리버스 포워딩: $_reverseForwardingStatus',
+            icon: reverseForwardingConnected
+                ? 'status-connected'
+                : 'status-disconnected',
+            disabled: !reverseForwardingConnected,
+          ),
+          if (_reverseForwardingUri case final uri?)
+            MenuItem(label: '주소: $uri', disabled: true),
+          MenuItem.separator(),
+          MenuItem(key: 'settings', label: '설정'),
+          MenuItem(key: 'manual', label: '사용자 매뉴얼'),
+          MenuItem.separator(),
+          MenuItem(key: 'exit', label: '완전 종료'),
+        ],
+      ),
+    );
+  }
+
   @override
   void onWindowClose() {
     if (_allowExit) return;
@@ -171,12 +223,19 @@ class KioskTrayController with TrayListener, WindowListener {
 
   @override
   void onTrayIconMouseDown() {
-    unawaited(toggleWindow());
+    unawaited(_showContextMenu());
   }
 
   @override
   void onTrayIconRightMouseDown() {
-    unawaited(trayManager.popUpContextMenu());
+    unawaited(_showContextMenu());
+  }
+
+  Future<void> _showContextMenu() {
+    // Windows requires the menu owner to be the foreground window so an
+    // outside click dismisses the native TrackPopupMenu.
+    // ignore: deprecated_member_use
+    return trayManager.popUpContextMenu(bringAppToFront: true);
   }
 
   @override
@@ -188,8 +247,14 @@ class KioskTrayController with TrayListener, WindowListener {
       case 'hide':
         unawaited(hideWindow());
         return;
+      case 'restart':
+        unawaited(onRestart());
+        return;
       case 'settings':
         unawaited(_showThen(onOpenSettings));
+        return;
+      case 'web-admin':
+        unawaited(onOpenWebAdmin());
         return;
       case 'manual':
         unawaited(_showThen(onOpenManual));

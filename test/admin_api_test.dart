@@ -93,6 +93,8 @@ void main() {
     };
     String? action;
     final mdnsPublisher = _FakeMdnsPublisher();
+    var networkSyncCalls = 0;
+    var synchronizedBeforeInitialBind = false;
     final controller = AdminApiController(
       pinStore: AdminPinStore(file: pinFile, iterations: 1),
       settingsStore: settingsStore,
@@ -129,10 +131,21 @@ void main() {
         'layout': {'barHeight': 88},
       },
       configWriter: (value) async => config = value,
+      beforeNetworkStart: (settings) async {
+        networkSyncCalls++;
+        if (networkSyncCalls != 1) return;
+        final beforeBind = await ServerSocket.bind(
+          InternetAddress.loopbackIPv4,
+          settings.port,
+        );
+        synchronizedBeforeInitialBind = true;
+        await beforeBind.close();
+      },
     );
     final client = http.Client();
     try {
       await controller.initialize();
+      expect(synchronizedBeforeInitialBind, isTrue);
       expect(controller.running, isTrue);
       expect(mdnsPublisher.running, isTrue);
       expect(mdnsPublisher.hostname, 'ysignage.local');

@@ -5,7 +5,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
-- 최신 안정 버전: [`v1.2.31`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.31)
+- 최신 안정 버전: [`v1.2.32`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.32)
 - 변경 내역: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 운영자 매뉴얼: [docs/MANUAL.md](docs/MANUAL.md)
 - Windows 최초 설치: [docs/WINDOWS_FIRST_INSTALL.md](docs/WINDOWS_FIRST_INSTALL.md)
@@ -25,6 +25,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 - 49인치 가로형 터치 사이니지에 적합한 큰 버튼 (최소 높이 72dp)
 - 현재 선택된 메뉴 시각적 강조 표시
 - 모든 배치의 툴바 감추기/복원 — 숨김 상태에서는 뒤로·앞으로·툴바 복원·가상 키보드만 플로팅 표시하며 네 모서리로 드래그 이동
+- 언어 선택 화면과 콘텐츠 화면 우측 하단에 현재 앱 버전을 작은 반투명 오버레이로 표시
 - WebView 로딩 인디케이터 및 에러 화면(재시도 버튼)
 - **메뉴별 독립 WebView (IndexedStack)** — 다른 메뉴로 갔다가 돌아와도 스크롤/내부 페이지 상태 유지 (`keepStateOnTap` 옵션)
 - 같은 메뉴 더블 탭 시 강제 초기 URL 재로드
@@ -72,6 +73,11 @@ flutter run -d macos
 Windows에서 앱을 다시 실행하면 기존 인스턴스가 트레이에 숨겨져 있어도 완전히 종료한
 뒤 새 인스턴스를 시작합니다. 기존 프로세스가 종료되기 전에는 두 인스턴스가 동시에
 실행되지 않으며, 기존 프로세스가 응답하지 않으면 해당 인스턴스만 강제 종료합니다.
+트레이 메뉴에서 WEB 관리자를 바로 열고 리버스 포워딩 상태를 확인할 수 있으며, 실제
+포워딩이 확인되면 `연결됨`, 녹색 점등 아이콘과 외부 접속 주소를 표시합니다. 그 외에는
+`연결 안 됨`과 회색 소등 아이콘을 표시합니다.
+트레이 아이콘을 클릭하면 메뉴가 즉시 열리며 트레이 메뉴의 **사이니지 재시작**으로 프로그램을 재시작할 수도
+있습니다.
 
 처음 설치하는 PC에는 [최신 GitHub Release](https://github.com/cuniverse/simple-kiosk/releases/latest)의
 `simple-kiosk-windows-setup-<version>.exe` 사용을 권장합니다. 설치 없이 시험하거나 별도
@@ -83,6 +89,9 @@ Setup의 **사설 네트워크에서 WEB 관리 자동 허용**은 기본으로 
 관리자 승인을 받으면 현재 관리 TCP 포트와 mDNS UDP 5353을 도메인·사설 네트워크의 같은
 서브넷에만 허용하므로 앱 최초 실행 시 Windows 방화벽 허용 알림이 나타나지 않습니다.
 공개 네트워크와 인터넷 전체에는 포트를 열지 않으며 제거 시 관리 규칙도 삭제합니다.
+설치 후 규칙이 없거나 WEB 관리 포트·mDNS 설정이 달라지면 앱 시작 또는 설정 저장 시
+한 번만 관리자 승인을 요청해 규칙을 자동으로 맞춥니다. 규칙이 이미 일치하면 승인 창을
+표시하지 않습니다.
 
 ### 업데이트 동작
 

@@ -11,6 +11,7 @@ import '../service/system_keyboard.dart';
 import 'kiosk_webview.dart';
 import 'material_icon_registry.dart';
 import 'platform_file_image.dart';
+import 'version_overlay.dart';
 
 /// 네비게이션 영역의 표시 방향.
 enum NavigationOrientation { side, bottom }
@@ -104,6 +105,9 @@ class NavigationMenu extends StatelessWidget {
   /// 화면 보호기 더블클릭으로 사이니지 감추기 순서를 시작하는 콜백.
   final VoidCallback? onPrepareHideKiosk;
 
+  /// 사이드 툴바의 하단 기능 버튼 아래에 표시할 앱 버전.
+  final String? versionLabel;
+
   /// 툴바 감추기 더블클릭으로 사이니지 감추기 순서를 완료하는 콜백.
   final VoidCallback? onHideKiosk;
 
@@ -136,6 +140,7 @@ class NavigationMenu extends StatelessWidget {
     this.onSelectLanguage,
     this.onPrepareHideKiosk,
     this.onHideKiosk,
+    this.versionLabel,
   });
 
   @override
@@ -169,156 +174,174 @@ class NavigationMenu extends StatelessWidget {
           width: sideWidth,
           // 키보드 토글이 활성화되면 항상 맨 아래 고정으로 두기 위해
           // 메뉴 영역(스크롤) + 하단 푸터(고정) 구조로 나눈다.
-          child: Column(
+          child: Stack(
             children: [
-              if (onSelectLanguage != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-                  child: _LanguageSelectionBackButton(
-                    orientation: NavigationOrientation.side,
-                    onPressed: onSelectLanguage!,
-                  ),
-                ),
-              if (selectedTopicLabel != null)
-                _SelectedTopicLabel(
-                  label: selectedTopicLabel!,
-                  orientation: NavigationOrientation.side,
-                  color: selectedTopicLabelColor,
-                  fontFamily: fontFamily,
-                ),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    const verticalPadding = 24.0;
-                    const minimumButtonHeight = 56.0;
-                    const automaticButtonHeight = 88.0;
-                    final available = (constraints.maxHeight - verticalPadding)
-                        .clamp(0.0, double.infinity);
-                    final gapCount = useSeparator
-                        ? (items.length - 1).clamp(0, items.length)
-                        : 0;
-                    final gaps = gapCount * buttonGap;
-                    final preferred =
-                        buttonHeight > 0 ? buttonHeight : automaticButtonHeight;
-                    final fitted = items.isEmpty
-                        ? preferred
-                        : ((available - gaps) / items.length)
-                            .clamp(minimumButtonHeight, preferred);
-                    final overflow =
-                        items.length * minimumButtonHeight + gaps > available;
+              Column(
+                children: [
+                  if (onSelectLanguage != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                      child: _LanguageSelectionBackButton(
+                        orientation: NavigationOrientation.side,
+                        onPressed: onSelectLanguage!,
+                      ),
+                    ),
+                  if (selectedTopicLabel != null)
+                    _SelectedTopicLabel(
+                      label: selectedTopicLabel!,
+                      orientation: NavigationOrientation.side,
+                      color: selectedTopicLabelColor,
+                      fontFamily: fontFamily,
+                    ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        const verticalPadding = 24.0;
+                        const minimumButtonHeight = 56.0;
+                        const automaticButtonHeight = 88.0;
+                        final available =
+                            (constraints.maxHeight - verticalPadding)
+                                .clamp(0.0, double.infinity);
+                        final gapCount = useSeparator
+                            ? (items.length - 1).clamp(0, items.length)
+                            : 0;
+                        final gaps = gapCount * buttonGap;
+                        final preferred = buttonHeight > 0
+                            ? buttonHeight
+                            : automaticButtonHeight;
+                        final fitted = items.isEmpty
+                            ? preferred
+                            : ((available - gaps) / items.length)
+                                .clamp(minimumButtonHeight, preferred);
+                        final overflow =
+                            items.length * minimumButtonHeight + gaps >
+                                available;
 
-                    Widget menuColumn(double height) {
-                      final children = <Widget>[];
-                      for (var i = 0; i < items.length; i++) {
-                        if (useSeparator && i > 0) {
-                          children.add(SizedBox(height: buttonGap));
+                        Widget menuColumn(double height) {
+                          final children = <Widget>[];
+                          for (var i = 0; i < items.length; i++) {
+                            if (useSeparator && i > 0) {
+                              children.add(SizedBox(height: buttonGap));
+                            }
+                            children.add(
+                              _NavButton(
+                                title: items[i].title,
+                                iconPath: items[i].icon,
+                                selectedIconPath: items[i].selectedIcon,
+                                showTitle: items[i].showTitle,
+                                selected: i == selectedIndex,
+                                orientation: NavigationOrientation.side,
+                                fixedHeight: height,
+                                buttonColor: buttonColor,
+                                buttonForegroundColor: buttonForegroundColor,
+                                selectedButtonColor: selectedButtonColor,
+                                selectedButtonForegroundColor:
+                                    selectedButtonForegroundColor,
+                                fontFamily: FontResourceService.familyFor(
+                                      items[i].fontFamily,
+                                    ) ??
+                                    fontFamily,
+                                onPressed: () => onSelected(i),
+                              ),
+                            );
+                          }
+                          return Column(
+                            mainAxisAlignment: mainAxisAlign,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: children,
+                          );
                         }
-                        children.add(
-                          _NavButton(
-                            title: items[i].title,
-                            iconPath: items[i].icon,
-                            selectedIconPath: items[i].selectedIcon,
-                            showTitle: items[i].showTitle,
-                            selected: i == selectedIndex,
-                            orientation: NavigationOrientation.side,
-                            fixedHeight: height,
-                            buttonColor: buttonColor,
-                            buttonForegroundColor: buttonForegroundColor,
-                            selectedButtonColor: selectedButtonColor,
-                            selectedButtonForegroundColor:
-                                selectedButtonForegroundColor,
-                            fontFamily: FontResourceService.familyFor(
-                                  items[i].fontFamily,
-                                ) ??
-                                fontFamily,
-                            onPressed: () => onSelected(i),
+
+                        final content = Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 8,
+                          ),
+                          child: menuColumn(
+                            overflow ? minimumButtonHeight : fitted,
                           ),
                         );
-                      }
-                      return Column(
-                        mainAxisAlignment: mainAxisAlign,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: children,
-                      );
-                    }
-
-                    final content = Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 8,
-                      ),
-                      child: menuColumn(
-                        overflow ? minimumButtonHeight : fitted,
-                      ),
-                    );
-                    if (!overflow) return content;
-                    return _ExplicitScrollViewport(
-                      axis: Axis.vertical,
-                      child: content,
-                    );
-                  },
-                ),
-              ),
-              if (showHistoryButtons ||
-                  showKeyboardToggle ||
-                  onEnterIdle != null ||
-                  onOpenAdmin != null ||
-                  onHide != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final metrics = _sideActionMetrics(
-                        constraints.maxWidth,
-                        actionCount,
-                        buttonGap,
-                      );
-                      return Center(
-                        child: SizedBox(
-                          width: metrics.rowWidth,
-                          child: Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: metrics.gap,
-                            runSpacing: metrics.gap,
-                            children: [
-                              if (showHistoryButtons)
-                                _HistoryControls(
-                                  controller: historyController,
-                                  orientation: NavigationOrientation.side,
-                                  buttonSize: metrics.size,
-                                  gap: metrics.gap,
-                                ),
-                              if (showKeyboardToggle)
-                                _KeyboardToggle(size: metrics.size),
-                              if (onOpenAdmin != null)
-                                _ToolbarVisibilityButton(
-                                  icon: Icons.admin_panel_settings_outlined,
-                                  tooltip: '설정',
-                                  size: metrics.size,
-                                  onPressed: onOpenAdmin!,
-                                ),
-                              if (onEnterIdle != null)
-                                _ToolbarVisibilityButton(
-                                  icon: Icons.wallpaper_outlined,
-                                  tooltip: '화면 보호기 시작',
-                                  size: metrics.size,
-                                  onPressed: onEnterIdle!,
-                                  onDoublePressed: onPrepareHideKiosk,
-                                ),
-                              if (onHide != null)
-                                _ToolbarVisibilityButton(
-                                  icon: Icons.visibility_off_outlined,
-                                  tooltip: '툴바 감추기',
-                                  size: metrics.size,
-                                  onPressed: onHide!,
-                                  onDoublePressed: onHideKiosk,
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                        if (!overflow) return content;
+                        return _ExplicitScrollViewport(
+                          axis: Axis.vertical,
+                          child: content,
+                        );
+                      },
+                    ),
                   ),
+                  if (showHistoryButtons ||
+                      showKeyboardToggle ||
+                      onEnterIdle != null ||
+                      onOpenAdmin != null ||
+                      onHide != null)
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        8,
+                        4,
+                        8,
+                        versionLabel == null ? 12 : 22,
+                      ),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final metrics = _sideActionMetrics(
+                            constraints.maxWidth,
+                            actionCount,
+                            buttonGap,
+                          );
+                          return Center(
+                            child: SizedBox(
+                              width: metrics.rowWidth,
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: metrics.gap,
+                                runSpacing: metrics.gap,
+                                children: [
+                                  if (showHistoryButtons)
+                                    _HistoryControls(
+                                      controller: historyController,
+                                      orientation: NavigationOrientation.side,
+                                      buttonSize: metrics.size,
+                                      gap: metrics.gap,
+                                    ),
+                                  if (showKeyboardToggle)
+                                    _KeyboardToggle(size: metrics.size),
+                                  if (onOpenAdmin != null)
+                                    _ToolbarVisibilityButton(
+                                      icon: Icons.admin_panel_settings_outlined,
+                                      tooltip: '설정',
+                                      size: metrics.size,
+                                      onPressed: onOpenAdmin!,
+                                    ),
+                                  if (onEnterIdle != null)
+                                    _ToolbarVisibilityButton(
+                                      icon: Icons.wallpaper_outlined,
+                                      tooltip: '화면 보호기 시작',
+                                      size: metrics.size,
+                                      onPressed: onEnterIdle!,
+                                      onDoublePressed: onPrepareHideKiosk,
+                                    ),
+                                  if (onHide != null)
+                                    _ToolbarVisibilityButton(
+                                      icon: Icons.visibility_off_outlined,
+                                      tooltip: '툴바 감추기',
+                                      size: metrics.size,
+                                      onPressed: onHide!,
+                                      onDoublePressed: onHideKiosk,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+              if (versionLabel != null)
+                Positioned(
+                  right: 8,
+                  bottom: 4,
+                  child: VersionOverlay(version: versionLabel!),
                 ),
             ],
           ),
@@ -632,6 +655,7 @@ class ToolbarHost extends StatefulWidget {
   final Widget webView;
   final Widget toolbar;
   final Widget overlay;
+  final String? versionLabel;
 
   const ToolbarHost({
     super.key,
@@ -644,6 +668,7 @@ class ToolbarHost extends StatefulWidget {
     required this.webView,
     required this.toolbar,
     required this.overlay,
+    this.versionLabel,
   });
 
   @override
@@ -711,6 +736,8 @@ class _ToolbarHostState extends State<ToolbarHost> {
     final bottomInset = toolbarVisible && position == NavPosition.bottom
         ? widget.toolbarHeight + 1
         : 0.0;
+    final isSide =
+        position == NavPosition.left || position == NavPosition.right;
 
     final toolbarWithDivider = switch (position) {
       NavPosition.left => Row(
@@ -764,6 +791,14 @@ class _ToolbarHostState extends State<ToolbarHost> {
               child: widget.overlay,
             ),
           ),
+          if (widget.versionLabel != null && (!toolbarVisible || !isSide))
+            Positioned(
+              right: 12,
+              bottom: toolbarVisible && position == NavPosition.bottom
+                  ? bottomInset + 8
+                  : 8,
+              child: VersionOverlay(version: widget.versionLabel!),
+            ),
         ],
       ),
     );

@@ -1,7 +1,7 @@
 name: simple_kiosk
 description: 성당 로비용 Flutter 디지털 사이니지 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.31
+version: 1.2.32
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -33,7 +33,8 @@ dependencies:
   # 데스크톱(Windows/macOS/Linux) 사이니지 전체화면 제어.
   window_manager: ^0.4.3
   # 데스크톱 시스템 트레이 아이콘과 메뉴.
-  tray_manager: ^0.5.3
+  tray_manager:
+    path: packages/tray_manager-0.5.3
   # 관리 API의 .local 호스트 이름과 HTTP 서비스를 mDNS로 광고.
   mdns_dart: ^2.2.2
   # 외부 ssh.exe 없이 원격 WEB 관리자 reverse forwarding을 연결합니다.

@@ -24,6 +24,9 @@ typedef AdminActionHandler = Future<Map<String, dynamic>> Function(
 );
 typedef AdminConfigReader = Future<Map<String, dynamic>> Function();
 typedef AdminConfigWriter = Future<void> Function(Map<String, dynamic> config);
+typedef AdminNetworkSettingsSynchronizer = Future<void> Function(
+  AdminApiSettings settings,
+);
 
 class AdminApiController extends ChangeNotifier {
   AdminApiController({
@@ -43,6 +46,7 @@ class AdminApiController extends ChangeNotifier {
     UiThemeService? uiThemeService,
     WebAdminSshTunnelController? webAdminSshTunnelController,
     Future<void> Function()? onConfigurationImported,
+    AdminNetworkSettingsSynchronizer? beforeNetworkStart,
   })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
         _defaultConfigReader =
             defaultConfigReader ?? effectiveConfigReader ?? configReader,
@@ -56,7 +60,8 @@ class AdminApiController extends ChangeNotifier {
         _uiThemeService = uiThemeService ?? UiThemeService(),
         _webAdminSshTunnelController =
             webAdminSshTunnelController ?? WebAdminSshTunnelController(),
-        _onConfigurationImported = onConfigurationImported {
+        _onConfigurationImported = onConfigurationImported,
+        _beforeNetworkStart = beforeNetworkStart {
     _webAdminSshTunnelController.addListener(_handleSshTunnelChanged);
   }
 
@@ -81,6 +86,7 @@ class AdminApiController extends ChangeNotifier {
   final UiThemeService _uiThemeService;
   final WebAdminSshTunnelController _webAdminSshTunnelController;
   final Future<void> Function()? _onConfigurationImported;
+  final AdminNetworkSettingsSynchronizer? _beforeNetworkStart;
   final Random _random = Random.secure();
   // 메뉴 설정 적용 시 KioskHome과 API 컨트롤러가 재생성되더라도 같은 프로그램
   // 프로세스 안에서는 로그인 세션과 시도 제한을 유지한다.
@@ -121,6 +127,7 @@ class AdminApiController extends ChangeNotifier {
     await _exdataFileService.ensureReady();
     await _uiThemeService.ensureReady();
     settings = await _settingsStore.load();
+    await _beforeNetworkStart?.call(settings);
     if (settings.enabled) await _start();
     notifyListeners();
   }
@@ -132,8 +139,9 @@ class AdminApiController extends ChangeNotifier {
     notifyListeners();
     try {
       await _settingsStore.save(updated);
-      await _stop();
       settings = updated;
+      await _beforeNetworkStart?.call(settings);
+      await _stop();
       lastError = null;
       if (settings.enabled) await _start(throwOnFailure: true);
     } catch (error, stackTrace) {
@@ -145,6 +153,7 @@ class AdminApiController extends ChangeNotifier {
       settings = previous;
       try {
         await _settingsStore.save(previous);
+        await _beforeNetworkStart?.call(previous);
         if (previous.enabled) await _start(throwOnFailure: true);
       } catch (rollbackError, rollbackStackTrace) {
         AppLogger.error(LogCategory.api, rollbackError, rollbackStackTrace);

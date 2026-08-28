@@ -17,6 +17,8 @@ installer는 앱과 함께 Microsoft Visual C++ Runtime 및 Microsoft Edge WebVi
 `%LOCALAPPDATA%\Programs\SimpleKiosk`이며 이전 설치 위치가 있으면 그 위치를 재사용합니다.
 방화벽 자동 허용은 현재 WEB 관리 TCP 포트와 mDNS UDP 5353을 도메인·사설 네트워크의
 같은 서브넷에만 열며, 프로그램 제거 시 해당 규칙을 함께 삭제합니다.
+규칙이 없거나 이후 WEB 관리 포트·mDNS 설정이 바뀌면 앱 시작 또는 설정 저장 시 관리자
+승인을 한 번 요청해 규칙을 자동으로 새 설정에 맞춥니다.
 
 ## 포터블 ZIP 실행
 
@@ -24,6 +26,9 @@ installer는 앱과 함께 Microsoft Visual C++ Runtime 및 Microsoft Edge WebVi
 2. ZIP 파일 속성에 **차단 해제**가 표시되면 선택한 뒤 전체 파일을 전용 폴더에 풉니다.
 3. 처음 설치하는 PC에서는 `InstallPrerequisites.cmd`를 실행합니다.
 4. `ysignage.exe`를 실행합니다.
+
+포터블 실행에서도 WEB 관리가 켜져 있고 일치하는 관리 규칙이 없으면 첫 실행 시 관리자
+승인을 요청합니다. 공개 네트워크나 인터넷 전체를 여는 규칙은 만들지 않습니다.
 
 `ysignage.exe`, `simple_kiosk.exe` 호환 복사본, DLL과 `data` 폴더는 항상 함께 있어야
 합니다. 일부 파일만 복사하거나 기존 버전에 덮어쓰면 실행되지 않을 수 있습니다.

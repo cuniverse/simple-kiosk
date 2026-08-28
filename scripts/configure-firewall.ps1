@@ -17,6 +17,7 @@ $mdnsRuleName = 'YSignage mDNS Discovery'
 $ruleGroup = 'YSignage'
 $settingsPath = Join-Path $InstallRoot 'config\admin-api.json'
 $statePath = Join-Path $InstallRoot 'state\firewall.json'
+$markerPath = Join-Path $InstallRoot 'state\firewall-managed'
 
 $enabled = $true
 $port = 80
@@ -63,6 +64,7 @@ function Remove-ManagedFirewallRules {
 
 Remove-ManagedFirewallRules
 Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
 
 if ($Action -eq 'Remove' -or -not $enabled) {
     exit 0
@@ -99,10 +101,12 @@ try {
     $plan.updatedAt = (Get-Date).ToUniversalTime().ToString('o')
     $plan | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 -LiteralPath $temporaryPath
     Move-Item -Force -LiteralPath $temporaryPath -Destination $statePath
+    Set-Content -Encoding ASCII -LiteralPath $markerPath -Value 'managed'
 }
 catch {
     Remove-ManagedFirewallRules
     Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $markerPath -Force -ErrorAction SilentlyContinue
     throw
 }
