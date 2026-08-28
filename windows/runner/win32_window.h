@@ -12,6 +12,11 @@
 // rendering and input handling
 class Win32Window {
  public:
+  // Sent by a newly launched process when this instance must fully exit so the
+  // new process can take over. This intentionally bypasses Flutter's
+  // close-to-tray handling.
+  static constexpr UINT kRestartExistingInstanceMessage = WM_APP + 0x51;
+
   struct Point {
     unsigned int x;
     unsigned int y;

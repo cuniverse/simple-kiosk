@@ -680,6 +680,10 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == kRestartExistingInstanceMessage) {
+    return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+  }
+
   if (message == WM_SYSCOMMAND &&
       (wparam & 0xFFF0) == SC_SCREENSAVE &&
       g_kiosk_mode_active.load() && g_prevent_screen_saver.load()) {

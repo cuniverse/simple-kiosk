@@ -181,6 +181,11 @@ Win32Window::MessageHandler(HWND hwnd,
                             UINT const message,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
+  if (message == kRestartExistingInstanceMessage) {
+    DestroyWindow(hwnd);
+    return 0;
+  }
+
   switch (message) {
     case WM_DESTROY:
       window_handle_ = nullptr;

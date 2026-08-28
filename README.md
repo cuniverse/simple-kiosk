@@ -5,7 +5,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
-- 최신 안정 버전: [`v1.2.25`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.25)
+- 최신 안정 버전: [`v1.2.26`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.26)
 - 변경 내역: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 운영자 매뉴얼: [docs/MANUAL.md](docs/MANUAL.md)
 - Windows 최초 설치: [docs/WINDOWS_FIRST_INSTALL.md](docs/WINDOWS_FIRST_INSTALL.md)
@@ -68,6 +68,10 @@ flutter run -d macos
 ```
 
 ## Windows 설치 및 업데이트
+
+Windows에서 앱을 다시 실행하면 기존 인스턴스가 트레이에 숨겨져 있어도 완전히 종료한
+뒤 새 인스턴스를 시작합니다. 기존 프로세스가 종료되기 전에는 두 인스턴스가 동시에
+실행되지 않으며, 기존 프로세스가 응답하지 않으면 해당 인스턴스만 강제 종료합니다.
 
 처음 설치하는 PC에는 [최신 GitHub Release](https://github.com/cuniverse/simple-kiosk/releases/latest)의
 `simple-kiosk-windows-setup-<version>.exe` 사용을 권장합니다. 설치 없이 시험하거나 별도
@@ -144,12 +148,12 @@ bash scripts/package-macos.sh
 .\scripts\package-windows.ps1 -BuildInstaller
 
 # 패키지 파일명에 사용할 버전을 직접 지정
-.\scripts\package-windows.ps1 -PackageVersion 1.2.25
+.\scripts\package-windows.ps1 -PackageVersion 1.2.26
 ```
 
 GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
-`v1.2.25` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.25.zip`, 최초
-설치용 `simple-kiosk-windows-setup-1.2.25.exe`, 자동 업데이트용
+`v1.2.26` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.26.zip`, 최초
+설치용 `simple-kiosk-windows-setup-1.2.26.exe`, 자동 업데이트용
 `update-manifest.json`을 생성합니다. ZIP 안의
 `ysignage.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
 `-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.

@@ -775,6 +775,48 @@ void main() {
       'assets/icons/languages/en-us-gb.png',
     );
     expect(config.language('ko').items.first.title, 'WYD 서울 2027');
+    final parishItems =
+        config.language('ko').topic('ycatholic').items.map((item) => item.id);
+    expect(
+      parishItems,
+      containsAll(['annual-events', 'sacraments', 'mass-times']),
+    );
+    const vaticanUrls = {
+      'ko': 'https://www.vaticannews.va/ko.html',
+      'en': 'https://www.vaticannews.va/en.html',
+      'es': 'https://www.vaticannews.va/es.html',
+      'fr': 'https://www.vaticannews.va/fr.html',
+      'pt': 'https://www.vaticannews.va/pt.html',
+      'it': 'https://www.vaticannews.va/it.html',
+    };
+    final rawLanguages = Map.fromEntries(
+      (decoded['languages'] as List).cast<Map<String, dynamic>>().map(
+            (language) => MapEntry(language['id'] as String, language),
+          ),
+    );
+    for (final entry in vaticanUrls.entries) {
+      final language = rawLanguages[entry.key]!;
+      final item = (language['topics'] as List)
+          .cast<Map<String, dynamic>>()
+          .expand(
+            (topic) => (topic['items'] as List).cast<Map<String, dynamic>>(),
+          )
+          .firstWhere((item) => item['id'] == 'vatican-news');
+      expect(item['url'], entry.value);
+      expect(item['icon'], 'assets/icons/vatican-news-white.png');
+      expect(item['selectedIcon'], 'assets/icons/vatican-news.png');
+    }
+    for (final path in [
+      'assets/icons/aos-toolbar.png',
+      'assets/icons/goodnews-white.png',
+      'assets/icons/goodnews.png',
+      'assets/icons/vatican-news-black.png',
+      'assets/icons/vatican-news-white.png',
+      'assets/icons/vatican-news.png',
+    ]) {
+      expect(File(path).existsSync(), isTrue, reason: path);
+    }
+    expect(File('assets/icons/goodnews-wite.png').existsSync(), isFalse);
     expect(config.layout.fontFamily, 'Pretendard');
     expect(config.layout.menuFontFamily, 'Pretendard');
     final highContrast = jsonDecode(
