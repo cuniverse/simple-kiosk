@@ -49,7 +49,7 @@ class SlideshowConfig {
   /// 전환 효과.
   final SlideshowTransition transition;
 
-  /// 이미지 경로 목록.
+  /// 이미지 또는 동영상 경로 목록.
   /// - `assets/...` → 에셋
   /// - `http(s)://...` → 네트워크
   final List<String> images;

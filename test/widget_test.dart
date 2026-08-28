@@ -24,6 +24,7 @@ import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/service/menu_config_loader.dart';
 import 'package:simple_kiosk/service/menu_config_migrator.dart';
 import 'package:simple_kiosk/service/keyboard_controller.dart';
+import 'package:simple_kiosk/service/media_scanner.dart';
 import 'package:simple_kiosk/service/system_keyboard.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/service/windows_startup_service.dart';
@@ -136,6 +137,22 @@ void main() {
     expect(page, contains('event.ctrlKey||event.metaKey'));
     expect(page, contains("e.key.toLowerCase()==='a'"));
     expect(page, contains(r'선택한 ${entries.length}개 항목'));
+  });
+
+  test('웹 관리자에서 환경 정보가 포함된 GitHub 이슈를 작성한다', () {
+    final page = File('assets/admin/index.html').readAsStringSync();
+
+    expect(page, contains('id="issueTitle"'));
+    expect(page, contains('id="issueDescription"'));
+    expect(page, contains('id="openGitHubIssue"'));
+    expect(page, contains('id="copyIssueReport"'));
+    expect(
+      page,
+      contains('https://github.com/cuniverse/simple-kiosk/issues/new'),
+    );
+    expect(page, contains('async function buildIssueReport()'));
+    expect(page, contains('system.operatingSystemVersion'));
+    expect(page, isNot(contains('githubToken')));
   });
 
   test('웹 관리자는 레이아웃과 UI 모양을 분리하고 사용자 테마를 관리한다', () {
@@ -1262,6 +1279,23 @@ void main() {
     expect(config.isUsable, isFalse);
   });
 
+  test('슬라이드쇼는 폴더와 같은 동영상 확장자를 판별한다', () {
+    for (final extension in MediaScanner.videoExtensions) {
+      expect(
+        MediaScanner.isVideoPath('assets/idle/movie$extension'),
+        isTrue,
+      );
+    }
+    expect(
+      MediaScanner.isVideoPath(
+        'https://example.com/event.MP4?token=abc#playback',
+      ),
+      isTrue,
+    );
+    expect(MediaScanner.isVideoPath('exdata/slides/movie.mp4.jpg'), isFalse);
+    expect(MediaScanner.isVideoPath('assets/idle/slide.webp'), isFalse);
+  });
+
   test('포토갤러리 대기화면 설정을 파싱한다', () {
     final config = IdleConfig.fromJson({
       'enabled': true,
@@ -1577,6 +1611,12 @@ void main() {
     ''');
 
     expect(ids, ['uYY2QToeaqc', 'dQw4w9WgXcQ', 'aqz-KE-bpKQ']);
+    expect(
+      parseYoutubeVideoId(
+        'https://youtu.be/uYY2QToeaqc?si=pFeRxJCuSY6nQA0',
+      ),
+      'uYY2QToeaqc',
+    );
   });
 
   test('gallery uses an embedded YouTube video instead of its poster image',
@@ -1627,6 +1667,16 @@ void main() {
     expect(html, contains('event.target.setVolume(100)'));
     expect(html, contains("notify('playing')"));
     expect(html, contains("notify('ended')"));
+  });
+
+  test('슬라이드와 웹 화면의 YouTube 주소는 전용 플레이어로 연결한다', () {
+    final source = File('lib/widget/idle_overlay.dart').readAsStringSync();
+
+    expect(source, contains('parseYoutubeVideoId(path)'));
+    expect(source, contains('parseYoutubeVideoId(widget.url)'));
+    expect(source, contains("key: ValueKey('idle-url-youtube:"));
+    expect(buildYoutubePlayerHtml('uYY2QToeaqc', loop: true),
+        contains('if(true)'));
   });
 
   test('gallery ignores posts whose normalized title starts with hash',

@@ -435,7 +435,7 @@ List<String> parsePostYoutubeVideoIds(String html) {
   final seen = <String>{};
   for (final element in content.querySelectorAll('iframe[src], a[href]')) {
     final value = element.attributes['src'] ?? element.attributes['href'];
-    final videoId = value == null ? null : _youtubeVideoId(value);
+    final videoId = value == null ? null : parseYoutubeVideoId(value);
     if (videoId != null && seen.add(videoId)) videoIds.add(videoId);
   }
 
@@ -445,13 +445,14 @@ List<String> parsePostYoutubeVideoIds(String html) {
     caseSensitive: false,
   );
   for (final match in urlPattern.allMatches(content.text)) {
-    final videoId = _youtubeVideoId(match.group(0)!);
+    final videoId = parseYoutubeVideoId(match.group(0)!);
     if (videoId != null && seen.add(videoId)) videoIds.add(videoId);
   }
   return videoIds;
 }
 
-String? _youtubeVideoId(String value) {
+/// YouTube 공유·watch·embed·shorts·live 주소에서 11자리 영상 ID를 추출한다.
+String? parseYoutubeVideoId(String value) {
   var candidate = value.trim().replaceAll('&amp;', '&');
   if (candidate.startsWith('//')) candidate = 'https:$candidate';
   final uri = Uri.tryParse(candidate);

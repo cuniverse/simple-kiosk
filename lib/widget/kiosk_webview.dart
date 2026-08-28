@@ -93,6 +93,7 @@ class KioskWebView extends StatefulWidget {
   final VoidCallback? onInitialLoadReady;
 
   /// 네이티브 WebView가 키보드 포커스를 가진 경우의 기능키 전달 콜백.
+  final VoidCallback? onShowManual;
   final VoidCallback? onShowVersion;
   final VoidCallback? onCheckUpdate;
 
@@ -104,6 +105,7 @@ class KioskWebView extends StatefulWidget {
     required this.initialUrl,
     this.onReady,
     this.onInitialLoadReady,
+    this.onShowManual,
     this.onShowVersion,
     this.onCheckUpdate,
     this.active = true,
@@ -673,7 +675,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     }
   }
 
-  /// Windows WebView2가 직접 키보드 포커스를 가진 동안에도 F9/F12가 앱에
+  /// Windows WebView2가 직접 키보드 포커스를 가진 동안에도 F1/F9/F12가 앱에
   /// 전달되도록 페이지의 캡처 단계에서 기능키를 가로챈다.
   Future<void> _injectFunctionKeyScript() async {
     final controller = _webController;
@@ -686,7 +688,9 @@ class _KioskWebViewState extends State<KioskWebView> {
           window.addEventListener('keydown', function (event) {
             if (event.repeat) return;
             var handler = null;
-            if (event.key === 'F12' || event.keyCode === 123) {
+            if (event.key === 'F1' || event.keyCode === 112) {
+              handler = 'kioskShowManual';
+            } else if (event.key === 'F12' || event.keyCode === 123) {
               handler = 'kioskShowVersion';
             } else if (event.key === 'F9' || event.keyCode === 120) {
               handler = 'kioskCheckUpdate';
@@ -919,6 +923,13 @@ class _KioskWebViewState extends State<KioskWebView> {
                 handlerName: 'kioskKeyboardHide',
                 callback: (_) {
                   _requestHideSystemKeyboard();
+                  return null;
+                },
+              );
+              controller.addJavaScriptHandler(
+                handlerName: 'kioskShowManual',
+                callback: (_) {
+                  if (widget.active) widget.onShowManual?.call();
                   return null;
                 },
               );

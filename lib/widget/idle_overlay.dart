@@ -204,6 +204,16 @@ Widget _idleImageForPath(String path, {required BoxFit fit, Key? key}) {
   return PlatformFileImage(key: key, path: path, fit: fit);
 }
 
+VideoPlayerController _videoControllerForPath(String path) {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return VideoControllerFactory.network(path);
+  }
+  if (path.startsWith('assets/') || path.startsWith('asset/')) {
+    return VideoControllerFactory.asset(path);
+  }
+  return VideoControllerFactory.file(path);
+}
+
 /// 설정된 대기 이미지가 없거나 네트워크에서 읽히지 않을 때 표시하는 안전 화면.
 ///
 /// 운영 중 콘텐츠 파일 하나가 빠져도 이미지 디코딩 오류가 화면 전체를 깨뜨리지
@@ -240,12 +250,17 @@ class _IdleSlideshow extends StatefulWidget {
 class _IdleSlideshowState extends State<_IdleSlideshow> {
   int _index = 0;
   Timer? _timer;
+  Timer? _youtubeLoadTimer;
+  VideoPlayerController? _videoController;
+  bool _videoListenerAttached = false;
+  bool _videoLoadFailed = false;
+  bool _youtubeLoadFailed = false;
   double _horizontalDragDistance = 0;
 
   @override
   void initState() {
     super.initState();
-    _scheduleNext();
+    _playCurrent();
   }
 
   void _scheduleNext() {
@@ -262,10 +277,99 @@ class _IdleSlideshowState extends State<_IdleSlideshow> {
   void _move(int offset) {
     if (widget.config.images.length < 2) return;
     _timer?.cancel();
+    _youtubeLoadTimer?.cancel();
+    _disposeVideo();
     setState(() {
       _index = (_index + offset) % widget.config.images.length;
+      _videoLoadFailed = false;
+      _youtubeLoadFailed = false;
     });
-    _scheduleNext();
+    _playCurrent();
+  }
+
+  void _playCurrent() {
+    _timer?.cancel();
+    _youtubeLoadTimer?.cancel();
+    _disposeVideo();
+    final path = widget.config.images[_index];
+    final youtubeVideoId = parseYoutubeVideoId(path);
+    if (youtubeVideoId != null) {
+      _youtubeLoadTimer = Timer(const Duration(seconds: 30), () {
+        if (mounted) _onYoutubeError(path);
+      });
+      setState(() {});
+    } else if (MediaScanner.isVideoPath(path)) {
+      _startVideo(path);
+    } else {
+      _scheduleNext();
+    }
+  }
+
+  Future<void> _startVideo(String path) async {
+    final controller = _videoControllerForPath(path);
+    _videoController = controller;
+    try {
+      await controller.initialize();
+      if (!mounted || _videoController != controller) {
+        await controller.dispose();
+        return;
+      }
+      controller.addListener(_onVideoTick);
+      _videoListenerAttached = true;
+      await controller.setVolume(0);
+      await controller.setLooping(widget.config.images.length == 1);
+      await controller.play();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (!mounted || _videoController != controller) return;
+      _disposeVideo();
+      if (widget.config.images.length > 1) {
+        _move(1);
+      } else {
+        setState(() => _videoLoadFailed = true);
+      }
+    }
+  }
+
+  void _onVideoTick() {
+    final controller = _videoController;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (widget.config.images.length > 1 &&
+        controller.value.duration > Duration.zero &&
+        controller.value.position >= controller.value.duration) {
+      _move(1);
+    }
+  }
+
+  void _onYoutubeReady(String path) {
+    if (widget.config.images[_index] != path) return;
+    _youtubeLoadTimer?.cancel();
+    _youtubeLoadTimer = null;
+  }
+
+  void _onYoutubeEnded(String path) {
+    if (widget.config.images[_index] != path) return;
+    if (widget.config.images.length > 1) _move(1);
+  }
+
+  void _onYoutubeError(String path) {
+    if (widget.config.images[_index] != path) return;
+    _youtubeLoadTimer?.cancel();
+    _youtubeLoadTimer = null;
+    if (widget.config.images.length > 1) {
+      _move(1);
+    } else {
+      setState(() => _youtubeLoadFailed = true);
+    }
+  }
+
+  void _disposeVideo() {
+    final controller = _videoController;
+    if (controller == null) return;
+    if (_videoListenerAttached) controller.removeListener(_onVideoTick);
+    _videoListenerAttached = false;
+    _videoController = null;
+    controller.dispose();
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
@@ -295,12 +399,80 @@ class _IdleSlideshowState extends State<_IdleSlideshow> {
   @override
   void dispose() {
     _timer?.cancel();
+    _youtubeLoadTimer?.cancel();
+    _disposeVideo();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final path = widget.config.images[_index];
+    final youtubeVideoId = parseYoutubeVideoId(path);
+    if (youtubeVideoId != null) {
+      final content = _youtubeLoadFailed
+          ? Image.network(
+              'https://i.ytimg.com/vi/$youtubeVideoId/hqdefault.jpg',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+            )
+          : _YouTubeIdlePlayer(
+              key: ValueKey(path),
+              videoId: youtubeVideoId,
+              loop: widget.config.images.length == 1,
+              onReady: () => _onYoutubeReady(path),
+              onEnded: () => _onYoutubeEnded(path),
+              onError: () => _onYoutubeError(path),
+            );
+      return Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onDismiss,
+          onHorizontalDragStart: (_) => _horizontalDragDistance = 0,
+          onHorizontalDragUpdate: (details) {
+            _horizontalDragDistance += details.delta.dx;
+          },
+          onHorizontalDragEnd: _finishHorizontalDrag,
+          child: ColoredBox(color: Colors.black, child: content),
+        ),
+      );
+    }
+    if (MediaScanner.isVideoPath(path)) {
+      final controller = _videoController;
+      final video = _videoLoadFailed
+          ? const _IdleMediaFallback()
+          : controller == null || !controller.value.isInitialized
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white70),
+                )
+              : Center(
+                  child: AspectRatio(
+                    aspectRatio: controller.value.aspectRatio == 0
+                        ? 16 / 9
+                        : controller.value.aspectRatio,
+                    child: VideoPlayer(controller),
+                  ),
+                );
+      return Focus(
+        autofocus: true,
+        onKeyEvent: _handleKey,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onDismiss,
+          onHorizontalDragStart: (_) => _horizontalDragDistance = 0,
+          onHorizontalDragUpdate: (details) {
+            _horizontalDragDistance += details.delta.dx;
+          },
+          onHorizontalDragEnd: _finishHorizontalDrag,
+          child: ColoredBox(
+            key: ValueKey(path),
+            color: Colors.black,
+            child: video,
+          ),
+        ),
+      );
+    }
     final image = _idleImageForPath(
       path,
       key: ValueKey(path),
@@ -339,6 +511,7 @@ enum _MixedMediaKind {
   fileImage,
   assetVideo,
   fileVideo,
+  networkVideo,
   youtube,
 }
 
@@ -364,7 +537,9 @@ class _MixedMediaItem {
   });
 
   bool get isVideo =>
-      kind == _MixedMediaKind.assetVideo || kind == _MixedMediaKind.fileVideo;
+      kind == _MixedMediaKind.assetVideo ||
+      kind == _MixedMediaKind.fileVideo ||
+      kind == _MixedMediaKind.networkVideo;
   bool get isYoutube => kind == _MixedMediaKind.youtube;
 }
 
@@ -435,14 +610,27 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
               path.startsWith('http://') || path.startsWith('https://');
           final isAsset =
               path.startsWith('assets/') || path.startsWith('asset/');
+          final youtubeVideoId = parseYoutubeVideoId(path);
+          final video = MediaScanner.isVideoPath(path);
           return _MixedMediaItem(
             id: 'slideshow:$path',
-            kind: network
-                ? _MixedMediaKind.networkImage
-                : isAsset
-                    ? _MixedMediaKind.assetImage
-                    : _MixedMediaKind.fileImage,
-            path: path,
+            kind: youtubeVideoId != null
+                ? _MixedMediaKind.youtube
+                : video
+                    ? network
+                        ? _MixedMediaKind.networkVideo
+                        : isAsset
+                            ? _MixedMediaKind.assetVideo
+                            : _MixedMediaKind.fileVideo
+                    : network
+                        ? _MixedMediaKind.networkImage
+                        : isAsset
+                            ? _MixedMediaKind.assetImage
+                            : _MixedMediaKind.fileImage,
+            path: youtubeVideoId ?? path,
+            fallbackImagePath: youtubeVideoId == null
+                ? null
+                : 'https://i.ytimg.com/vi/$youtubeVideoId/hqdefault.jpg',
             intervalSec: widget.config.slideshow.intervalSec,
             transition: widget.config.slideshow.transition,
           );
@@ -647,9 +835,7 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
   }
 
   Future<void> _startVideo(_MixedMediaItem item) async {
-    final controller = item.kind == _MixedMediaKind.assetVideo
-        ? VideoControllerFactory.asset(item.path)
-        : VideoControllerFactory.file(item.path);
+    final controller = _videoControllerForPath(item.path);
     _videoController = controller;
     try {
       await controller.initialize();
@@ -1371,14 +1557,76 @@ class _YouTubeIdlePlayer extends StatelessWidget {
 ///
 /// 사용자가 페이지 내부 링크를 클릭하는 것을 막기 위해 호출자에서 위에
 /// [AbsorbPointer] 를 깔아 탭을 가로채고 dismiss 처리한다.
-class _IdleUrl extends StatelessWidget {
+class _IdleUrl extends StatefulWidget {
   final String url;
   const _IdleUrl({required this.url});
 
   @override
+  State<_IdleUrl> createState() => _IdleUrlState();
+}
+
+class _IdleUrlState extends State<_IdleUrl> {
+  Timer? _youtubeLoadTimer;
+  bool _youtubeLoadFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startYoutubeLoadTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _IdleUrl oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url == widget.url) return;
+    _youtubeLoadTimer?.cancel();
+    _youtubeLoadFailed = false;
+    _startYoutubeLoadTimer();
+  }
+
+  void _startYoutubeLoadTimer() {
+    if (parseYoutubeVideoId(widget.url) == null) return;
+    _youtubeLoadTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted) setState(() => _youtubeLoadFailed = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _youtubeLoadTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final youtubeVideoId = parseYoutubeVideoId(widget.url);
+    if (youtubeVideoId != null) {
+      if (_youtubeLoadFailed) {
+        return Image.network(
+          'https://i.ytimg.com/vi/$youtubeVideoId/hqdefault.jpg',
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+        );
+      }
+      return _YouTubeIdlePlayer(
+        key: ValueKey('idle-url-youtube:$youtubeVideoId'),
+        videoId: youtubeVideoId,
+        loop: true,
+        onReady: () {
+          _youtubeLoadTimer?.cancel();
+          _youtubeLoadTimer = null;
+        },
+        onEnded: () {},
+        onError: () {
+          _youtubeLoadTimer?.cancel();
+          _youtubeLoadTimer = null;
+          if (mounted) setState(() => _youtubeLoadFailed = true);
+        },
+      );
+    }
     return InAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(url)),
+      key: ValueKey('idle-url:${widget.url}'),
+      initialUrlRequest: URLRequest(url: WebUri(widget.url)),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         mediaPlaybackRequiresUserGesture: false,
@@ -1393,7 +1641,7 @@ class _IdleUrl extends StatelessWidget {
           return NavigationActionPolicy.ALLOW;
         }
         final current = navAction.request.url?.toString();
-        if (current == url) return NavigationActionPolicy.ALLOW;
+        if (current == widget.url) return NavigationActionPolicy.ALLOW;
         return NavigationActionPolicy.CANCEL;
       },
     );

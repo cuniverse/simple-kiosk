@@ -111,7 +111,13 @@ void main() {
       ),
       mdnsPublisher: mdnsPublisher,
       pageLoader: () async => '<html>admin</html>',
-      statusProvider: () async => {'running': true},
+      statusProvider: () async => {
+        'running': true,
+        'system': {
+          'operatingSystem': Platform.operatingSystem,
+          'buildMode': 'debug',
+        },
+      },
       actionHandler: (value) async {
         action = value;
         return {'message': value};
@@ -156,9 +162,13 @@ void main() {
         headers: headers,
       );
       expect(status.statusCode, 200);
-      expect(json.decode(status.body)['running'], isTrue);
+      final statusBody = json.decode(status.body) as Map<String, dynamic>;
+      expect(statusBody['running'], isTrue);
+      expect(statusBody['system'], isA<Map<String, dynamic>>());
+      expect(statusBody['system']['operatingSystem'], isNotEmpty);
+      expect(statusBody['system']['buildMode'], anyOf('debug', 'release'));
       expect(
-        json.decode(status.body)['adminApi']['mdnsHostname'],
+        statusBody['adminApi']['mdnsHostname'],
         'ysignage.local',
       );
       expect(

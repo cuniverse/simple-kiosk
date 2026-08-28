@@ -26,11 +26,31 @@ class MediaItem {
 /// 폴더(에셋 또는 파일시스템)를 스캔해서 미디어 목록을 만든다.
 class MediaScanner {
   static const Set<String> _imageExt = {
-    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp',
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.bmp',
   };
-  static const Set<String> _videoExt = {
-    '.mp4', '.mov', '.m4v', '.webm', '.mkv', '.avi',
+  static const Set<String> videoExtensions = {
+    '.mp4',
+    '.mov',
+    '.m4v',
+    '.webm',
+    '.mkv',
+    '.avi',
   };
+
+  /// 설정에 직접 입력한 에셋·파일·URL 경로가 지원 동영상인지 판별한다.
+  /// URL의 쿼리 문자열과 fragment는 확장자 판별에서 제외한다.
+  static bool isVideoPath(String path) =>
+      _classify(
+        path.split(RegExp(r'[?#]')).first,
+        includeImages: false,
+        includeVideos: true,
+      ) ==
+      MediaKind.video;
 
   /// 지정한 폴더([path])에서 미디어 파일들을 찾아 [MediaItem] 목록을 반환한다.
   ///
@@ -80,7 +100,7 @@ class MediaScanner {
     if (dotIdx < 0) return null;
     final ext = lower.substring(dotIdx);
     if (includeImages && _imageExt.contains(ext)) return MediaKind.image;
-    if (includeVideos && _videoExt.contains(ext)) return MediaKind.video;
+    if (includeVideos && videoExtensions.contains(ext)) return MediaKind.video;
     return null;
   }
 

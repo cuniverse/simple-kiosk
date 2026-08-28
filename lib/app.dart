@@ -35,6 +35,7 @@ import 'service/webview_data_service.dart';
 import 'service/app_health_signal.dart';
 import 'service/update_controller.dart';
 import 'service/update_service.dart';
+import 'service/user_manual_service.dart';
 import 'widget/kiosk_shortcuts.dart';
 import 'widget/language_selection.dart';
 import 'widget/update_admin_dialog.dart';
@@ -477,6 +478,12 @@ class _KioskHomeState extends State<_KioskHome> {
       'version': _updateController.currentVersion,
       'startedAt': _startedAt.toUtc().toIso8601String(),
       'uptimeSeconds': DateTime.now().difference(_startedAt).inSeconds,
+      'system': {
+        'operatingSystem': Platform.operatingSystem,
+        'operatingSystemVersion': Platform.operatingSystemVersion,
+        'buildMode': kReleaseMode ? 'release' : 'debug',
+        'updaterVersion': UpdateService.updaterVersion,
+      },
       'selectedLanguage': _selectedLanguage.id,
       'selectedTopic': _selectedTopic.id,
       'selectedMenu': _items[_selectedIndex].id,
@@ -1049,17 +1056,26 @@ class _KioskHomeState extends State<_KioskHome> {
     _manualDialogOpen = true;
     try {
       final path = RuntimePaths.child('USER_MANUAL.html');
-      if (path == null || !await File(path).exists()) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('사용자 매뉴얼 파일을 찾을 수 없습니다.')),
-          );
+      late final String html;
+      late final WebUri baseUrl;
+      if (path != null && await File(path).exists()) {
+        html = await File(path).readAsString();
+        baseUrl = WebUri.uri(File(path).uri);
+      } else {
+        try {
+          final markdownSource = await rootBundle.loadString('docs/MANUAL.md');
+          html = buildUserManualHtml(markdownSource);
+          baseUrl = WebUri(userManualRepositoryDocsBase);
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('사용자 매뉴얼을 불러올 수 없습니다.')),
+            );
+          }
+          return;
         }
-        return;
       }
-      final html = await File(path).readAsString();
       if (!mounted) return;
-      final baseUrl = WebUri.uri(File(path).uri);
       InAppWebViewController? manualController;
       await showDialog<void>(
         context: context,
@@ -1378,6 +1394,7 @@ class _KioskHomeState extends State<_KioskHome> {
                           ),
                           initialUrl: item.url,
                           active: slot == _selectedSlot,
+                          onShowManual: _showUserManual,
                           onShowVersion: _showVersionInfo,
                           onCheckUpdate: _checkUpdateFromShortcut,
                           onReady: (c) {

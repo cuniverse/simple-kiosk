@@ -13,6 +13,7 @@ dependencies:
   # 포토갤러리 대기화면의 게시판 HTML 요청/파싱.
   http: ^1.6.0
   html: ^0.15.6
+  markdown: ^7.3.1
   crypto: ^3.0.6
   # PowerShell 없이 동작하는 Windows 업데이트 실행기의 ZIP 해제.
   archive: ^4.1.0
@@ -44,7 +45,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  markdown: ^7.3.1
 
 flutter:
   uses-material-design: true
@@ -58,6 +58,7 @@ flutter:
     - assets/fonts/licenses/
     - assets/ssh/
     - assets/themes/
+    - docs/MANUAL.md
   fonts:
     - family: NanumSquare
       fonts:
