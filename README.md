@@ -5,7 +5,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
-- 최신 안정 버전: [`v1.2.28`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.28)
+- 최신 안정 버전: [`v1.2.29`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.29)
 - 변경 내역: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 운영자 매뉴얼: [docs/MANUAL.md](docs/MANUAL.md)
 - Windows 최초 설치: [docs/WINDOWS_FIRST_INSTALL.md](docs/WINDOWS_FIRST_INSTALL.md)
@@ -148,12 +148,12 @@ bash scripts/package-macos.sh
 .\scripts\package-windows.ps1 -BuildInstaller
 
 # 패키지 파일명에 사용할 버전을 직접 지정
-.\scripts\package-windows.ps1 -PackageVersion 1.2.28
+.\scripts\package-windows.ps1 -PackageVersion 1.2.29
 ```
 
 GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
-`v1.2.28` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.28.zip`, 최초
-설치용 `simple-kiosk-windows-setup-1.2.28.exe`, 자동 업데이트용
+`v1.2.29` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.29.zip`, 최초
+설치용 `simple-kiosk-windows-setup-1.2.29.exe`, 자동 업데이트용
 `update-manifest.json`을 생성합니다. ZIP 안의
 `ysignage.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
 `-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.
