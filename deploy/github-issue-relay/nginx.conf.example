@@ -1,0 +1,21 @@
+# http { } 블록에 한 번만 추가합니다.
+limit_req_zone $binary_remote_addr zone=simple_kiosk_issue_reports:10m rate=3r/m;
+
+# 기존 *.signage.cuniverse.net server { } 블록 안에서
+# SSH reverse forwarding을 처리하는 location / 보다 앞에 추가합니다.
+location = /api/github-issues {
+    limit_req zone=simple_kiosk_issue_reports burst=3 nodelay;
+    limit_except POST { deny all; }
+
+    client_max_body_size 64k;
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME /var/www/simple-kiosk-issue-relay/public/index.php;
+    fastcgi_param SCRIPT_NAME /index.php;
+    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+}
+
+# 기존 reverse forwarding 설정은 그대로 유지합니다.
+# 실제 환경의 socket 변수/경로를 사용하세요.
+# location / {
+#     proxy_pass http://unix:/run/signage/$signage_id.sock;
+# }

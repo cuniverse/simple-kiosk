@@ -139,20 +139,41 @@ void main() {
     expect(page, contains(r'선택한 ${entries.length}개 항목'));
   });
 
-  test('웹 관리자에서 환경 정보가 포함된 GitHub 이슈를 작성한다', () {
+  test('웹 관리자에서 로그인 없이 GitHub 이슈 중계 서버에 등록한다', () {
     final page = File('assets/admin/index.html').readAsStringSync();
 
     expect(page, contains('id="issueTitle"'));
     expect(page, contains('id="issueDescription"'));
-    expect(page, contains('id="openGitHubIssue"'));
+    expect(page, contains('id="submitGitHubIssue"'));
     expect(page, contains('id="copyIssueReport"'));
-    expect(
-      page,
-      contains('https://github.com/cuniverse/simple-kiosk/issues/new'),
-    );
+    expect(page, contains("fetch('/api/github-issues'"));
     expect(page, contains('async function buildIssueReport()'));
+    expect(page, contains('async function submitGitHubIssue()'));
     expect(page, contains('system.operatingSystemVersion'));
     expect(page, isNot(contains('githubToken')));
+    expect(page, isNot(contains('/issues/new')));
+  });
+
+  test('GitHub App 기반 PHP 이슈 중계기와 Nginx 설정을 제공한다', () {
+    final relay = File(
+      'deploy/github-issue-relay/public/index.php',
+    ).readAsStringSync();
+    final config = File(
+      'deploy/github-issue-relay/config.example.php',
+    ).readAsStringSync();
+    final nginx = File(
+      'deploy/github-issue-relay/nginx.conf.example',
+    ).readAsStringSync();
+
+    expect(relay, contains('openssl_sign'));
+    expect(relay, contains('/app/installations/'));
+    expect(relay, contains('/issues'));
+    expect(relay, isNot(contains("'Issues'")));
+    expect(config, contains('github_app_client_id'));
+    expect(config, contains('github_private_key_file'));
+    expect(config, isNot(contains('github_pat_')));
+    expect(nginx, contains('location = /api/github-issues'));
+    expect(nginx, contains('limit_req zone='));
   });
 
   test('웹 관리자는 레이아웃과 UI 모양을 분리하고 사용자 테마를 관리한다', () {

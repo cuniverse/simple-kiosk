@@ -425,8 +425,14 @@ assets/
   ssh/                               # 원격 WEB 관리자 접속 전용 SSH 키
 packages/
   dartssh2-3.3.1/                    # 소스 포함 SSH 및 stream-local forwarding 라이브러리
+deploy/
+  github-issue-relay/                # 로그인 없는 GitHub 이슈 등록용 PHP/Nginx 예시
 ```
 
 원격 WEB 관리자용 개인 키는 `assets/ssh/web-admin-tunnel-key`에 추가합니다. 이 폴더는
 Flutter asset으로 등록되어 Windows ZIP과 설치 프로그램에 자동 포함됩니다. 키가 없는
 개발 빌드는 원격 연결을 시도하지 않고 설정 화면에 키 미포함 상태를 표시합니다.
+
+원격 WEB 관리자의 GitHub 이슈 리포트를 로그인 없이 바로 등록하려면 GW 서버에
+[`deploy/github-issue-relay`](deploy/github-issue-relay/README.md)의 PHP 중계기와
+Nginx location을 설치합니다. GitHub App 개인키는 GW 서버에만 저장합니다.
