@@ -21,8 +21,10 @@ Bootstrapper를 자동 실행합니다. WebView2 자동 설치에는 인터넷 �
 
 1. `simple-kiosk-windows-setup-<version>.exe`를 실행합니다.
 2. 최초 SmartScreen 화면이 표시되면 배포 출처를 확인한 뒤 실행합니다.
-3. 설치 위치, Windows 로그인 시 자동 실행, 바탕화면 바로가기 생성 여부를 선택합니다.
-4. 설치 완료 후 시작 메뉴의 `여의도성당Signage`를 실행합니다.
+3. 설치 위치, Windows 로그인 시 자동 실행, 바탕화면 바로가기와 **사설 네트워크에서
+   WEB 관리 자동 허용** 여부를 선택합니다.
+4. 방화벽 자동 허용을 선택했다면 Windows 관리자 승인을 한 번 진행합니다.
+5. 설치 완료 후 시작 메뉴의 `여의도성당Signage`를 실행합니다.
 
 installer는 자동 업데이트용 런처와 버전 포인터를 자동 구성합니다. **Windows 로그인 시
 여의도성당Signage 자동 실행**은 기본적으로 선택되며, 필요하지 않으면 설치 옵션에서 해제할 수
@@ -36,6 +38,14 @@ installer는 자동 업데이트용 런처와 버전 포인터를 자동 구성�
 일반 실행과 자동 업데이트 과정에서는 PowerShell이나 CMD 스크립트를 사용하지 않습니다.
 자동 업데이트는 `ysignage_updater.exe`가 ZIP 검증·설치·재시작·정상 실행 확인 및
 실패 시 이전 버전 복구를 처리합니다.
+
+방화벽 자동 허용은 기본으로 선택되며 현재 `admin-api.json`의 WEB 관리 TCP 포트와,
+mDNS가 켜진 경우 UDP 5353 규칙을 등록합니다. 두 규칙 모두 `Domain`, `Private` 프로필과
+`LocalSubnet`으로 제한하므로 공개 네트워크나 인터넷 전체에는 열리지 않습니다. 실행 파일
+경로가 아니라 제한된 포트를 기준으로 하므로 자동 업데이트로 버전 폴더가 바뀌어도 규칙은
+유지됩니다. 설치 옵션을 나중에 해제하거나 프로그램을 제거하면 Setup이 만든 규칙도
+관리자 승인 후 삭제합니다. 무인 설치와 포터블 ZIP은 UAC 승인을 자동 처리할 수 없으므로
+이 기능을 자동 적용하지 않습니다.
 
 가상 키보드는 Windows 기본 화면 키보드를 사용합니다. 프로그램의 **설정 > 가상 키보드
 방식** 또는 웹 관리자 페이지의 **사이니지 구성 > 레이아웃 > 키보드 방식**에서 기존
@@ -121,6 +131,16 @@ Windows Assigned Access 또는 Shell Launcher와 AppLocker 정책을 함께 적�
 프로그램의 **설정 > 관리 API / 관리자 페이지**에서 사용 여부와 포트를 변경할 수 있고,
 설정은 `<프로그램 폴더>\config\admin-api.json`에 저장됩니다. 포트가 이미 사용 중이면
 사이니지는 계속 실행되며 설정 화면에 API 시작 오류가 표시됩니다.
+
+Setup이 관리하는 방화벽 규칙은 설치 당시의 포트를 사용합니다. 이후 관리 포트나 mDNS
+설정을 바꿨다면 관리자 PowerShell에서 다음 명령을 한 번 실행해 기존 규칙을 새 설정으로
+교체합니다.
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\SimpleKiosk\updater\configure-firewall.ps1" `
+  -Action Install `
+  -InstallRoot "$env:LOCALAPPDATA\Programs\SimpleKiosk"
+```
 
 **원격 WEB 관리자 연결**은 기본값이 ON입니다. 프로그램에 포함된 SSH 라이브러리와
 접속 전용 키를 사용하므로 외부 `ssh.exe`는 실행하지 않습니다. GW의

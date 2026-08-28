@@ -8,12 +8,15 @@ Windows 배포본은 installer EXE와 포터블 ZIP을 함께 제공합니다. �
 ## 권장: installer 설치
 
 1. 릴리스의 `simple-kiosk-windows-setup-<version>.exe`를 실행합니다.
-2. Windows 시작프로그램 등록과 바탕화면 바로가기 생성을 선택합니다.
+2. Windows 시작프로그램 등록, 바탕화면 바로가기와 **사설 네트워크에서 WEB 관리 자동
+   허용** 여부를 선택합니다. 방화벽 자동 허용은 기본값이며 관리자 승인이 한 번 필요합니다.
 3. 설치가 끝나면 여의도성당Signage를 실행합니다.
 
 installer는 앱과 함께 Microsoft Visual C++ Runtime 및 Microsoft Edge WebView2 Runtime을
 확인·설치하고, 시작 메뉴 프로그램 그룹과 제거 프로그램을 등록합니다. 기본 설치 위치는
 `%LOCALAPPDATA%\Programs\SimpleKiosk`이며 이전 설치 위치가 있으면 그 위치를 재사용합니다.
+방화벽 자동 허용은 현재 WEB 관리 TCP 포트와 mDNS UDP 5353을 도메인·사설 네트워크의
+같은 서브넷에만 열며, 프로그램 제거 시 해당 규칙을 함께 삭제합니다.
 
 ## 포터블 ZIP 실행
 

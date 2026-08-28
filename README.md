@@ -5,7 +5,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
-- 최신 안정 버전: [`v1.2.30`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.30)
+- 최신 안정 버전: [`v1.2.31`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.31)
 - 변경 내역: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 운영자 매뉴얼: [docs/MANUAL.md](docs/MANUAL.md)
 - Windows 최초 설치: [docs/WINDOWS_FIRST_INSTALL.md](docs/WINDOWS_FIRST_INSTALL.md)
@@ -79,6 +79,11 @@ Windows에서 앱을 다시 실행하면 기존 인스턴스가 트레이에 숨
 실행합니다. 새 PC에서 포터블 ZIP을 사용할 때는 먼저 `InstallPrerequisites.cmd`를
 실행하세요. 자세한 절차는 [Windows 최초 설치 문서](docs/WINDOWS_FIRST_INSTALL.md)에 있습니다.
 
+Setup의 **사설 네트워크에서 WEB 관리 자동 허용**은 기본으로 선택됩니다. 설치 중 한 번의
+관리자 승인을 받으면 현재 관리 TCP 포트와 mDNS UDP 5353을 도메인·사설 네트워크의 같은
+서브넷에만 허용하므로 앱 최초 실행 시 Windows 방화벽 허용 알림이 나타나지 않습니다.
+공개 네트워크와 인터넷 전체에는 포트를 열지 않으며 제거 시 관리 규칙도 삭제합니다.
+
 ### 업데이트 동작
 
 - 자동 업데이트는 기본적으로 꺼져 있습니다. **설정 > 업데이트** 또는 WEB 관리자에서
@@ -148,12 +153,12 @@ bash scripts/package-macos.sh
 .\scripts\package-windows.ps1 -BuildInstaller
 
 # 패키지 파일명에 사용할 버전을 직접 지정
-.\scripts\package-windows.ps1 -PackageVersion 1.2.30
+.\scripts\package-windows.ps1 -PackageVersion 1.2.31
 ```
 
 GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
-`v1.2.30` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.30.zip`, 최초
-설치용 `simple-kiosk-windows-setup-1.2.30.exe`, 자동 업데이트용
+`v1.2.31` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.31.zip`, 최초
+설치용 `simple-kiosk-windows-setup-1.2.31.exe`, 자동 업데이트용
 `update-manifest.json`을 생성합니다. ZIP 안의
 `ysignage.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
 `-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.

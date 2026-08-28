@@ -80,6 +80,7 @@ Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; Paramete
 [Tasks]
 Name: "startup"; Description: "Windows 로그인 시 {#AppName} 자동 실행"; GroupDescription: "자동 실행:"
 Name: "desktopicon"; Description: "바탕 화면 바로가기 만들기"; GroupDescription: "추가 바로가기:"; Flags: unchecked
+Name: "firewall"; Description: "사설 네트워크에서 WEB 관리 자동 허용 (권장, 관리자 승인 1회)"; GroupDescription: "네트워크:"
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\updater\configure-installer.ps1"" -InstallRoot ""{app}"" -Version ""{#AppVersion}"""; Flags: runhidden waituntilterminated
@@ -88,6 +89,61 @@ Filename: "{app}\{#LauncherExeName}"; WorkingDir: "{app}"; Description: "{#AppNa
 [Code]
 var
   DeleteUserData: Boolean;
+
+function ConfigureFirewall(const Action: String): Boolean;
+var
+  ResultCode: Integer;
+  PowerShell: String;
+  ScriptPath: String;
+  Parameters: String;
+begin
+  ResultCode := -1;
+  PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  ScriptPath := ExpandConstant('{app}\updater\configure-firewall.ps1');
+  Parameters :=
+    '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '"' +
+    ' -Action ' + Action + ' -InstallRoot "' + ExpandConstant('{app}') + '"';
+  Result :=
+    ShellExec(
+      'runas', PowerShell, Parameters, '', SW_HIDE,
+      ewWaitUntilTerminated, ResultCode) and
+    (ResultCode = 0);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  MarkerPath: String;
+begin
+  if (CurStep <> ssPostInstall) or
+     WizardSilent then
+    Exit;
+
+  MarkerPath := ExpandConstant('{app}\state\firewall-managed');
+  if WizardIsTaskSelected('firewall') then
+  begin
+    if ConfigureFirewall('Install') then
+    begin
+      if FileExists(ExpandConstant('{app}\state\firewall.json')) then
+        SaveStringToFile(MarkerPath, 'managed', False)
+      else
+        DeleteFile(MarkerPath);
+    end
+    else
+      SuppressibleMsgBox(
+        'Windows 방화벽 자동 허용을 완료하지 못했습니다.' + #13#10 +
+        '사이니지 최초 실행 시 Windows 네트워크 허용 확인이 나타날 수 있습니다.',
+        mbInformation, MB_OK, IDOK);
+  end
+  else if FileExists(MarkerPath) then
+  begin
+    if ConfigureFirewall('Remove') then
+      DeleteFile(MarkerPath)
+    else
+      SuppressibleMsgBox(
+        '기존 Windows 방화벽 규칙을 제거하지 못했습니다.',
+        mbInformation, MB_OK, IDOK);
+  end;
+end;
 
 function GetInstallDir(Param: String): String;
 var
@@ -189,7 +245,24 @@ end;
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   InstallRoot: String;
+  FirewallMarker: String;
 begin
+  if CurUninstallStep = usUninstall then
+  begin
+    FirewallMarker := ExpandConstant('{app}\state\firewall-managed');
+    if FileExists(FirewallMarker) then
+    begin
+      if ConfigureFirewall('Remove') then
+        DeleteFile(FirewallMarker)
+      else
+        SuppressibleMsgBox(
+          'Windows 방화벽 규칙을 제거하지 못했습니다.' + #13#10 +
+          '관리자 권한으로 제거를 다시 실행해 주십시오.',
+          mbInformation, MB_OK, IDOK);
+    end;
+    Exit;
+  end;
+
   if CurUninstallStep <> usPostUninstall then
     Exit;
 

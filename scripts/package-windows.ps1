@@ -258,6 +258,7 @@ try {
     Copy-Item 'scripts\recover.ps1' (Join-Path $updaterDir 'recover.ps1')
     Copy-Item 'scripts\export-diagnostics.ps1' (Join-Path $updaterDir 'export-diagnostics.ps1')
     Copy-Item 'scripts\configure-installer.ps1' (Join-Path $updaterDir 'configure-installer.ps1')
+    Copy-Item 'scripts\configure-firewall.ps1' (Join-Path $updaterDir 'configure-firewall.ps1')
     Copy-Item 'scripts\install-prerequisites.ps1' (Join-Path $updaterDir 'install-prerequisites.ps1')
     Copy-Item 'scripts\install-prerequisites.cmd' (Join-Path $stage 'InstallPrerequisites.cmd')
 

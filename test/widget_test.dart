@@ -298,6 +298,32 @@ void main() {
     expect(script, contains(r'Move-Item -LiteralPath $temporaryFile'));
   });
 
+  test('Windows Setup은 제한된 방화벽 규칙을 선택 설치하고 제거한다', () {
+    final installer = File('scripts/simple-kiosk.iss').readAsStringSync();
+    final firewall = File(
+      'scripts/configure-firewall.ps1',
+    ).readAsStringSync();
+    final packager = File(
+      'scripts/package-windows.ps1',
+    ).readAsStringSync();
+
+    expect(installer, contains('Name: "firewall"'));
+    expect(installer, contains("ConfigureFirewall('Install')"));
+    expect(installer, contains("ConfigureFirewall('Remove')"));
+    expect(installer, contains("ShellExec("));
+    expect(installer, contains("'runas'"));
+    expect(installer, contains('WizardSilent'));
+    expect(installer, contains('firewall-managed'));
+    expect(firewall, contains('function Remove-ManagedFirewallRules'));
+    expect(firewall, contains('catch {'));
+    expect(firewall, contains('-Profile Domain, Private'));
+    expect(firewall, contains('-RemoteAddress LocalSubnet'));
+    expect(firewall, contains('-Protocol TCP'));
+    expect(firewall, contains('-Protocol UDP'));
+    expect(firewall, isNot(contains('-Profile Any')));
+    expect(packager, contains("Copy-Item 'scripts\\configure-firewall.ps1'"));
+  });
+
   test('재생 불가능한 단일 폴더 동영상은 반복 재시도하지 않는다', () {
     final idleOverlay = File('lib/widget/idle_overlay.dart').readAsStringSync();
     expect(
