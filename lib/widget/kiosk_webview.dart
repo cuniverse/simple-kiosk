@@ -323,12 +323,26 @@ class _KioskWebViewState extends State<KioskWebView> {
   static const double _minZoomScale = 0.5;
   static const double _maxZoomScale = 3;
   static const double _zoomStep = 0.25;
+  Timer? _zoomUpdateDebounce;
+  double? _pendingNativeZoomScale;
+  static const Duration _zoomUpdateInterval = Duration(milliseconds: 50);
 
   void _updateZoomScale(double nativeScale) {
     if (!nativeScale.isFinite || nativeScale <= 0) return;
+    _pendingNativeZoomScale = nativeScale;
+    if (_zoomUpdateDebounce != null) return;
+    _zoomUpdateDebounce = Timer(_zoomUpdateInterval, () {
+      _zoomUpdateDebounce = null;
+      final pending = _pendingNativeZoomScale;
+      _pendingNativeZoomScale = null;
+      if (pending != null) _applyNativeZoomScale(pending);
+    });
+  }
+
+  void _applyNativeZoomScale(double nativeScale) {
     final totalScale = nativeScale * _cssZoomScale;
-    if ((_nativeZoomScale - nativeScale).abs() < 0.001 &&
-        (_zoomScale - totalScale).abs() < 0.001) {
+    if ((_nativeZoomScale - nativeScale).abs() < 0.005 &&
+        (_zoomScale - totalScale).abs() < 0.005) {
       return;
     }
     if (!mounted) return;
@@ -627,6 +641,11 @@ class _KioskWebViewState extends State<KioskWebView> {
     final last = _lastHeartbeat;
     if (last == null) return;
     if (DateTime.now().difference(last) > _heartbeatTimeout) {
+      AppLogger.warning(
+        LogCategory.webview,
+        'Heartbeat timeout after ${_heartbeatTimeout.inSeconds}s; '
+        'recreating active WebView: ${_currentUrl ?? widget.initialUrl}',
+      );
       if (kDebugMode) {
         debugPrint(
           '[KioskWebView] heartbeat 끊김 → WebView 재생성',
@@ -718,6 +737,11 @@ class _KioskWebViewState extends State<KioskWebView> {
     _loadResponseWatchdog = Timer(_loadResponseTimeout, () {
       if (!mounted) return;
       if (_pendingLoadUrl == null) return;
+      AppLogger.warning(
+        LogCategory.webview,
+        'Navigation response timeout after ${_loadResponseTimeout.inSeconds}s; '
+        'recreating WebView: $_pendingLoadUrl',
+      );
       if (kDebugMode) {
         debugPrint(
           '[KioskWebView] 메뉴 클릭 응답 없음 → WebView 재생성',
@@ -800,6 +824,9 @@ class _KioskWebViewState extends State<KioskWebView> {
     if (source != null && !identical(source, _webController)) return;
     _cancelAutoRetry();
     _loadingFallback?.cancel();
+    _zoomUpdateDebounce?.cancel();
+    _zoomUpdateDebounce = null;
+    _pendingNativeZoomScale = null;
     _stopHealthCheck();
     // 메뉴 클릭으로 인한 재생성이라면 사용자가 가려던 URL 을 복귀 대상으로 쓴다.
     final pending = _pendingLoadUrl;
@@ -834,6 +861,9 @@ class _KioskWebViewState extends State<KioskWebView> {
     _healthCheck?.cancel();
     _loadResponseWatchdog?.cancel();
     _keyboardHideDebounce?.cancel();
+    _zoomUpdateDebounce?.cancel();
+    _zoomUpdateDebounce = null;
+    _pendingNativeZoomScale = null;
     _kioskController?._dispose();
     _webController = null;
     _kioskController = null;

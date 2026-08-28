@@ -26,6 +26,7 @@ import 'package:simple_kiosk/service/menu_config_migrator.dart';
 import 'package:simple_kiosk/service/keyboard_controller.dart';
 import 'package:simple_kiosk/service/media_scanner.dart';
 import 'package:simple_kiosk/service/system_keyboard.dart';
+import 'package:simple_kiosk/service/touch_input_guard.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/service/windows_startup_service.dart';
 import 'package:simple_kiosk/widget/idle_gate.dart';
@@ -37,6 +38,45 @@ import 'package:simple_kiosk/widget/navigation_menu.dart';
 import 'package:simple_kiosk/widget/webview_loading_overlay.dart';
 
 void main() {
+  test('터치 입력 폭주는 합치고 메뉴별 재로드에는 냉각 시간을 둔다', () {
+    final guard = TouchInputGuard<String>();
+    final startedAt = DateTime.utc(2026, 8, 28);
+
+    expect(guard.acceptSelection('home', startedAt), isTrue);
+    expect(
+      guard.acceptSelection(
+        'another',
+        startedAt.add(const Duration(milliseconds: 50)),
+      ),
+      isFalse,
+    );
+    expect(
+      guard.acceptSelection(
+        'another',
+        startedAt.add(const Duration(milliseconds: 120)),
+      ),
+      isTrue,
+    );
+    expect(
+      guard.acceptSelection(
+        'another',
+        startedAt.add(const Duration(milliseconds: 170)),
+      ),
+      isTrue,
+    );
+
+    expect(guard.acceptReload('home', startedAt), isTrue);
+    expect(
+      guard.acceptReload('home', startedAt.add(const Duration(seconds: 1))),
+      isFalse,
+    );
+    expect(
+      guard.acceptReload('home', startedAt.add(const Duration(seconds: 2))),
+      isTrue,
+    );
+    expect(guard.acceptReload('another', startedAt), isTrue);
+  });
+
   test('WebView 슬롯은 언어·주제·메뉴 ID로 순서와 무관하게 식별된다', () {
     const koreanHome = WebViewSlotId(
       languageId: 'ko',
@@ -1105,6 +1145,20 @@ void main() {
     expect(source, contains('_reportInitialLoadReady();'));
   });
 
+  test('터치 폭주 시 이전 WebView와 과도한 타이머·확대 갱신을 정리한다', () {
+    final appSource = File('lib/app.dart').readAsStringSync();
+    final idleSource = File('lib/widget/idle_gate.dart').readAsStringSync();
+    final webViewSource =
+        File('lib/widget/kiosk_webview.dart').readAsStringSync();
+
+    expect(appSource, contains('_discardPendingMount'));
+    expect(appSource, contains('_touchInputGuard.acceptSelection'));
+    expect(idleSource, contains('_activityTimerResetInterval'));
+    expect(webViewSource, contains('_zoomUpdateInterval'));
+    expect(webViewSource, contains('Heartbeat timeout'));
+    expect(webViewSource, contains('Navigation response timeout'));
+  });
+
   testWidgets('웹 확대 컨트롤은 배율과 조절 버튼을 표시하고 더블클릭으로 초기화한다', (tester) async {
     var zoomInCount = 0;
     var zoomOutCount = 0;
@@ -2078,6 +2132,7 @@ void main() {
       const Color(0xFFF8FAFC),
     );
     expect(LayoutConfig.defaults.windowsKioskLockdown, isTrue);
+    expect(LayoutConfig.defaults.windowsDisableEdgeSwipe, isTrue);
     expect(LayoutConfig.defaults.windowsKioskShortcuts.windowsKey, isTrue);
     expect(LayoutConfig.defaults.windowsKioskShortcuts.altTab, isTrue);
     expect(LayoutConfig.defaults.windowsAlwaysOnTop, isFalse);
@@ -2101,6 +2156,7 @@ void main() {
       'showSelectedTopic': false,
       'selectedTopicLabelColor': '#abcdef',
       'windowsKioskLockdown': false,
+      'windowsDisableEdgeSwipe': false,
       'windowsKioskShortcuts': {
         'windowsKey': false,
         'altTab': false,
@@ -2120,6 +2176,7 @@ void main() {
     expect(config.showSelectedTopic, isFalse);
     expect(config.selectedTopicLabelColor, const Color(0xFFABCDEF));
     expect(config.windowsKioskLockdown, isFalse);
+    expect(config.windowsDisableEdgeSwipe, isFalse);
     expect(config.windowsKioskShortcuts.windowsKey, isFalse);
     expect(config.windowsKioskShortcuts.altTab, isFalse);
     expect(config.windowsKioskShortcuts.altF4, isTrue);
@@ -2179,6 +2236,11 @@ void main() {
     expect(source, contains('g_emergency_exit_sequence'));
     expect(source, contains('FlutterViewTouchProc'));
     expect(source, contains('WM_POINTERDOWN'));
+    expect(source, contains('WM_POINTERLEAVE'));
+    expect(source, contains('POINTER_FLAG_INCONTACT'));
+    expect(source, contains('kEdgeGestureDisableTouchWhenFullscreen'));
+    expect(source, contains('SHGetPropertyStoreForWindow'));
+    expect(source, contains('SetFullscreenEdgeGesturesDisabled'));
     expect(source, contains('g_active_touch_points'));
     expect(source, contains('8000'));
     expect(source, contains('RecoverRenderingSurface'));

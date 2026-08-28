@@ -15,11 +15,13 @@ class KioskTrayController with TrayListener, WindowListener {
     required this.onOpenManual,
     required bool shortcutLockdownEnabled,
     required WindowsKioskShortcutSettings shortcutSettings,
+    required bool disableEdgeSwipe,
     required bool alwaysOnTopEnabled,
     required bool preventScreenSaver,
     required bool preventDisplaySleep,
   })  : _shortcutLockdownEnabled = shortcutLockdownEnabled,
         _shortcutSettings = shortcutSettings,
+        _disableEdgeSwipe = disableEdgeSwipe,
         _alwaysOnTopEnabled = alwaysOnTopEnabled,
         _preventScreenSaver = preventScreenSaver,
         _preventDisplaySleep = preventDisplaySleep;
@@ -31,6 +33,7 @@ class KioskTrayController with TrayListener, WindowListener {
   bool _allowExit = false;
   bool _shortcutLockdownEnabled;
   WindowsKioskShortcutSettings _shortcutSettings;
+  bool _disableEdgeSwipe;
   bool _alwaysOnTopEnabled;
   bool _preventScreenSaver;
   bool _preventDisplaySleep;
@@ -79,6 +82,7 @@ class KioskTrayController with TrayListener, WindowListener {
       await WindowsKioskMode.configure(
         shortcutLockdownEnabled: _shortcutLockdownEnabled,
         shortcutSettings: _shortcutSettings,
+        disableEdgeSwipe: _disableEdgeSwipe,
         alwaysOnTopEnabled: _alwaysOnTopEnabled,
         preventScreenSaver: _preventScreenSaver,
         preventDisplaySleep: _preventDisplaySleep,
@@ -138,18 +142,21 @@ class KioskTrayController with TrayListener, WindowListener {
   Future<void> configureKioskMode({
     required bool shortcutLockdownEnabled,
     required WindowsKioskShortcutSettings shortcutSettings,
+    required bool disableEdgeSwipe,
     required bool alwaysOnTopEnabled,
     required bool preventScreenSaver,
     required bool preventDisplaySleep,
   }) async {
     _shortcutLockdownEnabled = shortcutLockdownEnabled;
     _shortcutSettings = shortcutSettings;
+    _disableEdgeSwipe = disableEdgeSwipe;
     _alwaysOnTopEnabled = alwaysOnTopEnabled;
     _preventScreenSaver = preventScreenSaver;
     _preventDisplaySleep = preventDisplaySleep;
     await WindowsKioskMode.configure(
       shortcutLockdownEnabled: shortcutLockdownEnabled,
       shortcutSettings: shortcutSettings,
+      disableEdgeSwipe: disableEdgeSwipe,
       alwaysOnTopEnabled: alwaysOnTopEnabled,
       preventScreenSaver: preventScreenSaver,
       preventDisplaySleep: preventDisplaySleep,

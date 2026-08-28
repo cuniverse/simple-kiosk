@@ -54,6 +54,9 @@ class IdleGate extends StatefulWidget {
 class _IdleGateState extends State<IdleGate> {
   late bool _idle;
   Timer? _timer;
+  DateTime? _lastActivityTimerResetAt;
+  static const Duration _activityTimerResetInterval =
+      Duration(milliseconds: 250);
 
   @override
   void initState() {
@@ -99,6 +102,7 @@ class _IdleGateState extends State<IdleGate> {
     if (!widget.config.isUsable) return;
     _timer?.cancel();
     if (!_idle) {
+      _lastActivityTimerResetAt = null;
       setState(() => _idle = true);
       widget.onEnterIdle?.call();
     }
@@ -128,6 +132,13 @@ class _IdleGateState extends State<IdleGate> {
   /// 사용자의 포인터 입력이 있을 때 호출. 대기화면이 떠 있지 않을 때만 타이머 리셋.
   void _onUserActivity() {
     if (_idle) return;
+    final now = DateTime.now();
+    final previous = _lastActivityTimerResetAt;
+    if (previous != null &&
+        now.difference(previous) < _activityTimerResetInterval) {
+      return;
+    }
+    _lastActivityTimerResetAt = now;
     _resetTimer();
   }
 

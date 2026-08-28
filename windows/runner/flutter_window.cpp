@@ -45,6 +45,28 @@ HWND g_flutter_view_window = nullptr;
 WNDPROC g_flutter_view_wndproc = nullptr;
 std::unordered_map<UINT32, POINT> g_active_touch_points;
 
+// System.EdgeGesture.DisableTouchWhenFullscreen
+// https://learn.microsoft.com/windows/win32/properties/props-system-edgegesture-disabletouchwhenfullscreen
+const PROPERTYKEY kEdgeGestureDisableTouchWhenFullscreen = {
+    {0x32CE38B2, 0x2C9A, 0x41B1,
+     {0x9B, 0xC5, 0xB3, 0x78, 0x43, 0x94, 0xAA, 0x44}},
+    2};
+
+void SetFullscreenEdgeGesturesDisabled(bool disabled) {
+  if (g_kiosk_window == nullptr || !::IsWindow(g_kiosk_window)) return;
+
+  IPropertyStore* property_store = nullptr;
+  const HRESULT result = ::SHGetPropertyStoreForWindow(
+      g_kiosk_window, IID_PPV_ARGS(&property_store));
+  if (FAILED(result) || property_store == nullptr) return;
+
+  PROPVARIANT value{};
+  value.vt = VT_BOOL;
+  value.boolVal = disabled ? VARIANT_TRUE : VARIANT_FALSE;
+  property_store->SetValue(kEdgeGestureDisableTouchWhenFullscreen, value);
+  property_store->Release();
+}
+
 void ApplyDisplayPowerPolicy() {
   EXECUTION_STATE state = ES_CONTINUOUS;
   if (g_kiosk_mode_active.load() && g_prevent_display_sleep.load()) {
@@ -127,10 +149,21 @@ LRESULT CALLBACK FlutterViewTouchProc(HWND window, UINT message,
     const UINT32 pointer_id = GET_POINTERID_WPARAM(wparam);
     POINTER_INFO info{};
     if (::GetPointerInfo(pointer_id, &info) && info.pointerType == PT_TOUCH) {
-      g_active_touch_points[pointer_id] = info.ptPixelLocation;
+      if ((info.pointerFlags & POINTER_FLAG_INCONTACT) != 0) {
+        // 일반 터치 장치는 대개 10점 이하이다. 누락된 UP 메시지로 ID가
+        // 쌓이더라도 입력 처리 비용이 계속 증가하지 않도록 방어한다.
+        if (g_active_touch_points.size() >= 32 &&
+            g_active_touch_points.find(pointer_id) ==
+                g_active_touch_points.end()) {
+          g_active_touch_points.clear();
+        }
+        g_active_touch_points[pointer_id] = info.ptPixelLocation;
+      } else {
+        g_active_touch_points.erase(pointer_id);
+      }
       UpdateTouchEmergencyExit();
     }
-  } else if (message == WM_POINTERUP) {
+  } else if (message == WM_POINTERUP || message == WM_POINTERLEAVE) {
     g_active_touch_points.erase(GET_POINTERID_WPARAM(wparam));
     UpdateTouchEmergencyExit();
   } else if (message == WM_POINTERCAPTURECHANGED) {
@@ -507,6 +540,8 @@ bool FlutterWindow::OnCreate() {
               MethodBoolArgument(call, "active", legacy_enabled);
           const bool shortcut_lockdown = MethodBoolArgument(
               call, "shortcutLockdownEnabled", legacy_enabled);
+          const bool disable_edge_swipe =
+              MethodBoolArgument(call, "disableEdgeSwipe", true);
           g_kiosk_mode_active.store(active);
           g_kiosk_lockdown_enabled.store(active && shortcut_lockdown);
           g_block_windows_key.store(
@@ -539,6 +574,10 @@ bool FlutterWindow::OnCreate() {
               active && MethodBoolArgument(call, "preventScreenSaver"));
           g_prevent_display_sleep.store(
               active && MethodBoolArgument(call, "preventDisplaySleep"));
+          // Flutter/WebView의 드래그 처리가 시작되기 전에 Windows 셸이 화면
+          // 가장자리 스와이프를 가로채 작업 표시줄을 띄우지 않게 한다.
+          // 시스템 전역 정책이 아니라 이 전체화면 창에만 적용된다.
+          SetFullscreenEdgeGesturesDisabled(active && disable_edge_swipe);
           ApplyDisplayPowerPolicy();
           if (!active) {
             g_active_touch_points.clear();
@@ -641,6 +680,7 @@ void FlutterWindow::RecoverRenderingSurface(bool force_resize) {
 }
 
 void FlutterWindow::OnDestroy() {
+  SetFullscreenEdgeGesturesDisabled(false);
   g_kiosk_mode_active.store(false);
   g_kiosk_lockdown_enabled.store(false);
   g_prevent_screen_saver.store(false);

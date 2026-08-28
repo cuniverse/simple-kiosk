@@ -15,6 +15,7 @@ class WindowsKioskMode {
   static bool _shortcutLockdownEnabled = true;
   static WindowsKioskShortcutSettings _shortcutSettings =
       WindowsKioskShortcutSettings.defaults;
+  static bool _disableEdgeSwipe = true;
   static bool _alwaysOnTopEnabled = false;
   static bool _preventScreenSaver = true;
   static bool _preventDisplaySleep = true;
@@ -22,12 +23,14 @@ class WindowsKioskMode {
   static Future<void> configure({
     required bool shortcutLockdownEnabled,
     required WindowsKioskShortcutSettings shortcutSettings,
+    required bool disableEdgeSwipe,
     required bool alwaysOnTopEnabled,
     required bool preventScreenSaver,
     required bool preventDisplaySleep,
   }) async {
     _shortcutLockdownEnabled = shortcutLockdownEnabled;
     _shortcutSettings = shortcutSettings;
+    _disableEdgeSwipe = disableEdgeSwipe;
     _alwaysOnTopEnabled = alwaysOnTopEnabled;
     _preventScreenSaver = preventScreenSaver;
     _preventDisplaySleep = preventDisplaySleep;
@@ -73,6 +76,7 @@ class WindowsKioskMode {
         'enabled': active && _shortcutLockdownEnabled,
         'active': active,
         'shortcutLockdownEnabled': _shortcutLockdownEnabled,
+        'disableEdgeSwipe': _disableEdgeSwipe,
         'blockWindowsKey': _shortcutSettings.windowsKey,
         'blockAltTab': _shortcutSettings.altTab,
         'blockAltEscape': _shortcutSettings.altEscape,

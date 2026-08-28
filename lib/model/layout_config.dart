@@ -265,6 +265,9 @@ class LayoutConfig {
   /// Windows 사이니지 잠금에서 개별적으로 차단할 키와 키 조합.
   final WindowsKioskShortcutSettings windowsKioskShortcuts;
 
+  /// Windows 전체화면에서 가장자리 스와이프로 시스템 UI가 열리는 것을 차단할지.
+  final bool windowsDisableEdgeSwipe;
+
   /// Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지할지 여부.
   final bool windowsAlwaysOnTop;
 
@@ -325,6 +328,7 @@ class LayoutConfig {
     this.selectedTopicLabelColor = const Color(0xFFF8FAFC),
     this.windowsKioskLockdown = true,
     this.windowsKioskShortcuts = WindowsKioskShortcutSettings.defaults,
+    this.windowsDisableEdgeSwipe = true,
     this.windowsAlwaysOnTop = false,
     this.windowsPreventScreenSaver = true,
     this.windowsPreventDisplaySleep = true,
@@ -441,6 +445,14 @@ class LayoutConfig {
       windowsKioskShortcuts: WindowsKioskShortcutSettings.fromJson(
         json['windowsKioskShortcuts'],
       ),
+      windowsDisableEdgeSwipe: () {
+        final v = json['windowsDisableEdgeSwipe'];
+        if (v == null) return defaults.windowsDisableEdgeSwipe;
+        if (v is bool) return v;
+        throw const FormatException(
+          'menu.json layout.windowsDisableEdgeSwipe: bool 필요',
+        );
+      }(),
       windowsAlwaysOnTop: () {
         final v = json['windowsAlwaysOnTop'];
         if (v == null) return defaults.windowsAlwaysOnTop;

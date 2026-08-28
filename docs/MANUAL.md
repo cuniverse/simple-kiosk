@@ -253,6 +253,7 @@ android:usesCleartextTraffic="true"
 | `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
 | `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
+| `windowsDisableEdgeSwipe` | bool | `true` | 전체화면 가장자리 스와이프로 작업 표시줄 등 시스템 UI가 열리는 동작 차단 |
 | `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
 | `windowsPreventScreenSaver` | bool | `true` | 사이니지 표시 중 Windows 화면보호기 실행 방지 |
 | `windowsPreventDisplaySleep` | bool | `true` | 사이니지 표시 중 Windows 화면 자동 끄기 방지 |
@@ -272,6 +273,9 @@ android:usesCleartextTraffic="true"
 `true`(차단) 또는 `false`(허용)로 지정할 수 있습니다. `windowsKey`는 시작 메뉴와
 `Win+Tab`, `Win+D`, `Win+R` 등 모든 Windows 키 조합에 함께 적용됩니다.
 상위 `windowsKioskLockdown`이 꺼져 있으면 개별 설정은 적용되지 않습니다.
+`windowsDisableEdgeSwipe`는 키 차단과 독립적으로 동작하며, 사이니지를 감추거나
+종료하면 자동으로 해제됩니다. 화면 가장자리에서 시작하는 Windows 시스템
+제스처만 차단하며 페이지 안쪽에서 시작하는 스크롤·드래그에는 영향을 주지 않습니다.
 비상 종료용 `Ctrl+Alt+Shift+F4`와 Windows 보안 화면 `Ctrl+Alt+Del`은 안전을 위해
 이 설정으로 차단하지 않습니다.
 

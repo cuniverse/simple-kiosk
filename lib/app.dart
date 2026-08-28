@@ -31,6 +31,7 @@ import 'widget/webview_loading_overlay.dart';
 import 'service/keyboard_controller.dart';
 import 'service/kiosk_tray_controller.dart';
 import 'service/system_keyboard.dart';
+import 'service/touch_input_guard.dart';
 import 'service/webview_data_service.dart';
 import 'service/app_health_signal.dart';
 import 'service/update_controller.dart';
@@ -338,6 +339,7 @@ class _KioskHomeState extends State<_KioskHome> {
   DateTime? _lastTapAt;
   WebViewSlotId? _lastTapSlot;
   static const Duration _doubleTapWindow = Duration(milliseconds: 300);
+  final TouchInputGuard<WebViewSlotId> _touchInputGuard = TouchInputGuard();
 
   int get _selectedLanguageIndex {
     final index = widget.languages.indexWhere(
@@ -422,6 +424,7 @@ class _KioskHomeState extends State<_KioskHome> {
       onOpenManual: _showUserManual,
       shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
       shortcutSettings: widget.layout.windowsKioskShortcuts,
+      disableEdgeSwipe: widget.layout.windowsDisableEdgeSwipe,
       alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
       preventScreenSaver: widget.layout.windowsPreventScreenSaver,
       preventDisplaySleep: widget.layout.windowsPreventDisplaySleep,
@@ -571,6 +574,8 @@ class _KioskHomeState extends State<_KioskHome> {
             widget.layout.windowsKioskLockdown ||
         oldWidget.layout.windowsKioskShortcuts !=
             widget.layout.windowsKioskShortcuts ||
+        oldWidget.layout.windowsDisableEdgeSwipe !=
+            widget.layout.windowsDisableEdgeSwipe ||
         oldWidget.layout.windowsAlwaysOnTop !=
             widget.layout.windowsAlwaysOnTop ||
         oldWidget.layout.windowsPreventScreenSaver !=
@@ -580,6 +585,7 @@ class _KioskHomeState extends State<_KioskHome> {
       unawaited(_trayController.configureKioskMode(
         shortcutLockdownEnabled: widget.layout.windowsKioskLockdown,
         shortcutSettings: widget.layout.windowsKioskShortcuts,
+        disableEdgeSwipe: widget.layout.windowsDisableEdgeSwipe,
         alwaysOnTopEnabled: widget.layout.windowsAlwaysOnTop,
         preventScreenSaver: widget.layout.windowsPreventScreenSaver,
         preventDisplaySleep: widget.layout.windowsPreventDisplaySleep,
@@ -669,6 +675,7 @@ class _KioskHomeState extends State<_KioskHome> {
       ..add(_selectedSlot);
     _readySlots.clear();
     _controllers.clear();
+    _touchInputGuard.clear();
     _lastTapAt = null;
     _lastTapSlot = null;
   }
@@ -784,11 +791,29 @@ class _KioskHomeState extends State<_KioskHome> {
   }
 
   void _cancelPendingSelection() {
-    if (_pendingSlot == null) return;
+    final pending = _pendingSlot;
+    if (pending == null) return;
     setState(() {
+      _discardPendingMount(pending);
       _pendingSlot = null;
       _clearPendingFeedback();
     });
+  }
+
+  /// 화면에 선택되지 않았고 아직 준비도 끝나지 않은 이전 후보 WebView를 제거한다.
+  /// 빠르게 여러 메뉴를 누를 때 WebView2가 동시에 계속 생성되는 것을 막는다.
+  void _discardPendingMount(WebViewSlotId? slot) {
+    if (slot == null || slot == _selectedSlot || _readySlots.contains(slot)) {
+      return;
+    }
+    _mountedSlots.remove(slot);
+    _controllers.remove(slot);
+  }
+
+  void _reloadSlot(WebViewSlotId slot, String url, DateTime now) {
+    if (!_touchInputGuard.acceptReload(slot, now)) return;
+    final controller = _controllers[slot];
+    if (controller != null) unawaited(controller.loadUrl(url));
   }
 
   void _retryPendingSelection() {
@@ -816,20 +841,28 @@ class _KioskHomeState extends State<_KioskHome> {
     if (index < 0 || index >= _items.length) return;
     final item = _items[index];
     final slot = _slotFor(item);
+    final now = DateTime.now();
+
+    // 한 번의 손동작에서 쏟아지는 연속 탭은 하나의 선택으로 합친다.
+    if (!_touchInputGuard.acceptSelection(slot, now)) return;
 
     // 이미 백그라운드에서 준비 중인 메뉴를 다시 눌러도 빈 WebView로 먼저
     // 전환하지 않는다.
     if (_pendingSlot == slot) return;
 
     final url = item.url;
-    final now = DateTime.now();
-
     // 더블 탭 판정: 같은 메뉴를 윈도우 내에 다시 누른 경우.
     final isDoubleTap = _lastTapSlot == slot &&
         _lastTapAt != null &&
         now.difference(_lastTapAt!) <= _doubleTapWindow;
-    _lastTapAt = now;
-    _lastTapSlot = slot;
+    if (isDoubleTap) {
+      // 세 번째 이후의 연타가 모두 더블 탭으로 판정되어 재로드를 반복하지 않게 한다.
+      _lastTapAt = null;
+      _lastTapSlot = null;
+    } else {
+      _lastTapAt = now;
+      _lastTapSlot = slot;
+    }
 
     // 항목별 설정이 있으면 우선, 없으면 layout 기본값.
     final keepState = item.keepStateOnTap ?? widget.layout.keepStateOnTap;
@@ -852,13 +885,15 @@ class _KioskHomeState extends State<_KioskHome> {
       // 준비 중이던 다른 메뉴 선택만 취소한다. 현재 메뉴가 상태 유지 모드면
       // 부모 전체를 다시 그릴 필요가 없다.
       if (_pendingSlot != null) {
+        final obsoletePending = _pendingSlot;
         setState(() {
+          _discardPendingMount(obsoletePending);
           _pendingSlot = null;
           _clearPendingFeedback();
         });
       }
       if (isDoubleTap || !keepState) {
-        _controllers[slot]?.loadUrl(url);
+        _reloadSlot(slot, url, now);
       }
       return;
     }
@@ -867,6 +902,7 @@ class _KioskHomeState extends State<_KioskHome> {
       // 최초 방문 메뉴는 기존 화면 뒤에서 먼저 mount/load 한다. 페이지가 준비되면
       // [_onInitialLoadReady]가 실제 선택 인덱스를 바꿔 빈 화면 노출을 막는다.
       setState(() {
+        _discardPendingMount(_pendingSlot);
         _pendingSlot = slot;
         _mountedSlots.add(slot);
         _startPendingFeedback(slot);
@@ -874,7 +910,9 @@ class _KioskHomeState extends State<_KioskHome> {
       return;
     }
 
+    final obsoletePending = _pendingSlot;
     setState(() {
+      _discardPendingMount(obsoletePending);
       _pendingSlot = null;
       _selectedMenuId = item.id;
       _clearPendingFeedback();
@@ -883,7 +921,7 @@ class _KioskHomeState extends State<_KioskHome> {
     // 이미 mount 되어 있는 항목.
     if (wasMounted && (isDoubleTap || !keepState)) {
       // 강제 재로드: keepState=false 이거나 더블 탭.
-      _controllers[slot]?.loadUrl(url);
+      _reloadSlot(slot, url, now);
     }
     // keepState=true & 단일 탭 & 이미 mount 됨 → 아무 것도 안 함(상태 유지).
   }

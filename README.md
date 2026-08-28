@@ -5,7 +5,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
-- 최신 안정 버전: [`v1.2.27`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.27)
+- 최신 안정 버전: [`v1.2.28`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.28)
 - 변경 내역: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 운영자 매뉴얼: [docs/MANUAL.md](docs/MANUAL.md)
 - Windows 최초 설치: [docs/WINDOWS_FIRST_INSTALL.md](docs/WINDOWS_FIRST_INSTALL.md)
@@ -148,12 +148,12 @@ bash scripts/package-macos.sh
 .\scripts\package-windows.ps1 -BuildInstaller
 
 # 패키지 파일명에 사용할 버전을 직접 지정
-.\scripts\package-windows.ps1 -PackageVersion 1.2.27
+.\scripts\package-windows.ps1 -PackageVersion 1.2.28
 ```
 
 GitHub Actions 릴리스는 태그를 패키지 버전의 기준으로 사용합니다. 예를 들어
-`v1.2.27` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.27.zip`, 최초
-설치용 `simple-kiosk-windows-setup-1.2.27.exe`, 자동 업데이트용
+`v1.2.28` 태그는 업데이트 및 포터블 실행용 `simple-kiosk-windows-1.2.28.zip`, 최초
+설치용 `simple-kiosk-windows-setup-1.2.28.exe`, 자동 업데이트용
 `update-manifest.json`을 생성합니다. ZIP 안의
 `ysignage.exe`는 압축 해제 후 직접 실행할 수 있습니다. 로컬에서
 `-PackageVersion`을 생략하면 기존처럼 `pubspec.yaml`의 `version`을 사용합니다.
@@ -273,6 +273,7 @@ flutter pub get
 | `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
 | `windowsKioskLockdown` | bool | `true` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
+| `windowsDisableEdgeSwipe` | bool | `true` | 전체화면 가장자리 스와이프로 Windows 시스템 UI가 열리는 동작 차단 |
 | `windowsAlwaysOnTop` | bool | `false` | Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
 | `windowsPreventScreenSaver` | bool | `true` | 사이니지 표시 중 Windows 화면보호기 실행 방지 |
 | `windowsPreventDisplaySleep` | bool | `true` | 사이니지 표시 중 Windows 화면 자동 끄기 방지 |
@@ -323,6 +324,7 @@ flutter pub get
     "showSelectedTopic": true,
     "selectedTopicLabelColor": "#f8fafc",
     "windowsKioskLockdown": true,
+    "windowsDisableEdgeSwipe": true,
     "windowsKioskShortcuts": {
       "windowsKey": true,
       "altTab": true,

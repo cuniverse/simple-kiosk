@@ -16,6 +16,7 @@
     "showSelectedTopic": true,
     "selectedTopicLabelColor": "#f8fafc",
     "windowsKioskLockdown": true,
+    "windowsDisableEdgeSwipe": true,
     "windowsKioskShortcuts": {
       "windowsKey": true,
       "altTab": true,
