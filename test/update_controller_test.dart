@@ -65,6 +65,70 @@ void main() {
     expect(update?.setupSha256, setupHash);
   });
 
+  test('GitHub API 한도 초과 시 공개 Release 경로로 업데이트한다', () async {
+    const packageHash =
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const setupHash =
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    final client = MockClient((request) async {
+      if (request.url.host == 'api.github.com') {
+        return http.Response('rate limit exceeded', 403);
+      }
+      if (request.url.path == '/cuniverse/simple-kiosk/releases/latest') {
+        return http.Response(
+          '',
+          302,
+          headers: {
+            'location': '/cuniverse/simple-kiosk/releases/tag/v1.2.27',
+          },
+        );
+      }
+      if (request.url.path.endsWith('/update-manifest.json')) {
+        return http.Response(
+          json.encode({
+            'schemaVersion': 1,
+            'version': '1.2.27',
+            'channel': 'stable',
+            'minimumUpdaterVersion': '1.1.0',
+            'configSchemaVersion': 1,
+            'package': {
+              'file': 'simple-kiosk-windows-1.2.27.zip',
+              'sha256': packageHash,
+              'authenticodeRequired': false,
+            },
+            'setup': {
+              'file': 'simple-kiosk-windows-setup-1.2.27.exe',
+              'sha256': setupHash,
+            },
+          }),
+          200,
+        );
+      }
+      return http.Response('not found', 404);
+    });
+    final service = UpdateService(client: client);
+    addTearDown(service.close);
+
+    final update = await service.check(currentVersion: '1.2.24');
+
+    expect(update?.manifest.version, '1.2.27');
+    expect(
+      update?.packageUrl,
+      Uri.parse(
+        'https://github.com/cuniverse/simple-kiosk/releases/download/'
+        'v1.2.27/simple-kiosk-windows-1.2.27.zip',
+      ),
+    );
+    expect(
+      update?.setupUrl,
+      Uri.parse(
+        'https://github.com/cuniverse/simple-kiosk/releases/download/'
+        'v1.2.27/simple-kiosk-windows-setup-1.2.27.exe',
+      ),
+    );
+    expect(update?.setupSha256, setupHash);
+  });
+
   test('새 대상 버전에 이전 버전의 실패 횟수를 승계하지 않는다', () {
     final merged = UpdateService.mergeUpdateState(
       previous: const {

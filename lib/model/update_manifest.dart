@@ -48,6 +48,8 @@ class UpdateManifest {
   final int configSchemaVersion;
   final String packageFile;
   final String sha256;
+  final String? setupFile;
+  final String? setupSha256;
   final bool authenticodeRequired;
   final String? signerThumbprint;
 
@@ -59,6 +61,8 @@ class UpdateManifest {
     this.configSchemaVersion = 1,
     required this.packageFile,
     required this.sha256,
+    this.setupFile,
+    this.setupSha256,
     this.authenticodeRequired = false,
     this.signerThumbprint,
   });
@@ -90,6 +94,7 @@ class UpdateManifest {
     final sha = package['sha256'];
     final authenticodeRequired = package['authenticodeRequired'];
     final signerThumbprint = package['signerThumbprint'];
+    final setup = json['setup'];
     if (file is! String ||
         sha is! String ||
         !RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(sha)) {
@@ -106,6 +111,18 @@ class UpdateManifest {
     if (authenticodeRequired == true && signerThumbprint == null) {
       throw const FormatException('서명 필수 패키지에는 signerThumbprint 필요');
     }
+    String? setupFile;
+    String? setupSha256;
+    if (setup != null) {
+      if (setup is! Map ||
+          setup['file'] is! String ||
+          setup['sha256'] is! String ||
+          !RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(setup['sha256'] as String)) {
+        throw const FormatException('update-manifest setup 필드 오류');
+      }
+      setupFile = setup['file'] as String;
+      setupSha256 = (setup['sha256'] as String).toLowerCase();
+    }
     return UpdateManifest(
       schemaVersion: (schemaVersion as num?)?.toInt() ?? 1,
       version: version,
@@ -114,6 +131,8 @@ class UpdateManifest {
       configSchemaVersion: (configSchemaVersion as num?)?.toInt() ?? 1,
       packageFile: file,
       sha256: sha.toLowerCase(),
+      setupFile: setupFile,
+      setupSha256: setupSha256,
       authenticodeRequired: authenticodeRequired as bool? ?? false,
       signerThumbprint: signerThumbprint?.toUpperCase(),
     );

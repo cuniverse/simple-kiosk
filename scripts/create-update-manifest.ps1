@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$true)][string]$PackagePath,
+    [string]$SetupPath,
     [string]$OutputPath = 'dist\update-manifest.json',
     [string]$MinimumUpdaterVersion = '1.1.0',
     # 이전 앱은 이 값을 자기 설정 스키마와 비교하므로, 업데이트 패키지 형식 자체가
@@ -22,6 +23,7 @@ if ($RequireAuthenticode -and $SignerThumbprint -notmatch '^[0-9a-fA-F]{40,64}$'
     throw '서명 필수 manifest에는 올바른 SignerThumbprint가 필요합니다.'
 }
 $package = Get-Item -LiteralPath $PackagePath
+$setup = if ([string]::IsNullOrWhiteSpace($SetupPath)) { $null } else { Get-Item -LiteralPath $SetupPath }
 $manifest = [ordered]@{
     schemaVersion = 1
     version = $Version
@@ -35,6 +37,10 @@ $manifest = [ordered]@{
         authenticodeRequired = [bool]$RequireAuthenticode
         signerThumbprint = if ($RequireAuthenticode) { $SignerThumbprint.ToUpperInvariant() } else { $null }
     }
+    setup = if ($null -eq $setup) { $null } else { [ordered]@{
+        file = $setup.Name
+        sha256 = (Get-FileHash -LiteralPath $setup.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    } }
 }
 $output = [IO.Path]::GetFullPath($OutputPath)
 New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null

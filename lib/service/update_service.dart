@@ -28,6 +28,8 @@ class UpdateService {
   static const updaterVersion = '2.0.0';
   static const _api =
       'https://api.github.com/repos/cuniverse/simple-kiosk/releases/latest';
+  static const _webLatest =
+      'https://github.com/cuniverse/simple-kiosk/releases/latest';
   static const _headers = {
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
@@ -59,6 +61,10 @@ class UpdateService {
     final releaseResponse = await _client
         .get(Uri.parse(_api), headers: _headers)
         .timeout(const Duration(seconds: 20));
+    if (releaseResponse.statusCode == 403 ||
+        releaseResponse.statusCode == 429) {
+      return _checkWithoutApi(currentVersion: currentVersion);
+    }
     if (releaseResponse.statusCode != 200) {
       throw http.ClientException('GitHub HTTP ${releaseResponse.statusCode}');
     }
@@ -89,18 +95,8 @@ class UpdateService {
       throw http.ClientException(
           'Manifest HTTP ${manifestResponse.statusCode}');
     }
-    final manifestJson = json.decode(utf8.decode(manifestResponse.bodyBytes));
-    if (manifestJson is! Map<String, dynamic>) {
-      throw const FormatException('update-manifest: 객체 필요');
-    }
-    final manifest = UpdateManifest.fromJson(manifestJson);
-    if (manifest.channel != 'stable') return null;
-    validateCompatibility(manifest);
-    final installed =
-        currentVersion ?? (await PackageInfo.fromPlatform()).version;
-    if (SemanticVersion.parse(manifest.version)
-            .compareTo(SemanticVersion.parse(installed)) <=
-        0) {
+    final manifest = _parseManifest(manifestResponse);
+    if (!await _isNewer(manifest, currentVersion: currentVersion)) {
       return null;
     }
     final packageAsset = assets.whereType<Map>().cast<Map?>().firstWhere(
@@ -112,17 +108,19 @@ class UpdateService {
         !packageUrl.startsWith('https://github.com/')) {
       throw const FormatException('업데이트 패키지 asset 누락 또는 URL 오류');
     }
-    final setupName = 'simple-kiosk-windows-setup-${manifest.version}.exe';
+    final setupName = manifest.setupFile ??
+        'simple-kiosk-windows-setup-${manifest.version}.exe';
     final setupAsset = assets.whereType<Map>().cast<Map?>().firstWhere(
           (asset) => asset?['name'] == setupName,
           orElse: () => null,
         );
     final setupUrlValue = setupAsset?['browser_download_url'];
     final setupDigestValue = setupAsset?['digest'];
-    final setupDigest = setupDigestValue is String &&
+    final apiSetupDigest = setupDigestValue is String &&
             RegExp(r'^sha256:[0-9a-fA-F]{64}$').hasMatch(setupDigestValue)
         ? setupDigestValue.substring('sha256:'.length).toLowerCase()
         : null;
+    final setupDigest = apiSetupDigest ?? manifest.setupSha256;
     final setupUrl = setupUrlValue is String &&
             setupUrlValue.startsWith('https://github.com/') &&
             setupDigest != null
@@ -133,6 +131,115 @@ class UpdateService {
       Uri.parse(packageUrl),
       setupUrl: setupUrl,
       setupSha256: setupUrl == null ? null : setupDigest,
+    );
+  }
+
+  Future<AvailableUpdate?> _checkWithoutApi({String? currentVersion}) async {
+    final latestRequest = http.Request('GET', Uri.parse(_webLatest))
+      ..followRedirects = false
+      ..headers['User-Agent'] = 'SimpleKiosk-Updater/1.0';
+    final latestResponse =
+        await _client.send(latestRequest).timeout(const Duration(seconds: 20));
+    await latestResponse.stream.drain<void>().timeout(
+          const Duration(seconds: 20),
+        );
+    final redirect = latestResponse.headers['location'];
+    if (!const {301, 302, 303, 307, 308}.contains(latestResponse.statusCode) ||
+        redirect == null) {
+      throw http.ClientException(
+        'GitHub API HTTP 403, Release redirect HTTP '
+        '${latestResponse.statusCode}',
+      );
+    }
+
+    final latestUri = Uri.parse(_webLatest).resolve(redirect);
+    final segments = latestUri.pathSegments;
+    if (latestUri.scheme != 'https' ||
+        latestUri.host != 'github.com' ||
+        segments.length != 5 ||
+        segments[0] != 'cuniverse' ||
+        segments[1] != 'simple-kiosk' ||
+        segments[2] != 'releases' ||
+        segments[3] != 'tag') {
+      throw const FormatException('GitHub 최신 Release 리다이렉트 URL 오류');
+    }
+    final tag = segments[4];
+    SemanticVersion.parse(tag);
+
+    final manifestUrl = _directReleaseAsset(tag, 'update-manifest.json');
+    final manifestResponse = await _client
+        .get(manifestUrl, headers: _headers)
+        .timeout(const Duration(seconds: 20));
+    if (manifestResponse.statusCode != 200) {
+      throw http.ClientException(
+        'Manifest HTTP ${manifestResponse.statusCode}',
+      );
+    }
+    final manifest = _parseManifest(manifestResponse);
+    if (SemanticVersion.parse(tag)
+            .compareTo(SemanticVersion.parse(manifest.version)) !=
+        0) {
+      throw const FormatException('Release 태그와 manifest 버전 불일치');
+    }
+    if (!await _isNewer(manifest, currentVersion: currentVersion)) {
+      return null;
+    }
+
+    final setupFile = manifest.setupFile;
+    final setupSha256 = manifest.setupSha256;
+    return AvailableUpdate(
+      manifest,
+      _directReleaseAsset(tag, manifest.packageFile),
+      setupUrl: setupFile == null || setupSha256 == null
+          ? null
+          : _directReleaseAsset(tag, setupFile),
+      setupSha256: setupFile == null ? null : setupSha256,
+    );
+  }
+
+  UpdateManifest _parseManifest(http.Response response) {
+    final manifestJson = json.decode(utf8.decode(response.bodyBytes));
+    if (manifestJson is! Map<String, dynamic>) {
+      throw const FormatException('update-manifest: 객체 필요');
+    }
+    final manifest = UpdateManifest.fromJson(manifestJson);
+    if (manifest.channel != 'stable') {
+      throw const FormatException('stable Release manifest가 아닙니다.');
+    }
+    validateCompatibility(manifest);
+    return manifest;
+  }
+
+  Future<bool> _isNewer(
+    UpdateManifest manifest, {
+    required String? currentVersion,
+  }) async {
+    final installed =
+        currentVersion ?? (await PackageInfo.fromPlatform()).version;
+    return SemanticVersion.parse(manifest.version)
+            .compareTo(SemanticVersion.parse(installed)) >
+        0;
+  }
+
+  static Uri _directReleaseAsset(String tag, String fileName) {
+    if (fileName.isEmpty ||
+        fileName == '.' ||
+        fileName == '..' ||
+        fileName.contains('/') ||
+        fileName.contains(r'\')) {
+      throw const FormatException('Release asset 파일명 오류');
+    }
+    return Uri(
+      scheme: 'https',
+      host: 'github.com',
+      pathSegments: [
+        'cuniverse',
+        'simple-kiosk',
+        'releases',
+        'download',
+        tag,
+        fileName,
+      ],
     );
   }
 
