@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:html/dom.dart' as html_dom;
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 
@@ -11,12 +12,19 @@ class GalleryFeedItem {
   final String title;
   final String imageUrl;
   final String postUrl;
+  final String? youtubeVideoId;
 
   const GalleryFeedItem({
     required this.title,
     required this.imageUrl,
     required this.postUrl,
+    this.youtubeVideoId,
   });
+
+  bool get isYoutube => youtubeVideoId != null;
+
+  String get playbackId =>
+      youtubeVideoId == null ? imageUrl : 'youtube:$youtubeVideoId';
 }
 
 class _GalleryPost {
@@ -63,9 +71,9 @@ class GalleryFeedLoader {
 
   Future<List<GalleryFeedItem>> load(GalleryConfig config) async {
     final groups = await Future.wait(
-      config.effectiveUrls.map((url) async {
+      config.effectiveSources.map((source) async {
         try {
-          return await _loadBoard(config, url);
+          return await _loadBoard(source);
         } catch (_) {
           return const <GalleryFeedItem>[];
         }
@@ -80,7 +88,7 @@ class GalleryFeedLoader {
       for (final group in groups) {
         if (itemIndex >= group.length) continue;
         final item = group[itemIndex];
-        if (seen.add(item.imageUrl)) items.add(item);
+        if (seen.add(item.playbackId)) items.add(item);
         added = true;
         if (items.length >= config.maxImages) break;
       }
@@ -94,14 +102,13 @@ class GalleryFeedLoader {
   }
 
   Future<List<GalleryFeedItem>> _loadBoard(
-    GalleryConfig config,
-    String url,
+    GallerySourceConfig source,
   ) async {
-    final listUri = Uri.parse(url);
+    final listUri = Uri.parse(source.url);
     final listHtml = await _getText(listUri);
     final parsedPosts = _parseGalleryPosts(listHtml, listUri);
     final requestedAt = _now();
-    final posts = _selectGalleryCandidates(parsedPosts, config, requestedAt);
+    final posts = _selectGalleryCandidates(parsedPosts, source, requestedAt);
     if (posts.isEmpty) {
       throw const FormatException('포토갤러리 게시물을 찾지 못했습니다.');
     }
@@ -113,6 +120,24 @@ class GalleryFeedLoader {
         try {
           final postHtml = await _getText(post.url);
           publishedAt = parsePostPublishedAt(postHtml) ?? publishedAt;
+          final youtubeVideoIds = parsePostYoutubeVideoIds(postHtml);
+          if (youtubeVideoIds.isNotEmpty) {
+            final items = youtubeVideoIds
+                .map(
+                  (videoId) => GalleryFeedItem(
+                    title: post.title,
+                    imageUrl: 'https://i.ytimg.com/vi/$videoId/hqdefault.jpg',
+                    postUrl: post.url.toString(),
+                    youtubeVideoId: videoId,
+                  ),
+                )
+                .toList(growable: false);
+            return _LoadedGalleryPost(
+              post: post,
+              publishedAt: publishedAt,
+              items: items,
+            );
+          }
           final images = parsePostImageUrls(postHtml, post.url);
           if (images.isNotEmpty) {
             final items = images
@@ -152,7 +177,7 @@ class GalleryFeedLoader {
 
     final selectedPosts = _selectLoadedGalleryPosts(
       results.where((result) => result.items.isNotEmpty).toList(),
-      config,
+      source,
       requestedAt,
     );
 
@@ -160,7 +185,7 @@ class GalleryFeedLoader {
     final items = <GalleryFeedItem>[];
     for (final group in selectedPosts) {
       for (final item in group.items) {
-        if (seen.add(item.imageUrl)) items.add(item);
+        if (seen.add(item.playbackId)) items.add(item);
       }
     }
     if (items.isEmpty) {
@@ -191,20 +216,33 @@ List<_GalleryPost> _parseGalleryPosts(String html, Uri baseUri) {
   final posts = <_GalleryPost>[];
   final seen = <String>{};
 
-  for (final card in document.querySelectorAll('.card')) {
-    final titleElement =
-        card.querySelector('.bo_tit .ks4') ?? card.querySelector('.bo_tit');
-    final linkElement =
-        card.querySelector('a.img-card') ?? card.querySelector('a.bo_tit');
+  // 그누보드 갤러리 스킨마다 외곽 구조는 `.card`, `.gall_li` 등으로
+  // 다르지만 게시물 제목 링크인 `a.bo_tit`은 공통으로 제공된다.
+  for (final titleLink in document.querySelectorAll('a.bo_tit')) {
+    final container = _galleryPostContainer(titleLink);
+    final titleElement = titleLink.querySelector('.ks4');
+    final directTitle = _normalizedText(
+      titleLink.nodes
+          .whereType<html_dom.Text>()
+          .map((node) => node.data)
+          .join(' '),
+    );
+    final title = _normalizedText(titleElement?.text ?? directTitle);
+    if (title.startsWith('#')) continue;
+    final linkElement = titleLink.attributes['href']?.isNotEmpty == true
+        ? titleLink
+        : container.querySelector('a.img-card') ??
+            container.querySelector('.gall_img a');
     final href = linkElement?.attributes['href'];
-    final title = _normalizedText(titleElement?.text ?? '');
     if (href == null || href.isEmpty || title.isEmpty) continue;
 
     final postUri = baseUri.resolve(href);
     if (!_isHttpUri(postUri) || !seen.add(postUri.toString())) continue;
 
-    final thumbnailSrc =
-        card.querySelector('a.img-card img')?.attributes['src'];
+    final thumbnailSrc = (container.querySelector('a.img-card img') ??
+            container.querySelector('.gall_img img') ??
+            container.querySelector('img'))
+        ?.attributes['src'];
     final thumbnailUri = thumbnailSrc == null || thumbnailSrc.isEmpty
         ? null
         : baseUri.resolve(thumbnailSrc);
@@ -216,7 +254,7 @@ List<_GalleryPost> _parseGalleryPosts(String html, Uri baseUri) {
             ? thumbnailUri
             : null,
         publishedDate: _parsePublishedDate(
-          card.querySelector('.gall_date')?.text ?? '',
+          container.querySelector('.gall_date')?.text ?? '',
         ),
       ),
     );
@@ -224,14 +262,33 @@ List<_GalleryPost> _parseGalleryPosts(String html, Uri baseUri) {
   return posts;
 }
 
+html_dom.Element _galleryPostContainer(html_dom.Element titleLink) {
+  html_dom.Element? current = titleLink.parent;
+  html_dom.Element? structuralMatch;
+  while (current != null) {
+    if (current.classes.contains('card') ||
+        current.classes.contains('gall_li')) {
+      return current;
+    }
+    if (structuralMatch == null &&
+        current.querySelector('img') != null &&
+        current.querySelector('.gall_date') != null) {
+      structuralMatch = current;
+    }
+    if (current.localName == 'form' || current.localName == 'body') break;
+    current = current.parent;
+  }
+  return structuralMatch ?? titleLink.parent ?? titleLink;
+}
+
 List<_GalleryPost> _selectGalleryCandidates(
   List<_GalleryPost> posts,
-  GalleryConfig config,
+  GallerySourceConfig source,
   DateTime now,
 ) {
-  final lookbackDays = config.lookbackDays;
+  final lookbackDays = source.lookbackDays;
   if (lookbackDays == null) {
-    return posts.take(config.maxPosts).toList(growable: false);
+    return posts.take(source.maxPosts).toList(growable: false);
   }
 
   final cutoff = now.subtract(Duration(days: lookbackDays));
@@ -244,16 +301,16 @@ List<_GalleryPost> _selectGalleryCandidates(
     if (date == null || !date.isBefore(cutoffDate)) {
       selected.add(post);
       selectedUrls.add(post.url);
-      if (selected.length >= config.maxPosts) return selected;
+      if (selected.length >= source.maxPosts) return selected;
     }
   }
 
   // 기간 조건의 결과가 없거나 부족할 경우에 대비해 최신 게시물을 후보에 포함한다.
-  if (selected.length < config.minPosts) {
+  if (selected.length < source.minPosts) {
     for (final post in posts) {
       if (selectedUrls.add(post.url)) selected.add(post);
-      if (selected.length >= config.minPosts ||
-          selected.length >= config.maxPosts) {
+      if (selected.length >= source.minPosts ||
+          selected.length >= source.maxPosts) {
         break;
       }
     }
@@ -263,12 +320,12 @@ List<_GalleryPost> _selectGalleryCandidates(
 
 List<_LoadedGalleryPost> _selectLoadedGalleryPosts(
   List<_LoadedGalleryPost> posts,
-  GalleryConfig config,
+  GallerySourceConfig source,
   DateTime now,
 ) {
-  final lookbackDays = config.lookbackDays;
+  final lookbackDays = source.lookbackDays;
   if (lookbackDays == null) {
-    return posts.take(config.maxPosts).toList(growable: false);
+    return posts.take(source.maxPosts).toList(growable: false);
   }
 
   final cutoff = now.subtract(Duration(days: lookbackDays));
@@ -279,15 +336,15 @@ List<_LoadedGalleryPost> _selectLoadedGalleryPosts(
     if (publishedAt != null && !publishedAt.isBefore(cutoff)) {
       selected.add(post);
       selectedUrls.add(post.post.url);
-      if (selected.length >= config.maxPosts) return selected;
+      if (selected.length >= source.maxPosts) return selected;
     }
   }
 
-  if (selected.length < config.minPosts) {
+  if (selected.length < source.minPosts) {
     for (final post in posts) {
       if (selectedUrls.add(post.post.url)) selected.add(post);
-      if (selected.length >= config.minPosts ||
-          selected.length >= config.maxPosts) {
+      if (selected.length >= source.minPosts ||
+          selected.length >= source.maxPosts) {
         break;
       }
     }
@@ -367,6 +424,58 @@ List<Uri> parsePostImageUrls(String html, Uri baseUri) {
     }
   }
   return images;
+}
+
+List<String> parsePostYoutubeVideoIds(String html) {
+  final document = html_parser.parse(html);
+  final content = document.querySelector('#bo_v_con');
+  if (content == null) return const [];
+
+  final videoIds = <String>[];
+  final seen = <String>{};
+  for (final element in content.querySelectorAll('iframe[src], a[href]')) {
+    final value = element.attributes['src'] ?? element.attributes['href'];
+    final videoId = value == null ? null : _youtubeVideoId(value);
+    if (videoId != null && seen.add(videoId)) videoIds.add(videoId);
+  }
+
+  // 일부 게시판은 YouTube 주소를 링크로 만들지 않고 본문 텍스트로 저장한다.
+  final urlPattern = RegExp(
+    r'''(?:https?:)?//(?:www\.|m\.)?(?:youtube\.com|youtube-nocookie\.com|youtu\.be)/[^\s<"']+''',
+    caseSensitive: false,
+  );
+  for (final match in urlPattern.allMatches(content.text)) {
+    final videoId = _youtubeVideoId(match.group(0)!);
+    if (videoId != null && seen.add(videoId)) videoIds.add(videoId);
+  }
+  return videoIds;
+}
+
+String? _youtubeVideoId(String value) {
+  var candidate = value.trim().replaceAll('&amp;', '&');
+  if (candidate.startsWith('//')) candidate = 'https:$candidate';
+  final uri = Uri.tryParse(candidate);
+  if (uri == null) return null;
+  final host = uri.host.toLowerCase();
+  String? videoId;
+  if (host == 'youtu.be' || host.endsWith('.youtu.be')) {
+    if (uri.pathSegments.isNotEmpty) videoId = uri.pathSegments.first;
+  } else if (host == 'youtube.com' ||
+      host.endsWith('.youtube.com') ||
+      host == 'youtube-nocookie.com' ||
+      host.endsWith('.youtube-nocookie.com')) {
+    if (uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'watch') {
+      videoId = uri.queryParameters['v'];
+    } else if (uri.pathSegments.length >= 2 &&
+        const {'embed', 'shorts', 'live'}.contains(uri.pathSegments.first)) {
+      videoId = uri.pathSegments[1];
+    }
+  }
+  if (videoId == null) return null;
+  final normalized = videoId.split(RegExp(r'[?&#/]')).first;
+  return RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(normalized)
+      ? normalized
+      : null;
 }
 
 String _normalizedText(String value) =>

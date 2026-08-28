@@ -204,6 +204,29 @@ class FolderConfig {
 }
 
 /// 웹 포토갤러리 게시물의 사진을 순회하는 대기화면 설정.
+class GallerySourceConfig {
+  final String url;
+  final int? lookbackDays;
+  final int minPosts;
+  final int maxPosts;
+
+  const GallerySourceConfig({
+    required this.url,
+    this.lookbackDays,
+    this.minPosts = 1,
+    this.maxPosts = 4,
+  });
+
+  bool get isUsable =>
+      _isValidHttpUrl(url) &&
+      (lookbackDays == null || lookbackDays! > 0) &&
+      minPosts > 0 &&
+      maxPosts > 0 &&
+      minPosts <= maxPosts;
+
+  String get playbackKey => '$url|$lookbackDays|$minPosts|$maxPosts';
+}
+
 class GalleryConfig {
   /// 포토갤러리 게시판 목록 URL.
   final String url;
@@ -211,10 +234,30 @@ class GalleryConfig {
   /// 복수 포토갤러리 게시판 URL. 비어 있으면 기존 [url]을 사용한다.
   final List<String> urls;
 
-  List<String> get effectiveUrls =>
+  /// 주소별 게시물 선택 조건. JSON의 `urls` 객체 항목에서 읽는다.
+  final List<GallerySourceConfig> sources;
+
+  List<String> get _legacyUrls =>
       urls.isNotEmpty ? urls : (url.isEmpty ? const [] : [url]);
 
-  String get playbackKey => effectiveUrls.join('|');
+  List<GallerySourceConfig> get effectiveSources => sources.isNotEmpty
+      ? sources
+      : _legacyUrls
+          .map(
+            (sourceUrl) => GallerySourceConfig(
+              url: sourceUrl,
+              lookbackDays: lookbackDays,
+              minPosts: minPosts,
+              maxPosts: maxPosts,
+            ),
+          )
+          .toList(growable: false);
+
+  List<String> get effectiveUrls =>
+      effectiveSources.map((source) => source.url).toList(growable: false);
+
+  String get playbackKey =>
+      effectiveSources.map((source) => source.playbackKey).join('||');
 
   /// 사진 한 장당 표시 시간(초).
   final int intervalSec;
@@ -243,6 +286,7 @@ class GalleryConfig {
   const GalleryConfig({
     this.url = '',
     this.urls = const [],
+    this.sources = const [],
     this.intervalSec = 8,
     this.maxPosts = 4,
     this.lookbackDays,
@@ -256,7 +300,8 @@ class GalleryConfig {
   static const GalleryConfig defaults = GalleryConfig();
 
   bool get isUsable {
-    return effectiveUrls.isNotEmpty && effectiveUrls.every(_isValidHttpUrl);
+    return effectiveSources.isNotEmpty &&
+        effectiveSources.every((source) => source.isUsable);
   }
 
   factory GalleryConfig.fromJson(Map<String, dynamic> json) {
@@ -293,37 +338,97 @@ class GalleryConfig {
 
     final maxPosts = parsePositiveInt('maxPosts', defaults.maxPosts);
     final minPosts = parsePositiveInt('minPosts', defaults.minPosts);
+    final lookbackDays = json['lookbackDays'] == null
+        ? null
+        : parsePositiveInt('lookbackDays', 1);
     if (minPosts > maxPosts) {
       throw const FormatException(
         'menu.json idle.gallery.minPosts: maxPosts 이하여야 함',
       );
     }
 
-    final urls = <String>[];
+    GallerySourceConfig parseSource(Object? raw, String key) {
+      if (raw is String) {
+        return GallerySourceConfig(
+          url: parseUrlValue(raw, key),
+          lookbackDays: lookbackDays,
+          minPosts: minPosts,
+          maxPosts: maxPosts,
+        );
+      }
+      if (raw is! Map<String, dynamic>) {
+        throw FormatException(
+          'menu.json idle.gallery.$key: URL 문자열 또는 설정 객체 필요',
+        );
+      }
+      final sourceUrl = parseUrlValue(raw['url'], '$key.url');
+
+      int sourcePositiveInt(String field, int fallback) {
+        final value = raw[field];
+        if (value == null) return fallback;
+        if (value is! num || value <= 0) {
+          throw FormatException(
+            'menu.json idle.gallery.$key.$field: 양수 필요',
+          );
+        }
+        return value.toInt();
+      }
+
+      final sourceLookbackDays = raw.containsKey('lookbackDays')
+          ? (raw['lookbackDays'] == null
+              ? null
+              : sourcePositiveInt('lookbackDays', 1))
+          : lookbackDays;
+      final sourceMinPosts = sourcePositiveInt('minPosts', minPosts);
+      final sourceMaxPosts = sourcePositiveInt('maxPosts', maxPosts);
+      if (sourceMinPosts > sourceMaxPosts) {
+        throw FormatException(
+          'menu.json idle.gallery.$key.minPosts: maxPosts 이하여야 함',
+        );
+      }
+      return GallerySourceConfig(
+        url: sourceUrl,
+        lookbackDays: sourceLookbackDays,
+        minPosts: sourceMinPosts,
+        maxPosts: sourceMaxPosts,
+      );
+    }
+
+    final sources = <GallerySourceConfig>[];
+    final seenUrls = <String>{};
     final urlsRaw = json['urls'];
     if (urlsRaw is List) {
       for (var i = 0; i < urlsRaw.length; i++) {
-        final value = parseUrlValue(urlsRaw[i], 'urls[$i]');
-        if (!urls.contains(value)) urls.add(value);
+        final source = parseSource(urlsRaw[i], 'urls[$i]');
+        if (seenUrls.add(source.url)) sources.add(source);
       }
-      if (urls.isEmpty) {
+      if (sources.isEmpty) {
         throw const FormatException('menu.json idle.gallery.urls: 한 개 이상 필요');
       }
     } else if (urlsRaw != null) {
       throw const FormatException('menu.json idle.gallery.urls: 배열이어야 함');
     }
 
+    if (sources.isEmpty) {
+      final legacyUrl = parseUrlValue(json['url'], 'url');
+      sources.add(
+        GallerySourceConfig(
+          url: legacyUrl,
+          lookbackDays: lookbackDays,
+          minPosts: minPosts,
+          maxPosts: maxPosts,
+        ),
+      );
+    }
+
     return GalleryConfig(
-      url: urls.isEmpty ? parseUrlValue(json['url'], 'url') : '',
-      urls: List.unmodifiable(urls),
+      sources: List.unmodifiable(sources),
       intervalSec: parsePositiveInt(
         'intervalSec',
         defaults.intervalSec,
       ),
       maxPosts: maxPosts,
-      lookbackDays: json['lookbackDays'] == null
-          ? null
-          : parsePositiveInt('lookbackDays', 1),
+      lookbackDays: lookbackDays,
       minPosts: minPosts,
       refreshIntervalMin: parsePositiveInt(
         'refreshIntervalMin',

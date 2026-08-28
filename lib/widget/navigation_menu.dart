@@ -10,6 +10,7 @@ import '../service/font_resource_service.dart';
 import '../service/system_keyboard.dart';
 import 'kiosk_webview.dart';
 import 'material_icon_registry.dart';
+import 'platform_file_image.dart';
 
 /// 네비게이션 영역의 표시 방향.
 enum NavigationOrientation { side, bottom }
@@ -1547,7 +1548,16 @@ class _IconImage extends StatelessWidget {
       );
     }
 
-    // 3) 에셋 이미지.
+    // 3) 데이터 루트의 외부 파일 이미지.
+    if (_isAbsoluteFilePath(path)) {
+      return PlatformFileImage(
+        path: path,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+
+    // 4) 에셋 이미지.
     return Image.asset(
       path,
       fit: BoxFit.contain,
@@ -1557,3 +1567,8 @@ class _IconImage extends StatelessWidget {
     );
   }
 }
+
+bool _isAbsoluteFilePath(String path) =>
+    path.startsWith('/') ||
+    path.startsWith(r'\\') ||
+    RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);

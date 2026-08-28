@@ -4,12 +4,12 @@
     "fontFamily": "Pretendard",
     "menuFontFamily": "Pretendard",
     "navPosition": "right",
-    "sideWidth": 220,
-    "barHeight": 96,
+    "sideWidth": 230,
+    "barHeight": 102,
     "breakpoint": 720,
     "buttonHeight": 0,
     "buttonWidth": 0,
-    "buttonGap": 8,
+    "buttonGap": 10,
     "buttonAlignment": "stretch",
     "showHistoryButtons": true,
     "showKeyboardToggle": true,
@@ -37,11 +37,11 @@
     "keyboardMode": "windows",
     "toolbarInitiallyHidden": false,
     "toolbarAutoHideSec": 0,
-    "barColor": "#1f2937",
-    "buttonColor": "#374151",
+    "barColor": "#000000",
+    "buttonColor": "#171717",
     "buttonForegroundColor": "#ffffff",
-    "selectedButtonColor": "#2563eb",
-    "selectedButtonForegroundColor": "#ffffff",
+    "selectedButtonColor": "#facc15",
+    "selectedButtonForegroundColor": "#000000",
     "keepStateOnTap": false
   },
   "idle": {
@@ -68,9 +68,21 @@
       "transition": "fade"
     },
     "gallery": {
-      "urls": ["http://ycatholic.or.kr/bbs/board.php?bo_table=gallery"],
+      "urls": [
+        {
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
+          "lookbackDays": 30,
+          "minPosts": 1,
+          "maxPosts": 100
+        },
+        {
+          "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=signage1",
+          "minPosts": 1,
+          "maxPosts": 10
+        }
+      ],
       "intervalSec": 8,
-      "lookbackDays": 30,
+      "lookbackDays": 120,
       "minPosts": 1,
       "refreshIntervalMin": 5,
       "shuffle": false,

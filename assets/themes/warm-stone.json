@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "warm-stone",
+  "name": "따뜻한 스톤",
+  "description": "부드러운 갈색 계열과 차분한 강조색을 사용하는 테마입니다.",
+  "values": {
+    "fontFamily": "Pretendard",
+    "menuFontFamily": "NanumSquare",
+    "sideWidth": 224,
+    "barHeight": 98,
+    "buttonHeight": 0,
+    "buttonWidth": 0,
+    "buttonGap": 9,
+    "barColor": "#292524",
+    "selectedTopicLabelColor": "#fef3c7",
+    "buttonColor": "#44403c",
+    "buttonForegroundColor": "#fafaf9",
+    "selectedButtonColor": "#b45309",
+    "selectedButtonForegroundColor": "#ffffff"
+  }
+}

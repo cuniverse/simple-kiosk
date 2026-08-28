@@ -82,6 +82,8 @@ void main() {
     expect(page, contains('사이니지 구성'));
     expect(page, isNot(contains('외부 메뉴 설정')));
     expect(page, contains('/api/config/defaults'));
+    expect(page, contains('function buildConfigOverride(base,effective)'));
+    expect(page, contains('JSON.stringify(override)'));
     expect(page, contains('전체 기본값 복원'));
     expect(page, contains('이 섹션 기본값 복원'));
     expect(page, contains('이 값 복원'));
@@ -110,6 +112,108 @@ void main() {
     expect(page, contains(r"setInterval(()=>{if(token&&!$('adminTabApi')"));
     expect(
         page, contains("['pointerdown','keydown','input','change','wheel']"));
+  });
+
+  test('웹 관리자에 exdata 전용 탐색기형 파일 관리 화면이 포함된다', () {
+    final page = File('assets/admin/index.html').readAsStringSync();
+
+    expect(page, contains('data-admin-tab="files"'));
+    expect(page, contains('id="adminTabFiles"'));
+    expect(page, contains('id="fileAddress"'));
+    expect(page, contains('id="fileUploadInput"'));
+    expect(page, contains('fileUploadChunkBytes=512*1024'));
+    expect(page, contains('uploadId='));
+    expect(page, contains('/api/files/list?path='));
+    expect(page, contains('/api/files/upload?path='));
+    expect(page, contains('/api/files/download?path='));
+    expect(page, contains('/api/files/directory'));
+    expect(page, contains('/api/files/move'));
+    expect(page, contains('/api/files/change-check'));
+    expect(page, contains('alert(e.message)'));
+    expect(page, contains("addEventListener('drop'"));
+    expect(page, contains('selectedFilePaths=new Set()'));
+    expect(page, contains('event.shiftKey'));
+    expect(page, contains('event.ctrlKey||event.metaKey'));
+    expect(page, contains("e.key.toLowerCase()==='a'"));
+    expect(page, contains(r'선택한 ${entries.length}개 항목'));
+  });
+
+  test('웹 관리자는 레이아웃과 UI 모양을 분리하고 사용자 테마를 관리한다', () {
+    final page = File('assets/admin/index.html').readAsStringSync();
+
+    expect(page, contains('data-section="appearance"'));
+    expect(page, contains('UI 모양·테마'));
+    expect(page, contains('id=\'themeWarning\''));
+    expect(page, contains('/api/themes'));
+    expect(page, contains('saveCurrentTheme'));
+    expect(page, contains('appearanceChangedFromSaved'));
+    expect(page, contains('사용자 테마 삭제'));
+  });
+
+  test('웹 관리자는 갤러리 주소별 게시물 조회 조건을 편집한다', () {
+    final page = File('assets/admin/index.html').readAsStringSync();
+
+    expect(page, contains('normalizeGallerySources'));
+    expect(page, contains('갤러리 주소별 게시물 설정'));
+    expect(page, contains("sourceField('게시물 조회 기간(일)'"));
+    expect(page, contains("sourceField('최소 게시물 수'"));
+    expect(page, contains("sourceField('최대 게시물 수'"));
+    expect(page, contains("add=node('button','','주소 추가')"));
+  });
+
+  test('exdata 상대경로를 데이터 루트 파일로 해석하고 대기화면에서 표시한다', () {
+    final loader = File(
+      'lib/service/menu_config_loader.dart',
+    ).readAsStringSync();
+    final idleOverlay = File(
+      'lib/widget/idle_overlay.dart',
+    ).readAsStringSync();
+    final navigation =
+        File('lib/widget/navigation_menu.dart').readAsStringSync();
+    final language =
+        File('lib/widget/language_selection.dart').readAsStringSync();
+
+    expect(loader, contains("value.startsWith('exdata/')"));
+    expect(idleOverlay, contains('_MixedMediaKind.fileImage'));
+    expect(idleOverlay, contains('PlatformFileImage(key: key'));
+    expect(navigation, contains('if (_isAbsoluteFilePath(path))'));
+    expect(navigation, contains('return PlatformFileImage('));
+    expect(language, contains('if (_isAbsoluteFilePath(value))'));
+  });
+
+  test('고대비 기본 UI 값은 프리로드 고대비 테마와 정확히 일치한다', () {
+    final defaults = jsonDecode(
+      File('assets/config/menu.defaults.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final theme = jsonDecode(
+      File('assets/themes/high-contrast.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final layout = defaults['layout'] as Map<String, dynamic>;
+    final values = theme['values'] as Map<String, dynamic>;
+
+    for (final entry in values.entries) {
+      expect(layout[entry.key], entry.value, reason: entry.key);
+    }
+  });
+
+  test('제거 시 사용자 데이터 삭제를 선택하면 exdata도 삭제한다', () {
+    final installer = File('scripts/simple-kiosk.iss').readAsStringSync();
+    expect(
+      installer,
+      contains("DelTree(AddBackslash(InstallRoot) + 'exdata'"),
+    );
+  });
+
+  test('재생 불가능한 단일 폴더 동영상은 반복 재시도하지 않는다', () {
+    final idleOverlay = File('lib/widget/idle_overlay.dart').readAsStringSync();
+    expect(
+      idleOverlay,
+      contains('단일 항목은 반복 재시도하지 않는다.'),
+    );
+    expect(
+      idleOverlay,
+      contains("_error = '동영상을 재생할 수 없습니다:"),
+    );
   });
 
   testWidgets('관리자 PIN 키패드로 숫자 입력과 삭제를 수행한다', (tester) async {
@@ -608,6 +712,17 @@ void main() {
     expect(config.language('ko').items.first.title, 'WYD 서울 2027');
     expect(config.layout.fontFamily, 'Pretendard');
     expect(config.layout.menuFontFamily, 'Pretendard');
+    final highContrast = jsonDecode(
+      File('assets/themes/high-contrast.json').readAsStringSync(),
+    )['values'] as Map<String, dynamic>;
+    expect(config.layout.sideWidth, highContrast['sideWidth']);
+    expect(config.layout.barHeight, highContrast['barHeight']);
+    expect(config.layout.buttonGap, highContrast['buttonGap']);
+    expect(config.layout.barColor, const Color(0xFF000000));
+    expect(config.layout.buttonColor, const Color(0xFF171717));
+    expect(config.layout.selectedButtonColor, const Color(0xFFFACC15));
+    expect(
+        config.layout.selectedButtonForegroundColor, const Color(0xFF000000));
     expect(config.languageSelectionFontFamily, 'Pretendard');
     expect(config.language('ko').fontFamily, 'NanumSquare');
     expect(
@@ -1187,8 +1302,18 @@ void main() {
       },
       'gallery': {
         'urls': [
-          'https://example.com/gallery-a',
-          'https://example.com/gallery-b',
+          {
+            'url': 'https://example.com/gallery-a',
+            'lookbackDays': 30,
+            'minPosts': 2,
+            'maxPosts': 5,
+          },
+          {
+            'url': 'https://example.com/gallery-b',
+            'lookbackDays': 7,
+            'minPosts': 1,
+            'maxPosts': 2,
+          },
         ],
       },
     });
@@ -1206,7 +1331,49 @@ void main() {
       'https://example.com/gallery-a',
       'https://example.com/gallery-b',
     ]);
+    expect(config.gallery.effectiveSources[0].lookbackDays, 30);
+    expect(config.gallery.effectiveSources[0].minPosts, 2);
+    expect(config.gallery.effectiveSources[0].maxPosts, 5);
+    expect(config.gallery.effectiveSources[1].lookbackDays, 7);
+    expect(config.gallery.effectiveSources[1].minPosts, 1);
+    expect(config.gallery.effectiveSources[1].maxPosts, 2);
     expect(config.isUsable, isTrue);
+  });
+
+  test('legacy gallery URL strings inherit the common post settings', () {
+    final config = GalleryConfig.fromJson({
+      'urls': [
+        'https://example.com/gallery-a',
+        'https://example.com/gallery-b',
+      ],
+      'lookbackDays': 14,
+      'minPosts': 2,
+      'maxPosts': 6,
+    });
+
+    expect(config.effectiveSources, hasLength(2));
+    expect(config.effectiveSources.every((source) => source.lookbackDays == 14),
+        isTrue);
+    expect(config.effectiveSources.every((source) => source.minPosts == 2),
+        isTrue);
+    expect(config.effectiveSources.every((source) => source.maxPosts == 6),
+        isTrue);
+  });
+
+  test('gallery source minimum posts cannot exceed its maximum', () {
+    expect(
+      () => GalleryConfig.fromJson({
+        'urls': [
+          {
+            'url': 'https://example.com/gallery',
+            'lookbackDays': 7,
+            'minPosts': 4,
+            'maxPosts': 3,
+          },
+        ],
+      }),
+      throwsFormatException,
+    );
   });
 
   test('url idle mode cannot be combined with another mode', () {
@@ -1268,6 +1435,236 @@ void main() {
       'http://example.com/post/1',
       'http://example.com/post/2',
     ]);
+    loader.close();
+  });
+
+  test('gallery parses both card and gall_li board layouts', () async {
+    const cardListHtml = '''
+      <div class="card">
+        <a class="img-card" href="/bbs/board.php?bo_table=gallery&amp;wr_id=7">
+          <img src="/gallery-thumb.jpg">
+        </a>
+        <a class="bo_tit"
+           href="/bbs/board.php?bo_table=gallery&amp;wr_id=7">
+          <span class="ks4">Gallery post</span>
+        </a>
+        <span class="gall_date">2026-08-27</span>
+      </div>
+    ''';
+    const gallLiListHtml = '''
+      <ul id="gall_ul">
+        <li class="gall_li col-gn-4">
+          <div class="gall_box">
+            <div class="gall_img">
+              <a href="/bbs/board.php?bo_table=signage1&amp;wr_id=1">
+                <img src="/signage-thumb.png">
+              </a>
+            </div>
+            <div class="gall_text_href">
+              <a class="bo_tit"
+                 href="/bbs/board.php?bo_table=signage1&amp;wr_id=1">
+                Signage post
+                <span class="new_icon">N<span class="sound_only">new</span></span>
+              </a>
+            </div>
+            <span class="gall_date">17:56</span>
+          </div>
+        </li>
+      </ul>
+    ''';
+    final client = MockClient((request) async {
+      if (request.url.queryParameters['bo_table'] == 'gallery' &&
+          !request.url.queryParameters.containsKey('wr_id')) {
+        return http.Response(cardListHtml, 200);
+      }
+      if (request.url.queryParameters['bo_table'] == 'signage1' &&
+          !request.url.queryParameters.containsKey('wr_id')) {
+        return http.Response(gallLiListHtml, 200);
+      }
+      final board = request.url.queryParameters['bo_table'];
+      final extension = board == 'signage1' ? 'png' : 'jpg';
+      return http.Response(
+        '<div id="bo_v_con"><img src="/$board-original.$extension"></div>',
+        200,
+      );
+    });
+    final loader = GalleryFeedLoader(client: client);
+
+    final items = await loader.load(
+      const GalleryConfig(
+        urls: [
+          'http://example.com/bbs/board.php?bo_table=gallery',
+          'http://example.com/bbs/board.php?bo_table=signage1',
+        ],
+        maxPosts: 1,
+        maxImages: 2,
+      ),
+    );
+
+    expect(items.map((item) => item.title), [
+      'Gallery post',
+      'Signage post',
+    ]);
+    expect(items.map((item) => item.imageUrl), [
+      'http://example.com/gallery-original.jpg',
+      'http://example.com/signage1-original.png',
+    ]);
+    loader.close();
+  });
+
+  test('gallery parser supports the movie board card layout', () async {
+    const listHtml = '''
+      <div class="card">
+        <a class="img-card"
+           href="/bbs/board.php?bo_table=movie&amp;wr_id=18">
+          <img src="/data/editor/movie-thumb.jpg">
+        </a>
+        <a class="bo_cate_link">[2020년대]</a>
+        <a class="bo_tit"
+           href="/bbs/board.php?bo_table=movie&amp;wr_id=18">
+          <span class="ks4">여의도동성당 50년사</span>
+        </a>
+        <!-- movie 스킨은 목록 작성일을 주석 처리한다. -->
+      </div>
+    ''';
+    const postHtml = '''
+      <strong class="if_date">작성일 25-06-23 12:00</strong>
+      <div id="bo_v_con">
+        <img src="http://www.example.com/data/editor/movie-original.jpg">
+      </div>
+    ''';
+    final client = MockClient((request) async {
+      if (!request.url.queryParameters.containsKey('wr_id')) {
+        return http.Response.bytes(
+          utf8.encode(listHtml),
+          200,
+          headers: {'content-type': 'text/html; charset=utf-8'},
+        );
+      }
+      return http.Response.bytes(
+        utf8.encode(postHtml),
+        200,
+        headers: {'content-type': 'text/html; charset=utf-8'},
+      );
+    });
+    final loader = GalleryFeedLoader(client: client);
+
+    final items = await loader.load(
+      const GalleryConfig(
+        url: 'http://example.com/bbs/board.php?bo_table=movie',
+        minPosts: 1,
+        maxPosts: 1,
+        maxImages: 1,
+      ),
+    );
+
+    expect(items.single.title, '여의도동성당 50년사');
+    expect(
+      items.single.imageUrl,
+      'http://www.example.com/data/editor/movie-original.jpg',
+    );
+    loader.close();
+  });
+
+  test('gallery extracts supported YouTube URL formats without duplicates', () {
+    final ids = parsePostYoutubeVideoIds('''
+      <div id="bo_v_con">
+        <iframe src="https://www.youtube.com/embed/uYY2QToeaqc?si=test"></iframe>
+        <a href="https://youtu.be/uYY2QToeaqc">duplicate</a>
+        <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ">watch</a>
+        <a href="https://www.youtube.com/shorts/aqz-KE-bpKQ">short</a>
+      </div>
+    ''');
+
+    expect(ids, ['uYY2QToeaqc', 'dQw4w9WgXcQ', 'aqz-KE-bpKQ']);
+  });
+
+  test('gallery uses an embedded YouTube video instead of its poster image',
+      () async {
+    const listHtml = '''
+      <div class="card">
+        <a class="img-card" href="/post/6"><img src="/poster.jpg"></a>
+        <a class="bo_tit"><span class="ks4">Anniversary movie</span></a>
+      </div>
+    ''';
+    const postHtml = '''
+      <div id="bo_v_con">
+        <iframe src="https://www.youtube.com/embed/uYY2QToeaqc"></iframe>
+        <img src="/poster-original.jpg">
+      </div>
+    ''';
+    final client = MockClient((request) async {
+      return http.Response(
+          request.url.path == '/gallery' ? listHtml : postHtml, 200);
+    });
+    final loader = GalleryFeedLoader(client: client);
+
+    final items = await loader.load(
+      const GalleryConfig(
+        url: 'http://example.com/gallery',
+        maxPosts: 1,
+        maxImages: 5,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    expect(items.single.isYoutube, isTrue);
+    expect(items.single.youtubeVideoId, 'uYY2QToeaqc');
+    expect(
+      items.single.imageUrl,
+      'https://i.ytimg.com/vi/uYY2QToeaqc/hqdefault.jpg',
+    );
+    loader.close();
+  });
+
+  test('YouTube idle player requests audible autoplay and reports completion',
+      () {
+    final html = buildYoutubePlayerHtml('uYY2QToeaqc', loop: false);
+
+    expect(html, contains('autoplay:1'));
+    expect(html, contains('mute:0'));
+    expect(html, contains('event.target.unMute()'));
+    expect(html, contains('event.target.setVolume(100)'));
+    expect(html, contains("notify('playing')"));
+    expect(html, contains("notify('ended')"));
+  });
+
+  test('gallery ignores posts whose normalized title starts with hash',
+      () async {
+    const listHtml = '''
+      <div class="card">
+        <a class="img-card" href="/post/hidden"><img src="/hidden.jpg"></a>
+        <a class="bo_tit"><span class="ks4">   # Hidden post </span></a>
+      </div>
+      <li class="gall_li">
+        <div class="gall_img">
+          <a href="/post/visible"><img src="/visible.jpg"></a>
+        </div>
+        <a class="bo_tit" href="/post/visible">Visible post</a>
+      </li>
+    ''';
+    final client = MockClient((request) async {
+      if (request.url.path == '/gallery') {
+        return http.Response(listHtml, 200);
+      }
+      return http.Response(
+        '<div id="bo_v_con"><img src="/original.jpg"></div>',
+        200,
+      );
+    });
+    final loader = GalleryFeedLoader(client: client);
+
+    final items = await loader.load(
+      const GalleryConfig(
+        url: 'http://example.com/gallery',
+        maxPosts: 2,
+        maxImages: 2,
+      ),
+    );
+
+    expect(items, hasLength(1));
+    expect(items.single.title, 'Visible post');
+    expect(items.single.postUrl, 'http://example.com/post/visible');
     loader.close();
   });
 
@@ -1439,6 +1836,55 @@ void main() {
     loader.close();
   });
 
+  test('each gallery board applies its own maximum post count', () async {
+    String listHtml(String board) => List.generate(
+          2,
+          (index) => '''
+      <div class="card">
+        <a class="img-card" href="/$board-post-$index"><img src="/$board-thumb-$index.jpg"></a>
+        <a class="bo_tit"><span class="ks4">$board ${index + 1}</span></a>
+      </div>
+    ''',
+        ).join();
+    final client = MockClient((request) async {
+      if (request.url.path == '/gallery-a') {
+        return http.Response(listHtml('A'), 200);
+      }
+      if (request.url.path == '/gallery-b') {
+        return http.Response(listHtml('B'), 200);
+      }
+      if (request.url.path.contains('-post-')) {
+        return http.Response(
+          '<div id="bo_v_con"><img src="${request.url.path}.jpg"></div>',
+          200,
+        );
+      }
+      return http.Response('not found', 404);
+    });
+    final loader = GalleryFeedLoader(client: client);
+
+    final items = await loader.load(
+      const GalleryConfig(
+        sources: [
+          GallerySourceConfig(
+            url: 'http://example.com/gallery-a',
+            minPosts: 1,
+            maxPosts: 1,
+          ),
+          GallerySourceConfig(
+            url: 'http://example.com/gallery-b',
+            minPosts: 1,
+            maxPosts: 2,
+          ),
+        ],
+        maxImages: 3,
+      ),
+    );
+
+    expect(items.map((item) => item.title), ['A 1', 'B 1', 'B 2']);
+    loader.close();
+  });
+
   test('툴바는 기본적으로 숨김이며 자동 숨김 시간을 파싱한다', () {
     expect(LayoutConfig.defaults.toolbarInitiallyHidden, isTrue);
     expect(LayoutConfig.defaults.toolbarAutoHideSec, 10);
@@ -1454,6 +1900,13 @@ void main() {
     expect(LayoutConfig.defaults.windowsAlwaysOnTop, isFalse);
     expect(LayoutConfig.defaults.windowsPreventScreenSaver, isTrue);
     expect(LayoutConfig.defaults.windowsPreventDisplaySleep, isTrue);
+    expect(LayoutConfig.defaults.fontFamily, 'Pretendard');
+    expect(LayoutConfig.defaults.sideWidth, 230);
+    expect(LayoutConfig.defaults.barHeight, 102);
+    expect(LayoutConfig.defaults.buttonGap, 10);
+    expect(LayoutConfig.defaults.barColor, const Color(0xFF000000));
+    expect(LayoutConfig.defaults.buttonColor, const Color(0xFF171717));
+    expect(LayoutConfig.defaults.selectedButtonColor, const Color(0xFFFACC15));
 
     final config = LayoutConfig.fromJson({
       'fontFamily': ' Pretendard ',

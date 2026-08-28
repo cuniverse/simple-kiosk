@@ -24,7 +24,7 @@ if (Test-Path -LiteralPath $pointerPath) {
     }
 }
 
-foreach ($directory in @('config', 'media', 'state', 'logs', 'downloads', 'updater', 'versions')) {
+foreach ($directory in @('config', 'media', 'exdata', 'themes', 'state', 'logs', 'downloads', 'updater', 'versions')) {
     New-Item -ItemType Directory -Force -Path (Join-Path $InstallRoot $directory) | Out-Null
 }
 

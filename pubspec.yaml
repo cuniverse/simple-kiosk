@@ -57,6 +57,7 @@ flutter:
     - assets/fonts/README.md
     - assets/fonts/licenses/
     - assets/ssh/
+    - assets/themes/
   fonts:
     - family: NanumSquare
       fonts:

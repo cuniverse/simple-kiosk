@@ -299,12 +299,8 @@ class WebAdminSshTunnelController extends ChangeNotifier {
         'Connection: close\r\n\r\n',
       );
       await probeSocket.flush().timeout(_healthCheckTimeout);
-      final statusLine = await probeSocket
-          .cast<List<int>>()
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .first
-          .timeout(_healthCheckTimeout);
+      final statusLine =
+          await readHttpStatusLine(probeSocket).timeout(_healthCheckTimeout);
       final statusMatch =
           RegExp(r'^HTTP/1\.[01] ([0-9]{3})').firstMatch(statusLine);
       final statusCode = int.tryParse(statusMatch?.group(1) ?? '');
@@ -334,5 +330,28 @@ class WebAdminSshTunnelController extends ChangeNotifier {
   void dispose() {
     unawaited(stop(notify: false));
     super.dispose();
+  }
+}
+
+/// HTTP 응답의 첫 줄만 바이트 단위로 읽는다.
+///
+/// 응답 본문의 UTF-8 문자가 소켓 청크 경계에서 잘려도 상태 확인이 실패하거나
+/// 정상 포워딩을 재연결하지 않도록 본문을 문자열로 디코딩하지 않는다.
+Future<String> readHttpStatusLine(Stream<List<int>> stream) async {
+  final iterator = StreamIterator<List<int>>(stream);
+  final bytes = <int>[];
+  try {
+    while (await iterator.moveNext()) {
+      for (final byte in iterator.current) {
+        if (byte == 0x0a) return latin1.decode(bytes).trimRight();
+        if (byte != 0x0d) bytes.add(byte);
+        if (bytes.length > 1024) {
+          throw const FormatException('HTTP 상태 줄이 너무 깁니다.');
+        }
+      }
+    }
+    throw const FormatException('HTTP 상태 줄을 받지 못했습니다.');
+  } finally {
+    await iterator.cancel();
   }
 }

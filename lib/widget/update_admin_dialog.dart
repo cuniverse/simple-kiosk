@@ -469,7 +469,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('자동 업데이트'),
-                      subtitle: const Text('기본값 OFF · stable 채널'),
+                      subtitle: const Text('기본값 OFF · 시작 시 즉시 검사·설치'),
                       value: _enabled,
                       onChanged: controller.busy
                           ? null
@@ -478,6 +478,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('화면 보호기 진입 후 설치'),
+                      subtitle: const Text('시작 이후 주기 검사로 받은 업데이트에 적용'),
                       value: _installWhenIdle,
                       onChanged: controller.busy
                           ? null

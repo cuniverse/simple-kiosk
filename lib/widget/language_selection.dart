@@ -6,6 +6,7 @@ import '../model/menu_language.dart';
 import '../model/menu_topic.dart';
 import '../service/font_resource_service.dart';
 import 'material_icon_registry.dart';
+import 'platform_file_image.dart';
 
 const double _selectionButtonMaxWidth = 400;
 const double _selectionButtonHeight = 190;
@@ -429,6 +430,13 @@ class _LanguageIcon extends StatelessWidget {
         errorBuilder: (_, __, ___) => const Icon(Icons.language, size: 48),
       );
     }
+    if (_isAbsoluteFilePath(value)) {
+      return PlatformFileImage(
+        path: value,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Icon(Icons.language, size: 48),
+      );
+    }
     if (value.contains('/') || value.contains('\\')) {
       return Image.asset(
         value,
@@ -439,3 +447,8 @@ class _LanguageIcon extends StatelessWidget {
     return FittedBox(child: Text(value));
   }
 }
+
+bool _isAbsoluteFilePath(String path) =>
+    path.startsWith('/') ||
+    path.startsWith(r'\\') ||
+    RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);

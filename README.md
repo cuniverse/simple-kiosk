@@ -42,7 +42,9 @@ GitHub: https://github.com/cuniverse/simple-kiosk
   - WebView input 포커스 시 자동 호출 + 네비게이션 바 토글로 수동 호출 가능
   - 모든 OS (Windows / macOS / Linux / Android / iOS) 에서 동일 디자인/동작
 - **대기화면(Idle)**: 일정 시간 무조작 시 슬라이드쇼/단일 이미지/URL/폴더/웹 포토갤러리 모드로 전환
-- **Windows 자동 업데이트**: GitHub stable Release 확인, SHA-256 검증, 네이티브 EXE 설치, 시작 실패 자동 롤백
+- **Windows 자동 업데이트**: 자동 업데이트가 켜져 있으면 시작 직후 새 버전을 검사·설치하며, GitHub stable Release 확인, SHA-256 검증, 네이티브 EXE 설치, 시작 실패 자동 롤백 지원
+- **원격 파일 관리**: WEB 관리자에서 업데이트에 유지되는 `exdata/` 폴더의 파일을 Windows 탐색기 형태로 업로드·다운로드·이름 변경·삭제
+- **UI 테마**: 레이아웃·동작과 UI 모양을 분리하고, 프리로드 테마 적용 및 편집한 모양의 사용자 테마 저장 지원
 
 ## 실행 방법
 
@@ -191,11 +193,11 @@ flutter pub get
 |---|---|---|---|
 | `navPosition` | `auto`/`left`/`right`/`top`/`bottom` | `right` | 네비게이션 위치. `auto` 는 폭 `breakpoint` 기준 자동 전환 |
 | `breakpoint` | number(dp) | `720` | `auto` 모드에서 사이드/하단을 가르는 폭 |
-| `sideWidth` | number(dp) | `220` | 사이드 모드 폭 |
-| `barHeight` | number(dp) | `96` | 상/하단 모드 높이 |
+| `sideWidth` | number(dp) | `230` | 사이드 모드 폭 |
+| `barHeight` | number(dp) | `102` | 상/하단 모드 높이 |
 | `buttonHeight` | number(dp) | `0`(자동) | 각 버튼 높이 |
 | `buttonWidth` | number(dp) | `0`(균등) | 하단 모드에서 버튼 폭. `0` 이고 `stretch` 이면 균등 분배 |
-| `buttonGap` | number(dp) | `8` | 버튼 간 간격 |
+| `buttonGap` | number(dp) | `10` | 버튼 간 간격 |
 | `buttonAlignment` | `start`/`center`/`end`/`spaceBetween`/`spaceAround`/`spaceEvenly`/`stretch` | `stretch` | 정렬 방식 |
 | `showHistoryButtons` | bool | `true` | 하단 기능 버튼 묶음의 가장 앞에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
@@ -274,11 +276,11 @@ flutter pub get
     "keepStateOnTap": false,
     "toolbarInitiallyHidden": true,
     "toolbarAutoHideSec": 10,
-    "barColor": "#1f2937",
-    "buttonColor": "#374151",
+    "barColor": "#000000",
+    "buttonColor": "#171717",
     "buttonForegroundColor": "#ffffff",
-    "selectedButtonColor": "#2563eb",
-    "selectedButtonForegroundColor": "#ffffff"
+    "selectedButtonColor": "#facc15",
+    "selectedButtonForegroundColor": "#000000"
   },
   "idle": {
     "enabled": true,

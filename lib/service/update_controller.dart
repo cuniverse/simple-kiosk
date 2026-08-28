@@ -11,6 +11,11 @@ import 'app_logger.dart';
 
 class UpdateController extends ChangeNotifier {
   final UpdateService _service;
+  final Future<String> Function() _currentVersionLoader;
+  final Future<UpdatePolicy> Function() _policyLoader;
+  final Future<void> Function(UpdatePolicy) _policySaver;
+  final void Function(int) _exitApplication;
+  final bool? _supportedOverride;
   UpdatePolicy policy = const UpdatePolicy();
   AvailableUpdate? available;
   File? downloadedPackage;
@@ -23,21 +28,55 @@ class UpdateController extends ChangeNotifier {
   Timer? _retryTimer;
   int _consecutiveFailures = 0;
   Future<void>? _initializing;
+  Future<void> _startupUpdate = Future<void>.value();
 
-  UpdateController({UpdateService? service})
-      : _service = service ?? UpdateService();
+  UpdateController({
+    UpdateService? service,
+    Future<String> Function()? currentVersionLoader,
+    Future<UpdatePolicy> Function()? policyLoader,
+    Future<void> Function(UpdatePolicy)? policySaver,
+    void Function(int)? exitApplication,
+    bool? supportedOverride,
+  })  : _service = service ?? UpdateService(),
+        _currentVersionLoader = currentVersionLoader ??
+            (() async => (await PackageInfo.fromPlatform()).version),
+        _policyLoader = policyLoader ?? UpdatePolicyStore.load,
+        _policySaver = policySaver ?? UpdatePolicyStore.save,
+        _exitApplication = exitApplication ?? exit,
+        _supportedOverride = supportedOverride;
 
-  bool get supported => Platform.isWindows;
+  bool get supported => _supportedOverride ?? Platform.isWindows;
+
+  @visibleForTesting
+  Future<void> get startupUpdateDone => _startupUpdate;
 
   Future<void> initialize() => _initializing ??= _initialize();
 
   Future<void> _initialize() async {
-    currentVersion = (await PackageInfo.fromPlatform()).version;
-    policy = await UpdatePolicyStore.load();
+    currentVersion = await _currentVersionLoader();
+    policy = await _policyLoader();
     status = policy.enabled ? '자동 업데이트 사용' : '자동 업데이트 꺼짐';
     _schedule();
     notifyListeners();
-    if (policy.enabled) unawaited(check(automatic: true));
+    if (policy.enabled && supported) {
+      _startupUpdate = _runStartupUpdate();
+      unawaited(_startupUpdate);
+    }
+  }
+
+  /// 프로그램을 처음 실행할 때는 자동 업데이트가 켜져 있으면 설치 시간대나
+  /// 화면 보호기 상태를 기다리지 않고 검사, 다운로드, 설치 요청까지 진행한다.
+  /// 이후 주기 검사는 기존 운영 정책을 그대로 적용한다.
+  Future<void> _runStartupUpdate() async {
+    try {
+      final update = await check();
+      if (update == null || !policy.enabled) return;
+      final package = await download(allowAutoInstall: false);
+      if (package == null || !policy.enabled) return;
+      await installNow();
+    } catch (error, stackTrace) {
+      AppLogger.error(LogCategory.update, error, stackTrace);
+    }
   }
 
   Future<void> setEnabled(bool enabled) async {
@@ -47,7 +86,7 @@ class UpdateController extends ChangeNotifier {
   Future<void> updatePolicy(UpdatePolicy updated) async {
     final wasEnabled = policy.enabled;
     policy = updated;
-    await UpdatePolicyStore.save(policy);
+    await _policySaver(policy);
     if (!policy.enabled) {
       _timer?.cancel();
       status = '자동 업데이트 꺼짐';
@@ -180,7 +219,7 @@ class UpdateController extends ChangeNotifier {
       );
       status = '앱 종료 후 설치 예정';
       notifyListeners();
-      exit(0);
+      _exitApplication(0);
     } catch (error) {
       AppLogger.error(LogCategory.update, error);
       busy = false;

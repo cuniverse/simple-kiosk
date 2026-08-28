@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "calm-navy",
+  "name": "차분한 네이비",
+  "description": "어두운 공간에서 눈부심을 줄인 기본형 테마입니다.",
+  "values": {
+    "fontFamily": "Pretendard",
+    "menuFontFamily": "Pretendard",
+    "sideWidth": 220,
+    "barHeight": 96,
+    "buttonHeight": 0,
+    "buttonWidth": 0,
+    "buttonGap": 8,
+    "barColor": "#1f2937",
+    "selectedTopicLabelColor": "#f8fafc",
+    "buttonColor": "#374151",
+    "buttonForegroundColor": "#ffffff",
+    "selectedButtonColor": "#2563eb",
+    "selectedButtonForegroundColor": "#ffffff"
+  }
+}

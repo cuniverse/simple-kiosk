@@ -9,9 +9,12 @@ import '../model/menu_config.dart';
 import '../model/menu_language.dart';
 import '../model/webview_data_policy.dart';
 import 'app_logger.dart';
+import 'high_contrast_default_migration.dart';
 import 'menu_config_migrator.dart';
 import 'menu_config_merger.dart';
 import 'runtime_paths.dart';
+
+typedef MenuDefaultsReader = Future<Map<String, dynamic>> Function();
 
 /// 기본 설정과 외부 운영 설정을 읽고 구형 형식을 자동 마이그레이션하는 로더.
 ///
@@ -24,12 +27,23 @@ class MenuConfigLoader {
   static const String defaultAssetPath = 'assets/config/menu.defaults.json';
 
   final String assetPath;
+  final String? overridePath;
+  final MenuDefaultsReader? defaultsReader;
 
-  const MenuConfigLoader({this.assetPath = defaultAssetPath});
+  const MenuConfigLoader({
+    this.assetPath = defaultAssetPath,
+    this.overridePath,
+    this.defaultsReader,
+  });
+
+  String? get _overridePath => overridePath ?? RuntimePaths.menuOverride;
 
   /// 앱에 포함된 기본 설정 원본을 반환한다.
   Future<Map<String, dynamic>> readDefaults() async {
-    final decoded = json.decode(await rootBundle.loadString(assetPath));
+    final reader = defaultsReader;
+    final decoded = reader == null
+        ? json.decode(await rootBundle.loadString(assetPath))
+        : json.decode(json.encode(await reader()));
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('menu.defaults.json: 최상위 객체 필요');
     }
@@ -37,7 +51,7 @@ class MenuConfigLoader {
   }
 
   Future<Map<String, dynamic>> readOverride() async {
-    final path = RuntimePaths.menuOverride;
+    final path = _overridePath;
     if (path == null || !await File(path).exists()) return <String, dynamic>{};
     final decoded = json.decode(await File(path).readAsString());
     if (decoded is! Map<String, dynamic>) {
@@ -70,17 +84,20 @@ class MenuConfigLoader {
     }
   }
 
-  Future<void> saveOverride(Map<String, dynamic> override) async {
-    final raw = await rootBundle.loadString(assetPath);
-    final defaults = json.decode(raw);
-    if (defaults is! Map<String, dynamic>) {
-      throw const FormatException('menu.defaults.json: 최상위 객체 필요');
-    }
-    final merged = MenuConfigMerger.merge(defaults, override).json;
-    parse(merged);
-    final path = RuntimePaths.menuOverride;
+  Future<void> saveOverride(Map<String, dynamic> config) async {
+    final defaults = await readDefaults();
+    // 전체 유효 설정과 기존의 부분 override 입력을 모두 허용한다.
+    final effective = MenuConfigMerger.merge(defaults, config).json;
+    parse(effective);
+    final override = MenuConfigMerger.createOverride(defaults, effective);
+    final path = _overridePath;
     if (path == null) {
       throw UnsupportedError('메뉴 설정 저장 경로를 사용할 수 없습니다.');
+    }
+    final file = File(path);
+    if (override.length == 1 && override.containsKey('schemaVersion')) {
+      if (await file.exists()) await file.delete();
+      return;
     }
     await RuntimePaths.atomicWrite(
       path,
@@ -92,16 +109,12 @@ class MenuConfigLoader {
   ///
   /// 파싱 실패 시 [FormatException]을 던진다.
   Future<MenuConfig> load() async {
-    final raw = await rootBundle.loadString(assetPath);
-    final defaults = json.decode(raw);
-    if (defaults is! Map<String, dynamic>) {
-      throw const FormatException('menu.defaults.json: 최상위 객체 필요');
-    }
+    final defaults = await readDefaults();
 
     await RuntimePaths.ensureStructure();
     try {
       Map<String, dynamic>? override;
-      final overridePath = RuntimePaths.menuOverride;
+      final overridePath = _overridePath;
       if (overridePath != null && await File(overridePath).exists()) {
         final overrideFile = File(overridePath);
         final original = await overrideFile.readAsString();
@@ -126,14 +139,29 @@ class MenuConfigLoader {
           );
         }
       }
+      final beforeHighContrastMigration = override;
+      override = await HighContrastDefaultMigration.runtime().apply(
+        defaults,
+        override,
+        validate: (candidate) {
+          parse(MenuConfigMerger.merge(defaults, candidate).json);
+        },
+      );
+      if (!identical(beforeHighContrastMigration, override)) {
+        AppLogger.info(
+          LogCategory.app,
+          '업데이트 기본 테마를 고대비로 한 번 강제 적용했습니다.',
+        );
+      }
       final merged = MenuConfigMerger.merge(defaults, override).json;
+      final portableLastGood = json.decode(json.encode(merged));
       _resolveExternalMediaPaths(merged);
       final config = parse(merged);
       final lastGoodPath = RuntimePaths.lastGoodConfig;
       if (lastGoodPath != null) {
         await RuntimePaths.atomicWrite(
           lastGoodPath,
-          const JsonEncoder.withIndent('  ').convert(merged),
+          const JsonEncoder.withIndent('  ').convert(portableLastGood),
         );
       }
       return config;
@@ -358,7 +386,10 @@ class MenuConfigLoader {
       return value;
     }
     if (value is String &&
-        (value.startsWith('media/') || value.startsWith(r'media\'))) {
+        (value.startsWith('media/') ||
+            value.startsWith(r'media\') ||
+            value.startsWith('exdata/') ||
+            value.startsWith(r'exdata\'))) {
       return RuntimePaths.child(value) ?? value;
     }
     return value;

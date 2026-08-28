@@ -13,7 +13,7 @@ if ([string]::IsNullOrWhiteSpace($DataRoot)) {
 }
 $resolvedPackage = (Resolve-Path -LiteralPath $PackageDirectory).Path
 $versionRoot = Join-Path $DataRoot "versions\$Version"
-New-Item -ItemType Directory -Force -Path $DataRoot, (Join-Path $DataRoot 'config'), (Join-Path $DataRoot 'media'), (Join-Path $DataRoot 'state'), (Join-Path $DataRoot 'logs'), (Join-Path $DataRoot 'downloads'), (Join-Path $DataRoot 'versions'), (Join-Path $DataRoot 'updater') | Out-Null
+New-Item -ItemType Directory -Force -Path $DataRoot, (Join-Path $DataRoot 'config'), (Join-Path $DataRoot 'media'), (Join-Path $DataRoot 'exdata'), (Join-Path $DataRoot 'themes'), (Join-Path $DataRoot 'state'), (Join-Path $DataRoot 'logs'), (Join-Path $DataRoot 'downloads'), (Join-Path $DataRoot 'versions'), (Join-Path $DataRoot 'updater') | Out-Null
 $appExe = Join-Path $resolvedPackage 'ysignage.exe'
 if (-not (Test-Path -LiteralPath $appExe)) {
     $appExe = Join-Path $resolvedPackage 'simple_kiosk.exe'
@@ -22,7 +22,7 @@ if (-not (Test-Path -LiteralPath $appExe)) { throw 'ysignage.exe 또는 호환 s
 if (Test-Path -LiteralPath $versionRoot) { Remove-Item -LiteralPath $versionRoot -Recurse -Force }
 if ([IO.Path]::GetFullPath($resolvedPackage).TrimEnd('\') -eq [IO.Path]::GetFullPath($DataRoot).TrimEnd('\')) {
     New-Item -ItemType Directory -Force -Path $versionRoot | Out-Null
-    $runtimeNames = @('config', 'media', 'state', 'logs', 'downloads', 'versions', 'diagnostics', 'backups')
+    $runtimeNames = @('config', 'media', 'exdata', 'themes', 'state', 'logs', 'downloads', 'versions', 'diagnostics', 'backups')
     Get-ChildItem -LiteralPath $resolvedPackage -Force |
         Where-Object { $runtimeNames -notcontains $_.Name } |
         Copy-Item -Destination $versionRoot -Recurse -Force

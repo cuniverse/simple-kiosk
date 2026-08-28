@@ -214,12 +214,12 @@ android:usesCleartextTraffic="true"
 ```json
 "layout": {
   "navPosition": "bottom",
-  "sideWidth": 220,
-  "barHeight": 96,
+  "sideWidth": 230,
+  "barHeight": 102,
   "breakpoint": 720,
   "buttonHeight": 0,
   "buttonWidth": 0,
-  "buttonGap": 8,
+  "buttonGap": 10,
   "buttonAlignment": "stretch",
   "showHistoryButtons": true,
   "showKeyboardToggle": true,
@@ -238,12 +238,12 @@ android:usesCleartextTraffic="true"
 | 키 | 타입 | 기본값 | 설명 |
 |----|------|--------|------|
 | `navPosition` | `auto`\|`left`\|`right`\|`top`\|`bottom` | `right` | 네비 위치. `auto`는 화면 폭에 따라 자동 |
-| `sideWidth` | 숫자 > 0 | `220` | `left`/`right`일 때 사이드 폭(dp) |
-| `barHeight` | 숫자 > 0 | `96` | `top`/`bottom`일 때 바 높이(dp) |
+| `sideWidth` | 숫자 > 0 | `230` | `left`/`right`일 때 사이드 폭(dp) |
+| `barHeight` | 숫자 > 0 | `102` | `top`/`bottom`일 때 바 높이(dp) |
 | `breakpoint` | 숫자 > 0 | `720` | `auto` 모드의 임계 폭. 이 이상이면 좌측, 미만이면 하단 |
 | `buttonHeight` | 숫자 ≥ 0 | `0` | 버튼 높이(dp). `0`=자동 |
 | `buttonWidth` | 숫자 ≥ 0 | `0` | 하단/상단 모드 버튼 폭. `0`=균등 분배 |
-| `buttonGap` | 숫자 ≥ 0 | `8` | 버튼 사이 간격(dp) |
+| `buttonGap` | 숫자 ≥ 0 | `10` | 버튼 사이 간격(dp) |
 | `buttonAlignment` | 문자열 | `stretch` | 정렬 방식 (아래 표) |
 | `showHistoryButtons` | bool | `true` | 하단 기능 버튼 묶음의 가장 앞에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 네비 **끝점** 에 OS 가상 키보드 토글 버튼 표시 ([§9](#9-가상-키보드) 참고) |
@@ -258,11 +258,11 @@ android:usesCleartextTraffic="true"
 | `keepStateOnTap` | bool | `false` | 같은 메뉴 단일 탭 시 페이지 상태 유지 (아래 [keepStateOnTap](#keepstateontap--메뉴-상태-유지-동작) 참고) |
 | `toolbarInitiallyHidden` | bool | `false` | 앱 시작 시 툴바를 감춘 상태로 표시 |
 | `toolbarAutoHideSec` | 숫자 ≥ 0 | `0` | 복원한 툴바를 입력 없이 표시할 시간(초). `0`이면 자동 숨김 해제 |
-| `barColor` | 색상 문자열 | (테마) | 툴바 배경색. 웹 관리자의 색상 선택기에서 변경 가능 |
-| `buttonColor` | 색상 문자열 | (테마) | 비선택 버튼 배경색 |
-| `buttonForegroundColor` | 색상 문자열 | (테마) | 비선택 버튼 텍스트/아이콘 색 |
-| `selectedButtonColor` | 색상 문자열 | (테마) | 선택된 버튼 배경색 |
-| `selectedButtonForegroundColor` | 색상 문자열 | (테마) | 선택된 버튼 텍스트/아이콘 색 |
+| `barColor` | 색상 문자열 | `#000000` | 툴바 배경색. 웹 관리자의 색상 선택기에서 변경 가능 |
+| `buttonColor` | 색상 문자열 | `#171717` | 비선택 버튼 배경색 |
+| `buttonForegroundColor` | 색상 문자열 | `#ffffff` | 비선택 버튼 텍스트/아이콘 색 |
+| `selectedButtonColor` | 색상 문자열 | `#facc15` | 선택된 버튼 배경색 |
+| `selectedButtonForegroundColor` | 색상 문자열 | `#000000` | 선택된 버튼 텍스트/아이콘 색 |
 
 `windowsKioskShortcuts`에서는 `windowsKey`, `altTab`, `altEscape`, `altF4`,
 `altSpace`, `ctrlEscape`, `ctrlShiftEscape`, `launchApp1`, `launchApp2`,
@@ -516,15 +516,22 @@ search, help, link, web, music, mic, camera, image, download, qr
   "modes": ["gallery"],
   "gallery": {
     "urls": [
-      "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
-      "https://example.com/second-gallery"
+      {
+        "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
+        "lookbackDays": 30,
+        "minPosts": 2,
+        "maxPosts": 4
+      },
+      {
+        "url": "https://example.com/second-gallery",
+        "lookbackDays": 7,
+        "minPosts": 1,
+        "maxPosts": 2
+      }
     ],
     "intervalSec": 8,
-    "lookbackDays": 30,
-    "minPosts": 2,
     "refreshIntervalMin": 5,
     "shuffle": false,
-    "maxPosts": 4,
     "maxImages": 40,
     "transition": "fade"
   },
@@ -535,27 +542,27 @@ search, help, link, web, music, mic, camera, image, download, qr
 
 | 키 | 기본값 | 설명 |
 |----|--------|------|
-| `urls` | 필수 | 그누보드 계열 포토갤러리 목록 URL 배열 |
+| `urls` | 필수 | 갤러리 주소별 `url`, `lookbackDays`, `minPosts`, `maxPosts` 설정 배열. 기존 URL 문자열 배열도 계속 지원 |
 | `url` | - | 기존 단일 게시판 호환 설정. `urls`가 있으면 `urls` 우선 |
 | `intervalSec` | `8` | 사진 한 장을 표시할 시간(초) |
-| `lookbackDays` | 미지정 | 현재 시각부터 과거 며칠까지 작성된 게시물을 우선 선택 |
-| `minPosts` | `1` | 기간 조건의 결과가 부족할 때 최신순으로 보충할 최소 게시물 수 |
+| `lookbackDays` | 미지정 | 기존 문자열 주소의 공통값. 새 설정에서는 `urls`의 주소 객체마다 지정 |
+| `minPosts` | `1` | 기존 문자열 주소의 공통값. 새 설정에서는 `urls`의 주소 객체마다 지정 |
 | `refreshIntervalMin` | `5` | 실행 중 게시판을 다시 확인하는 주기(분) |
 | `shuffle` | `false` | `true`이면 미리 만든 무작위 순서로 사진을 순회 |
-| `maxPosts` | `4` | 최종적으로 사진을 수집할 게시물 수의 상한 |
+| `maxPosts` | `4` | 기존 문자열 주소의 공통값. 새 설정에서는 `urls`의 주소 객체마다 지정 |
 | `maxImages` | `40` | 한 번에 순환할 최대 사진 수 |
 | `transition` | `fade` | 사진 전환 효과 (`fade` / `none`) |
 
 - 목록 썸네일 대신 각 게시물 본문의 원본 이미지 링크를 우선 사용합니다.
-- `lookbackDays: 30`이면 갱신 시각을 기준으로 정확히 30일 전까지의 게시물을 선택합니다.
+- 각 `urls` 항목의 `lookbackDays: 30`은 해당 주소에서 갱신 시각 기준 정확히 30일 전까지의 게시물을 선택합니다.
 - `lookbackDays`를 생략하면 기존처럼 최신 게시물을 `maxPosts`개까지 읽습니다.
-- 기간 조건에 맞는 게시물이 `minPosts`보다 적거나 없으면 최신 게시물로 `minPosts`개까지 보충합니다.
+- 주소별 기간 조건에 맞는 게시물이 `minPosts`보다 적거나 없으면 해당 주소의 최신 게시물로 `minPosts`개까지 보충합니다.
 - 5분 갱신 시 현재 사진의 URL과 재생 위치를 유지하므로 슬라이드가 처음부터 다시 시작되지 않습니다.
 - 갱신에 실패하면 현재 재생 목록을 유지하고 다음 주기에 다시 시도합니다.
 - 키보드 `←` / `→` 또는 화면 좌우 스와이프로 이전·다음 사진을 볼 수 있습니다.
 - 화면을 탭하면 보호기가 종료되며, 다시 진입하면 마지막 사진과 재생 순서부터 이어집니다.
 - 랜덤 모드에서도 갱신할 때 기존 무작위 순서는 유지하고 새 사진만 순서에 추가합니다.
-- `minPosts`는 `maxPosts`보다 클 수 없습니다.
+- 각 주소의 `minPosts`는 같은 주소의 `maxPosts`보다 클 수 없습니다.
 - 게시물 하나에 사진이 여러 장이면 모든 사진에 같은 게시물 제목이 표시됩니다.
 - 개별 게시물 읽기에 실패하면 해당 목록 썸네일로 대체합니다.
 - 게시판 전체를 읽지 못하면 안전 화면을 표시하며 터치로 정상 화면에 복귀할 수 있습니다.
@@ -772,7 +779,13 @@ Windows에서는 기본적으로 Windows 화상 키보드를 사용합니다. **
   기본값을 복원할 수 있습니다. 기본 설정과 언어 ID·메뉴 ID가 일치하는 메뉴는 메뉴
   전체 또는 메뉴 내부의 개별 값만 복원할 수 있으며, **저장 후 즉시 적용** 전에는 실제
   사이니지 설정이 변경되지 않습니다.
-- 실행 상태·관리 API·사이니지 구성·백업 및 진단은 탭으로 구분됩니다. 복수 표시 모드는 체크박스로 선택하고 메뉴 항목 화면에서도 언어를 추가하거나 삭제할 수 있습니다.
+- 실행 상태·관리 API·파일 관리·사이니지 구성·백업 및 진단은 탭으로 구분됩니다. 복수 표시 모드는 체크박스로 선택하고 메뉴 항목 화면에서도 언어를 추가하거나 삭제할 수 있습니다.
+- **파일 관리** 탭은 데이터 루트의 `exdata/`만 표시합니다. Windows 탐색기 형태의 경로 이동·검색·정렬과 새 폴더, 다중/드래그 업로드, 다운로드, 이름 변경, 삭제를 지원합니다. `..`, 절대경로, 링크를 통한 `exdata/` 외부 접근은 거부합니다.
+- `exdata/`에 올린 운영 파일은 업데이트 후에도 유지되며 설정에서는 `exdata/photos/`, `exdata/welcome.jpg` 같은 상대경로로 지정할 수 있습니다. 폴더 전체는 `*` 대신 폴더 경로 자체를 사용합니다.
+- **사이니지 구성 → UI 모양·테마**에서는 글꼴, 툴바·버튼 크기와 간격, 색상만 테마로 적용합니다. 툴바 위치, 표시 기능, 키오스크 잠금 같은 레이아웃·동작 값은 바뀌지 않습니다.
+- 프리로드 테마 이름은 각 `assets/themes/*.json` 파일에서 읽습니다. 직접 편집한 UI 모양은 데이터 루트의 `themes/`에 사용자 테마로 별도 저장되며 업데이트 후에도 유지됩니다. 프리로드 테마와 같은 이름은 사용할 수 없습니다.
+- 테마 적용 후 UI 모양 값을 직접 바꾸면 경고가 표시됩니다. 다른 테마를 적용하기 전에 현재 모양을 사용자 테마로 저장할 수 있습니다.
+- 기본 테마는 **고대비**입니다. 이 변경이 포함된 버전으로 업데이트하면 기존 UI 모양 오버라이드도 최초 실행 시 한 번 고대비 값으로 강제 변경됩니다. 툴바 위치와 키오스크 동작은 유지되며, 이전 설정은 `backups/menu.override.before-high-contrast-*.json`에 백업됩니다.
 - 메뉴 설정은 저장 전에 기본 설정과 병합 검증되며, 올바른 설정은 저장 직후 사이니지에 적용됩니다.
 - 백업 및 진단 탭에서 메뉴·언어·툴바·관리 API·업데이트 정책을 하나의 JSON으로 내보내거나 가져올 수 있습니다. 저장·가져오기 전 상태는 직전 설정으로 보관되어 복원할 수 있으며 관리자 PIN은 백업하지 않습니다.
 - 같은 화면에서 프로그램·WebView·업데이트·API 로그와 시스템 정보를 포함한 진단 보고서를 다운로드할 수 있습니다.

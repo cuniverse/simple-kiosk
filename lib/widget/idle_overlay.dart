@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -178,21 +179,29 @@ class _IdleImage extends StatelessWidget {
   const _IdleImage({required this.path});
 
   @override
-  Widget build(BuildContext context) {
-    final isNetwork = path.startsWith('http://') || path.startsWith('https://');
-    final image = isNetwork
-        ? Image.network(
-            path,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
-          )
-        : Image.asset(
-            path,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
-          );
-    return SizedBox.expand(child: image);
+  Widget build(BuildContext context) => SizedBox.expand(
+        child: _idleImageForPath(path, fit: BoxFit.cover),
+      );
+}
+
+Widget _idleImageForPath(String path, {required BoxFit fit, Key? key}) {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return Image.network(
+      path,
+      key: key,
+      fit: fit,
+      errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+    );
   }
+  if (path.startsWith('assets/') || path.startsWith('asset/')) {
+    return Image.asset(
+      path,
+      key: key,
+      fit: fit,
+      errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+    );
+  }
+  return PlatformFileImage(key: key, path: path, fit: fit);
 }
 
 /// 설정된 대기 이미지가 없거나 네트워크에서 읽히지 않을 때 표시하는 안전 화면.
@@ -292,20 +301,11 @@ class _IdleSlideshowState extends State<_IdleSlideshow> {
   @override
   Widget build(BuildContext context) {
     final path = widget.config.images[_index];
-    final isNetwork = path.startsWith('http://') || path.startsWith('https://');
-    final image = isNetwork
-        ? Image.network(
-            path,
-            key: ValueKey(path),
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
-          )
-        : Image.asset(
-            path,
-            key: ValueKey(path),
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
-          );
+    final image = _idleImageForPath(
+      path,
+      key: ValueKey(path),
+      fit: BoxFit.cover,
+    );
 
     final content = widget.config.transition == SlideshowTransition.none
         ? SizedBox.expand(child: image)
@@ -338,7 +338,8 @@ enum _MixedMediaKind {
   networkImage,
   fileImage,
   assetVideo,
-  fileVideo
+  fileVideo,
+  youtube,
 }
 
 class _MixedMediaItem {
@@ -346,6 +347,7 @@ class _MixedMediaItem {
   final _MixedMediaKind kind;
   final String path;
   final String? title;
+  final String? fallbackImagePath;
   final int intervalSec;
   final SlideshowTransition transition;
   final bool galleryImage;
@@ -357,11 +359,13 @@ class _MixedMediaItem {
     required this.intervalSec,
     required this.transition,
     this.title,
+    this.fallbackImagePath,
     this.galleryImage = false,
   });
 
   bool get isVideo =>
       kind == _MixedMediaKind.assetVideo || kind == _MixedMediaKind.fileVideo;
+  bool get isYoutube => kind == _MixedMediaKind.youtube;
 }
 
 class _MixedPlaybackSnapshot {
@@ -393,6 +397,9 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
   Timer? _refreshTimer;
   VideoPlayerController? _videoController;
   bool _videoListenerAttached = false;
+  Timer? _youtubeLoadTimer;
+  String? _youtubeReadyId;
+  final Set<String> _failedYoutubeIds = {};
   bool _loading = false;
   double _horizontalDragDistance = 0;
 
@@ -426,11 +433,15 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
         byMode[IdleMode.slideshow] = widget.config.slideshow.images.map((path) {
           final network =
               path.startsWith('http://') || path.startsWith('https://');
+          final isAsset =
+              path.startsWith('assets/') || path.startsWith('asset/');
           return _MixedMediaItem(
             id: 'slideshow:$path',
             kind: network
                 ? _MixedMediaKind.networkImage
-                : _MixedMediaKind.assetImage,
+                : isAsset
+                    ? _MixedMediaKind.assetImage
+                    : _MixedMediaKind.fileImage,
             path: path,
             intervalSec: widget.config.slideshow.intervalSec,
             transition: widget.config.slideshow.transition,
@@ -485,7 +496,7 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
         }
         final oldGalleryOrder = (_items ?? const <_MixedMediaItem>[])
             .where((item) => item.galleryImage)
-            .map((item) => item.path)
+            .map((item) => item.id.substring('gallery:'.length))
             .toList(growable: false);
         galleryItems = buildGalleryPlaybackOrder(
           galleryItems,
@@ -495,9 +506,12 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
         byMode[IdleMode.gallery] = galleryItems
             .map(
               (item) => _MixedMediaItem(
-                id: 'gallery:${item.imageUrl}',
-                kind: _MixedMediaKind.networkImage,
-                path: item.imageUrl,
+                id: 'gallery:${item.playbackId}',
+                kind: item.isYoutube
+                    ? _MixedMediaKind.youtube
+                    : _MixedMediaKind.networkImage,
+                path: item.youtubeVideoId ?? item.imageUrl,
+                fallbackImagePath: item.imageUrl,
                 title: item.title,
                 intervalSec: widget.config.gallery.intervalSec,
                 transition: widget.config.gallery.transition,
@@ -572,6 +586,8 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
     final items = _items;
     if (items == null || items.length < 2) return;
     _itemTimer?.cancel();
+    _youtubeLoadTimer?.cancel();
+    _youtubeReadyId = null;
     _disposeVideo();
     setState(() => _index = (_index + offset) % items.length);
     _remember();
@@ -580,16 +596,52 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
 
   void _playCurrent() {
     _itemTimer?.cancel();
+    _youtubeLoadTimer?.cancel();
     _disposeVideo();
     final items = _items;
     if (items == null || items.isEmpty) return;
     final current = items[_index];
-    if (current.isVideo) {
+    if (current.isYoutube && !_failedYoutubeIds.contains(current.id)) {
+      if (_youtubeReadyId != current.id) {
+        _youtubeLoadTimer = Timer(const Duration(seconds: 30), () {
+          if (mounted) _onYoutubeError(current.id);
+        });
+      }
+      setState(() {});
+    } else if (current.isVideo) {
       _startVideo(current);
     } else {
       _itemTimer = Timer(Duration(seconds: current.intervalSec), () {
         if (mounted) _move(1);
       });
+      setState(() {});
+    }
+  }
+
+  void _onYoutubeReady(String itemId) {
+    final items = _items;
+    if (items == null || items.isEmpty || items[_index].id != itemId) return;
+    _youtubeReadyId = itemId;
+    _youtubeLoadTimer?.cancel();
+    _youtubeLoadTimer = null;
+  }
+
+  void _onYoutubeEnded(String itemId) {
+    final items = _items;
+    if (items == null || items.isEmpty || items[_index].id != itemId) return;
+    if (items.length > 1) _move(1);
+  }
+
+  void _onYoutubeError(String itemId) {
+    final items = _items;
+    if (items == null || items.isEmpty || items[_index].id != itemId) return;
+    _youtubeLoadTimer?.cancel();
+    _youtubeLoadTimer = null;
+    _youtubeReadyId = null;
+    _failedYoutubeIds.add(itemId);
+    if (items.length > 1) {
+      _move(1);
+    } else {
       setState(() {});
     }
   }
@@ -612,7 +664,17 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
       await controller.play();
       if (mounted) setState(() {});
     } catch (_) {
-      if (mounted) _move(1);
+      if (!mounted || _videoController != controller) return;
+      _disposeVideo();
+      final items = _items;
+      if (items == null || items.length < 2) {
+        setState(() {
+          _items = const [];
+          _error = '재생할 수 있는 화면 보호기 동영상이 없습니다.';
+        });
+      } else {
+        _move(1);
+      }
     }
   }
 
@@ -684,6 +746,7 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
   void dispose() {
     _remember();
     _itemTimer?.cancel();
+    _youtubeLoadTimer?.cancel();
     _refreshTimer?.cancel();
     _disposeVideo();
     _galleryLoader.close();
@@ -704,7 +767,16 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
     }
     final current = items[_index];
     Widget content;
-    if (current.isVideo) {
+    if (current.isYoutube && !_failedYoutubeIds.contains(current.id)) {
+      content = _YouTubeIdlePlayer(
+        key: ValueKey(current.id),
+        videoId: current.path,
+        loop: items.length == 1,
+        onReady: () => _onYoutubeReady(current.id),
+        onEnded: () => _onYoutubeEnded(current.id),
+        onError: () => _onYoutubeError(current.id),
+      );
+    } else if (current.isVideo) {
       final controller = _videoController;
       content = controller == null || !controller.value.isInitialized
           ? const Center(
@@ -729,7 +801,7 @@ class _IdleMixedPlayerState extends State<_IdleMixedPlayer> {
             fit: BoxFit.contain,
           ),
         _ => Image.network(
-            current.path,
+            current.fallbackImagePath ?? current.path,
             headers: current.galleryImage
                 ? const {'User-Agent': 'SimpleKiosk/1.0 gallery-screen'}
                 : null,
@@ -815,7 +887,7 @@ List<GalleryFeedItem> buildGalleryPlaybackOrder(
 }) {
   if (!shuffle) return List<GalleryFeedItem>.of(freshItems);
   final generator = random ?? Random();
-  final byUrl = {for (final item in freshItems) item.imageUrl: item};
+  final byUrl = {for (final item in freshItems) item.playbackId: item};
   final used = <String>{};
   final ordered = <GalleryFeedItem>[];
 
@@ -825,7 +897,7 @@ List<GalleryFeedItem> buildGalleryPlaybackOrder(
   }
 
   final added = freshItems
-      .where((item) => used.add(item.imageUrl))
+      .where((item) => used.add(item.playbackId))
       .toList(growable: false);
   if (ordered.isEmpty) {
     return List<GalleryFeedItem>.of(added)..shuffle(generator);
@@ -842,7 +914,7 @@ int galleryInitialIndex(
 ) {
   if (items.isEmpty || rememberedImageUrl == null) return 0;
   final index = items.indexWhere(
-    (item) => item.imageUrl == rememberedImageUrl,
+    (item) => item.playbackId == rememberedImageUrl,
   );
   return index < 0 ? 0 : index;
 }
@@ -857,9 +929,9 @@ int galleryIndexAfterRefresh(
   if (oldItems.isEmpty || oldIndex < 0 || oldIndex >= oldItems.length) {
     return 0;
   }
-  final currentUrl = oldItems[oldIndex].imageUrl;
+  final currentUrl = oldItems[oldIndex].playbackId;
   final matchedIndex = newItems.indexWhere(
-    (item) => item.imageUrl == currentUrl,
+    (item) => item.playbackId == currentUrl,
   );
   if (matchedIndex >= 0) return matchedIndex;
   return oldIndex < newItems.length ? oldIndex : newItems.length - 1;
@@ -873,6 +945,9 @@ class _IdleGalleryState extends State<_IdleGallery> {
   Timer? _slideTimer;
   Timer? _refreshTimer;
   bool _loadInProgress = false;
+  Timer? _youtubeLoadTimer;
+  String? _youtubeReadyId;
+  final Set<String> _failedYoutubeIds = {};
   double _horizontalDragDistance = 0;
 
   @override
@@ -892,7 +967,7 @@ class _IdleGalleryState extends State<_IdleGallery> {
       final oldItems = _items ?? const <GalleryFeedItem>[];
       final remembered = _galleryPlaybackMemory[widget.config.playbackKey];
       final previousOrder = oldItems.isNotEmpty
-          ? oldItems.map((item) => item.imageUrl).toList(growable: false)
+          ? oldItems.map((item) => item.playbackId).toList(growable: false)
           : remembered?.order ?? const <String>[];
       final items = buildGalleryPlaybackOrder(
         freshItems,
@@ -934,8 +1009,23 @@ class _IdleGalleryState extends State<_IdleGallery> {
 
   void _scheduleNext() {
     _slideTimer?.cancel();
+    _youtubeLoadTimer?.cancel();
     final items = _items;
-    if (items == null || items.length < 2) {
+    if (items == null || items.isEmpty) {
+      _slideTimer = null;
+      return;
+    }
+    final current = items[_index];
+    if (current.isYoutube && !_failedYoutubeIds.contains(current.playbackId)) {
+      if (_youtubeReadyId != current.playbackId) {
+        _youtubeLoadTimer = Timer(const Duration(seconds: 30), () {
+          if (mounted) _onYoutubeError(current.playbackId);
+        });
+      }
+      _slideTimer = null;
+      return;
+    }
+    if (items.length < 2) {
       _slideTimer = null;
       return;
     }
@@ -950,6 +1040,8 @@ class _IdleGalleryState extends State<_IdleGallery> {
     final items = _items;
     if (items == null || items.length < 2) return;
     _slideTimer?.cancel();
+    _youtubeLoadTimer?.cancel();
+    _youtubeReadyId = null;
     setState(() {
       _index = (_index + offset) % items.length;
     });
@@ -963,8 +1055,8 @@ class _IdleGalleryState extends State<_IdleGallery> {
     if (items == null || items.isEmpty || _index >= items.length) return;
     _galleryPlaybackMemory[widget.config.playbackKey] =
         _GalleryPlaybackSnapshot(
-      currentImageUrl: items[_index].imageUrl,
-      order: items.map((item) => item.imageUrl).toList(growable: false),
+      currentImageUrl: items[_index].playbackId,
+      order: items.map((item) => item.playbackId).toList(growable: false),
     );
   }
 
@@ -1005,6 +1097,46 @@ class _IdleGalleryState extends State<_IdleGallery> {
     ).catchError((_) {});
   }
 
+  void _onYoutubeReady(String playbackId) {
+    final items = _items;
+    if (items == null ||
+        items.isEmpty ||
+        items[_index].playbackId != playbackId) {
+      return;
+    }
+    _youtubeReadyId = playbackId;
+    _youtubeLoadTimer?.cancel();
+    _youtubeLoadTimer = null;
+  }
+
+  void _onYoutubeEnded(String playbackId) {
+    final items = _items;
+    if (items == null ||
+        items.isEmpty ||
+        items[_index].playbackId != playbackId) {
+      return;
+    }
+    if (items.length > 1) _move(1);
+  }
+
+  void _onYoutubeError(String playbackId) {
+    final items = _items;
+    if (items == null ||
+        items.isEmpty ||
+        items[_index].playbackId != playbackId) {
+      return;
+    }
+    _youtubeLoadTimer?.cancel();
+    _youtubeLoadTimer = null;
+    _youtubeReadyId = null;
+    _failedYoutubeIds.add(playbackId);
+    if (items.length > 1) {
+      _move(1);
+    } else {
+      setState(() {});
+    }
+  }
+
   Widget _withInput(Widget child) {
     return Focus(
       autofocus: true,
@@ -1026,6 +1158,7 @@ class _IdleGalleryState extends State<_IdleGallery> {
   void dispose() {
     _rememberCurrentPosition();
     _slideTimer?.cancel();
+    _youtubeLoadTimer?.cancel();
     _refreshTimer?.cancel();
     _loader.close();
     super.dispose();
@@ -1051,23 +1184,32 @@ class _IdleGalleryState extends State<_IdleGallery> {
 
     final item = items[_index];
     final slide = Stack(
-      key: ValueKey(item.imageUrl),
+      key: ValueKey(item.playbackId),
       fit: StackFit.expand,
       children: [
-        Image.network(
-          item.imageUrl,
-          headers: const {'User-Agent': 'SimpleKiosk/1.0 gallery-screen'},
-          fit: BoxFit.contain,
-          gaplessPlayback: true,
-          filterQuality: FilterQuality.high,
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.white70),
-            );
-          },
-          errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
-        ),
+        if (item.isYoutube && !_failedYoutubeIds.contains(item.playbackId))
+          _YouTubeIdlePlayer(
+            videoId: item.youtubeVideoId!,
+            loop: items.length == 1,
+            onReady: () => _onYoutubeReady(item.playbackId),
+            onEnded: () => _onYoutubeEnded(item.playbackId),
+            onError: () => _onYoutubeError(item.playbackId),
+          )
+        else
+          Image.network(
+            item.imageUrl,
+            headers: const {'User-Agent': 'SimpleKiosk/1.0 gallery-screen'},
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.high,
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.white70),
+              );
+            },
+            errorBuilder: (_, __, ___) => const _IdleMediaFallback(),
+          ),
         Positioned(
           left: 0,
           right: 0,
@@ -1109,6 +1251,119 @@ class _IdleGalleryState extends State<_IdleGallery> {
             ),
           );
     return _withInput(content);
+  }
+}
+
+String buildYoutubePlayerHtml(String videoId, {required bool loop}) {
+  final encodedVideoId = jsonEncode(videoId);
+  return '''
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <style>
+    html,body,#player{width:100%;height:100%;margin:0;background:#000;overflow:hidden}
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    let player;
+    let playingReported=false;
+    const notify=(event,value)=>window.flutter_inappwebview
+      ?.callHandler('youtubePlaybackEvent',event,value??null);
+    function onYouTubeIframeAPIReady(){
+      player=new YT.Player('player',{
+        width:'100%',height:'100%',videoId:$encodedVideoId,
+        playerVars:{
+          autoplay:1,controls:0,disablekb:1,fs:0,playsinline:1,
+          rel:0,mute:0,enablejsapi:1,origin:'https://www.youtube.com'
+        },
+        events:{
+          onReady:event=>{
+            event.target.unMute();
+            event.target.setVolume(100);
+            event.target.playVideo();
+          },
+          onStateChange:event=>{
+            if(event.data===YT.PlayerState.PLAYING&&!playingReported){
+              playingReported=true;
+              notify('playing');
+            }
+            if(event.data===YT.PlayerState.ENDED){
+              if(${loop ? 'true' : 'false'}){
+                event.target.seekTo(0,true);
+                event.target.unMute();
+                event.target.setVolume(100);
+                event.target.playVideo();
+              }else{
+                notify('ended');
+              }
+            }
+          },
+          onError:event=>notify('error',event.data)
+        }
+      });
+    }
+  </script>
+</body>
+</html>
+''';
+}
+
+class _YouTubeIdlePlayer extends StatelessWidget {
+  final String videoId;
+  final bool loop;
+  final VoidCallback onReady;
+  final VoidCallback onEnded;
+  final VoidCallback onError;
+
+  const _YouTubeIdlePlayer({
+    super.key,
+    required this.videoId,
+    required this.loop,
+    required this.onReady,
+    required this.onEnded,
+    required this.onError,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AbsorbPointer(
+      absorbing: true,
+      child: InAppWebView(
+        initialData: InAppWebViewInitialData(
+          data: buildYoutubePlayerHtml(videoId, loop: loop),
+          baseUrl: WebUri('https://www.youtube.com/'),
+        ),
+        initialSettings: InAppWebViewSettings(
+          javaScriptEnabled: true,
+          mediaPlaybackRequiresUserGesture: false,
+          allowsInlineMediaPlayback: true,
+          javaScriptCanOpenWindowsAutomatically: false,
+          supportMultipleWindows: false,
+          supportZoom: false,
+          transparentBackground: false,
+        ),
+        onWebViewCreated: (controller) {
+          controller.addJavaScriptHandler(
+            handlerName: 'youtubePlaybackEvent',
+            callback: (arguments) {
+              final event = arguments.isEmpty ? null : arguments.first;
+              if (event == 'playing') {
+                onReady();
+              } else if (event == 'ended') {
+                onEnded();
+              } else if (event == 'error') {
+                onError();
+              }
+              return null;
+            },
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -1324,9 +1579,18 @@ class _IdleFolderPlayerState extends State<_IdleFolderPlayer> {
       await controller.play();
       if (mounted) setState(() {});
     } catch (e) {
-      // 재생 실패 → 다음 항목으로.
-      if (!mounted) return;
-      _next();
+      // 재생 실패 시 다음 항목으로 이동하되, 단일 항목은 반복 재시도하지 않는다.
+      if (!mounted || _videoController != controller) return;
+      _disposeVideo();
+      final items = _items;
+      if (items == null || items.length < 2) {
+        setState(() {
+          _items = const [];
+          _error = '동영상을 재생할 수 없습니다: ${item.path}';
+        });
+      } else {
+        _next();
+      }
     }
   }
 

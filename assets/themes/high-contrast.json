@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "high-contrast",
+  "name": "고대비",
+  "description": "밝은 글자와 선명한 선택 색상으로 가독성을 높인 테마입니다.",
+  "values": {
+    "fontFamily": "Pretendard",
+    "menuFontFamily": "Pretendard",
+    "sideWidth": 230,
+    "barHeight": 102,
+    "buttonHeight": 0,
+    "buttonWidth": 0,
+    "buttonGap": 10,
+    "barColor": "#000000",
+    "selectedTopicLabelColor": "#f8fafc",
+    "buttonColor": "#171717",
+    "buttonForegroundColor": "#ffffff",
+    "selectedButtonColor": "#facc15",
+    "selectedButtonForegroundColor": "#000000"
+  }
+}

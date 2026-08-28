@@ -415,7 +415,7 @@ class _KioskHomeState extends State<_KioskHome> {
     }
     _toolbarHidden = widget.layout.toolbarInitiallyHidden;
     _updateController = UpdateController();
-    _updateController.initialize();
+    unawaited(_updateController.initialize());
     _trayController = KioskTrayController(
       onOpenSettings: _showAdminSettings,
       onOpenManual: _showUserManual,

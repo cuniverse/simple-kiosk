@@ -56,7 +56,7 @@ Windows 설정의 **앱 > 설치된 앱 > 여의도성당Signage > 제거** 또�
 업데이트 캐시는 항상 삭제됩니다.
 
 제거 과정에서 설정과 사용자 파일도 함께 삭제할지 묻습니다. 기본값인 **아니요**를
-선택하면 `config`, `media`, `state`, `logs`, `diagnostics`, `backups`를 보존하므로 나중에
+선택하면 `config`, `media`, `exdata`, `themes`, `state`, `logs`, `diagnostics`, `backups`를 보존하므로 나중에
 같은 위치에 재설치할 때 다시 사용할 수 있습니다. **예**를 선택하면 해당 데이터까지
 삭제합니다. 자동 제거처럼 확인창이 표시되지 않는 경우에는 안전하게 사용자 데이터를
 보존합니다.
@@ -164,6 +164,12 @@ REST 클라이언트는 먼저 `POST /api/login`에 `{"pin":"1259"}` 형식으�
 | `POST /api/config-backup/restore-previous` | 마지막 변경 전 설정 복원 |
 | `GET /api/diagnostics` | 시스템 정보와 분류 로그가 포함된 진단 보고서 다운로드 |
 | `GET /api/logs/{app,webview,update,api}` | 분류별 로그 다운로드 |
+| `GET /api/files/list?path=` | `exdata/` 하위 폴더와 파일 목록 확인 |
+| `PUT /api/files/upload?path=` | `exdata/` 하위에 파일 업로드(최대 2GB) |
+| `GET /api/files/download?path=` | `exdata/` 파일 다운로드 |
+| `POST /api/files/directory` | `exdata/` 하위 폴더 생성 |
+| `POST /api/files/move` | 파일 또는 폴더 이름 변경·이동 |
+| `DELETE /api/files?path=` | 파일 또는 폴더 삭제 |
 | `GET`, `PUT /api/server-settings` | 관리 API·mDNS 사용 여부, 포트와 호스트 이름 확인·변경 |
 | `POST /api/actions/show` | 사이니지 화면 표시 |
 | `POST /api/actions/hide` | 사이니지 화면 감추기 |
@@ -181,8 +187,10 @@ New-NetFirewallRule -DisplayName "여의도성당Signage mDNS" -Direction Inboun
 관리 페이지는 TLS가 없는 HTTP이므로 인터넷에 직접 노출하지 말고 신뢰할 수 있는 내부망과
 제한된 방화벽 범위에서만 사용하세요. 설치 직후 기본 PIN도 반드시 변경하는 것을 권장합니다.
 
-자동 업데이트 기본값은 OFF입니다. 관리자가 켜면 stable Release를 6시간마다 확인하고
-다운로드하며, 기본 설정상 02:00~05:00 사이 화면 보호기 상태에서만 설치합니다.
+자동 업데이트 기본값은 OFF입니다. 관리자가 켜면 프로그램 시작 직후 stable Release를 확인해
+새 버전이 있으면 유휴 상태와 설치 시간대를 기다리지 않고 바로 설치를 시작합니다. 이후에는
+6시간마다 확인하고 다운로드하며, 기본 설정상 02:00~05:00 사이 화면 보호기 상태에서만
+설치합니다.
 관리자 화면에서 확인 주기, 설치 시간대, 유휴 설치 여부, 버전·로그 보관 기간을 변경할
 수 있습니다. 별도 데이터 폴더에 제한된 ACL이 필요하면 설치 명령에
 `-DataRoot <경로> -ConfigureAcl`을 추가합니다.
@@ -237,7 +245,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
   versions\<version>\
 ```
 
-외부 미디어는 오버라이드에서 `media/...` 상대 경로로 지정할 수 있습니다.
+외부 미디어는 오버라이드에서 `media/...` 또는 WEB 파일 관리용 `exdata/...` 상대 경로로
+지정할 수 있습니다. `exdata/`는 설치 루트에 있으며 버전 업데이트 후에도 유지됩니다.
+
+UI 기본 테마는 고대비입니다. 이 변경을 포함한 버전으로 기존 설치를 업데이트하면 최초 실행 시
+글꼴·툴바/버튼 크기·간격·색상만 고대비 값으로 한 번 강제 적용합니다. 툴바 위치와 키오스크
+동작은 유지하며 기존 오버라이드는 `backups/menu.override.before-high-contrast-*.json`에 백업합니다.
 
 ## 1. 패키지 구성
 

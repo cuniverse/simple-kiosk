@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+const Object _noDifference = Object();
+
 class MenuMergeResult {
   final Map<String, dynamic> json;
   final List<String> warnings;
@@ -10,6 +12,27 @@ class MenuMergeResult {
 /// 새 기본 설정과 운영자 오버라이드를 병합한다.
 class MenuConfigMerger {
   static const int currentSchemaVersion = 2;
+
+  /// 완성된 설정에서 기본값과 다른 값만 추려 저장용 override를 만든다.
+  ///
+  /// 객체는 필드 단위로 축약하고, 배열은 삭제와 순서의 의미를 보존하기
+  /// 위해 변경된 경우에만 배열 전체를 저장한다.
+  static Map<String, dynamic> createOverride(
+    Map<String, dynamic> defaults,
+    Map<String, dynamic> effective,
+  ) {
+    final result = <String, dynamic>{
+      'schemaVersion': defaults['schemaVersion'] ?? currentSchemaVersion,
+    };
+    final difference = _difference(defaults, effective);
+    if (difference is Map) {
+      for (final entry in difference.entries) {
+        final key = entry.key.toString();
+        if (key != 'schemaVersion') result[key] = _clone(entry.value);
+      }
+    }
+    return result;
+  }
 
   static MenuMergeResult merge(
     Map<String, dynamic> defaults,
@@ -151,4 +174,47 @@ class MenuConfigMerger {
       jsonDecode(jsonEncode(value)) as Map<String, dynamic>;
 
   static dynamic _clone(dynamic value) => jsonDecode(jsonEncode(value));
+
+  static Object? _difference(dynamic base, dynamic effective) {
+    if (_deepEquals(base, effective)) return _noDifference;
+    if (base is Map && effective is Map) {
+      final result = <String, dynamic>{};
+      for (final entry in effective.entries) {
+        final key = entry.key.toString();
+        if (key == 'schemaVersion') continue;
+        if (!base.containsKey(key)) {
+          result[key] = _clone(entry.value);
+          continue;
+        }
+        final difference = _difference(base[key], entry.value);
+        if (!identical(difference, _noDifference)) {
+          result[key] = _clone(difference);
+        }
+      }
+      return result.isEmpty ? _noDifference : result;
+    }
+    return _clone(effective);
+  }
+
+  static bool _deepEquals(dynamic left, dynamic right) {
+    if (identical(left, right) || left == right) return true;
+    if (left is List && right is List) {
+      if (left.length != right.length) return false;
+      for (var i = 0; i < left.length; i++) {
+        if (!_deepEquals(left[i], right[i])) return false;
+      }
+      return true;
+    }
+    if (left is Map && right is Map) {
+      if (left.length != right.length) return false;
+      for (final entry in left.entries) {
+        if (!right.containsKey(entry.key) ||
+            !_deepEquals(entry.value, right[entry.key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
 }

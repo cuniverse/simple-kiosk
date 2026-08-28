@@ -309,15 +309,15 @@ class LayoutConfig {
   final Color? selectedButtonForegroundColor;
 
   const LayoutConfig({
-    this.fontFamily,
-    this.menuFontFamily,
+    this.fontFamily = 'Pretendard',
+    this.menuFontFamily = 'Pretendard',
     this.navPosition = NavPosition.auto,
-    this.sideWidth = 220,
-    this.barHeight = 96,
+    this.sideWidth = 230,
+    this.barHeight = 102,
     this.breakpoint = 720,
     this.buttonHeight = 0,
     this.buttonWidth = 0,
-    this.buttonGap = 8,
+    this.buttonGap = 10,
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
     this.showKeyboardToggle = false,
@@ -332,11 +332,11 @@ class LayoutConfig {
     this.keepStateOnTap = false,
     this.toolbarInitiallyHidden = true,
     this.toolbarAutoHideSec = 10,
-    this.barColor,
-    this.buttonColor,
-    this.buttonForegroundColor,
-    this.selectedButtonColor,
-    this.selectedButtonForegroundColor,
+    this.barColor = const Color(0xFF000000),
+    this.buttonColor = const Color(0xFF171717),
+    this.buttonForegroundColor = const Color(0xFFFFFFFF),
+    this.selectedButtonColor = const Color(0xFFFACC15),
+    this.selectedButtonForegroundColor = const Color(0xFF000000),
   });
 
   /// 모든 기본값을 가진 설정.

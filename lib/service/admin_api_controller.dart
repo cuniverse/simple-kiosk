@@ -12,8 +12,10 @@ import 'admin_pin_store.dart';
 import 'app_logger.dart';
 import 'configuration_backup_service.dart';
 import 'diagnostics_service.dart';
+import 'exdata_file_service.dart';
 import 'menu_config_loader.dart';
 import 'mdns_service_controller.dart';
+import 'ui_theme_service.dart';
 import 'web_admin_ssh_tunnel_controller.dart';
 
 typedef AdminStatusProvider = Future<Map<String, dynamic>> Function();
@@ -37,6 +39,8 @@ class AdminApiController extends ChangeNotifier {
     MdnsPublisher? mdnsPublisher,
     ConfigurationBackupService? backupService,
     DiagnosticsService? diagnosticsService,
+    ExdataFileService? exdataFileService,
+    UiThemeService? uiThemeService,
     WebAdminSshTunnelController? webAdminSshTunnelController,
     Future<void> Function()? onConfigurationImported,
   })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
@@ -48,6 +52,8 @@ class AdminApiController extends ChangeNotifier {
         _mdnsPublisher = mdnsPublisher ?? MdnsServiceController(),
         _backupService = backupService,
         _diagnosticsService = diagnosticsService ?? const DiagnosticsService(),
+        _exdataFileService = exdataFileService ?? ExdataFileService(),
+        _uiThemeService = uiThemeService ?? UiThemeService(),
         _webAdminSshTunnelController =
             webAdminSshTunnelController ?? WebAdminSshTunnelController(),
         _onConfigurationImported = onConfigurationImported {
@@ -71,6 +77,8 @@ class AdminApiController extends ChangeNotifier {
   final MdnsPublisher _mdnsPublisher;
   final ConfigurationBackupService? _backupService;
   final DiagnosticsService _diagnosticsService;
+  final ExdataFileService _exdataFileService;
+  final UiThemeService _uiThemeService;
   final WebAdminSshTunnelController _webAdminSshTunnelController;
   final Future<void> Function()? _onConfigurationImported;
   final Random _random = Random.secure();
@@ -110,12 +118,46 @@ class AdminApiController extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
+    await _exdataFileService.ensureReady();
+    await _uiThemeService.ensureReady();
     settings = await _settingsStore.load();
     if (settings.enabled) await _start();
     notifyListeners();
   }
 
   Future<void> updateSettings(AdminApiSettings updated) async {
+    await _validateSettings(updated);
+    final previous = settings;
+    busy = true;
+    notifyListeners();
+    try {
+      await _settingsStore.save(updated);
+      await _stop();
+      settings = updated;
+      lastError = null;
+      if (settings.enabled) await _start(throwOnFailure: true);
+    } catch (error, stackTrace) {
+      try {
+        await _stop();
+      } catch (stopError, stopStackTrace) {
+        AppLogger.error(LogCategory.api, stopError, stopStackTrace);
+      }
+      settings = previous;
+      try {
+        await _settingsStore.save(previous);
+        if (previous.enabled) await _start(throwOnFailure: true);
+      } catch (rollbackError, rollbackStackTrace) {
+        AppLogger.error(LogCategory.api, rollbackError, rollbackStackTrace);
+        lastError = '관리 API 설정 복구 실패: $rollbackError';
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _validateSettings(AdminApiSettings updated) async {
     if (updated.port < 1 || updated.port > 65535) {
       throw const FormatException('관리 API 포트는 1~65535여야 합니다.');
     }
@@ -124,17 +166,16 @@ class AdminApiController extends ChangeNotifier {
         'mDNS 호스트 이름은 example.local 형식이어야 합니다.',
       );
     }
-    busy = true;
-    notifyListeners();
+    if (!updated.enabled || (running && actualPort == updated.port)) return;
+    ServerSocket? probe;
     try {
-      await _settingsStore.save(updated);
-      await _stop();
-      settings = updated;
-      lastError = null;
-      if (settings.enabled) await _start();
+      probe = await ServerSocket.bind(InternetAddress.anyIPv4, updated.port);
+    } on SocketException catch (error) {
+      throw FormatException(
+        '관리 API 포트 ${updated.port}을 사용할 수 없습니다: $error',
+      );
     } finally {
-      busy = false;
-      notifyListeners();
+      await probe?.close();
     }
   }
 
@@ -160,9 +201,12 @@ class AdminApiController extends ChangeNotifier {
     await _stop();
   }
 
-  Future<void> _start() async {
+  Future<void> _start({bool throwOnFailure = false}) async {
+    HttpServer? startedServer;
     try {
-      _server = await HttpServer.bind(InternetAddress.anyIPv4, settings.port);
+      startedServer =
+          await HttpServer.bind(InternetAddress.anyIPv4, settings.port);
+      _server = startedServer;
       _server!.listen(
         (request) => unawaited(_handle(request)),
         onError: (Object error, StackTrace stackTrace) {
@@ -186,11 +230,30 @@ class AdminApiController extends ChangeNotifier {
       if (settings.webAdminSshForwardingEnabled) {
         unawaited(_startWebAdminSshTunnel());
       }
-    } catch (error) {
-      AppLogger.error(LogCategory.api, error);
+    } catch (error, stackTrace) {
+      AppLogger.error(LogCategory.api, error, stackTrace);
+      await startedServer?.close(force: true);
       _server = null;
       lastError = '포트 ${settings.port}에서 관리 API를 시작하지 못했습니다: $error';
+      if (throwOnFailure) rethrow;
     }
+  }
+
+  void _applySettingsLater(
+    AdminApiSettings updated, {
+    Future<void> Function()? afterApply,
+  }) {
+    unawaited(Future<void>.delayed(
+      const Duration(milliseconds: 300),
+      () async {
+        try {
+          await updateSettings(updated);
+          await afterApply?.call();
+        } catch (error, stackTrace) {
+          AppLogger.error(LogCategory.api, error, stackTrace);
+        }
+      },
+    ));
   }
 
   Future<void> _stop() async {
@@ -289,6 +352,151 @@ class AdminApiController extends ChangeNotifier {
           },
         });
       }
+      if (request.method == 'GET' && path == '/api/files/list') {
+        final listing = await _exdataFileService.list(
+          request.uri.queryParameters['path'] ?? '',
+        );
+        return await _sendJson(request.response, 200, listing.toJson());
+      }
+      if (request.method == 'GET' && path == '/api/files/download') {
+        final download = await _exdataFileService.openDownload(
+          request.uri.queryParameters['path'] ?? '',
+        );
+        request.response
+          ..statusCode = 200
+          ..contentLength = download.size
+          ..headers.contentType = ContentType.binary
+          ..headers.set(
+            'Content-Disposition',
+            'attachment; filename="download"; '
+                "filename*=UTF-8''${Uri.encodeComponent(download.name)}",
+          );
+        await request.response.addStream(download.file.openRead());
+        return await request.response.close();
+      }
+      if (request.method == 'PUT' && path == '/api/files/upload') {
+        final relativePath = request.uri.queryParameters['path'] ?? '';
+        final overwrite = request.uri.queryParameters['overwrite'] == 'true';
+        final uploadId = request.uri.queryParameters['uploadId'];
+        if (uploadId != null) {
+          final offset = int.tryParse(
+            request.uri.queryParameters['offset'] ?? '',
+          );
+          if (offset == null) {
+            throw const ExdataFileException(
+              400,
+              'invalid-upload-offset',
+              '올바르지 않은 업로드 위치입니다.',
+            );
+          }
+          final result = await _exdataFileService.uploadChunk(
+            relativePath,
+            uploadId,
+            offset,
+            request,
+            overwrite: overwrite,
+            complete: request.uri.queryParameters['complete'] == 'true',
+            contentLength:
+                request.contentLength >= 0 ? request.contentLength : null,
+          );
+          return await _sendJson(
+              request.response, result.complete ? 201 : 200, {
+            'ok': true,
+            'path': ExdataFileService.normalizeRelativePath(relativePath),
+            'size': result.size,
+            'complete': result.complete,
+          });
+        }
+        final written = await _exdataFileService.upload(
+          relativePath,
+          request,
+          overwrite: overwrite,
+          contentLength:
+              request.contentLength >= 0 ? request.contentLength : null,
+        );
+        return await _sendJson(request.response, 201, {
+          'ok': true,
+          'path': ExdataFileService.normalizeRelativePath(relativePath),
+          'size': written,
+        });
+      }
+      if (request.method == 'POST' && path == '/api/files/directory') {
+        final body = await _readJsonObject(request, maxBytes: 16 * 1024);
+        final relativePath = body['path'];
+        if (relativePath is! String) {
+          throw const FormatException('path 문자열이 필요합니다.');
+        }
+        await _exdataFileService.createDirectory(relativePath);
+        return await _sendJson(request.response, 201, {
+          'ok': true,
+          'path': ExdataFileService.normalizeRelativePath(relativePath),
+        });
+      }
+      if (request.method == 'POST' && path == '/api/files/move') {
+        final body = await _readJsonObject(request, maxBytes: 32 * 1024);
+        final source = body['source'];
+        final destination = body['destination'];
+        if (source is! String || destination is! String) {
+          throw const FormatException('source와 destination 문자열이 필요합니다.');
+        }
+        if (ExdataFileService.normalizeRelativePath(source) !=
+            ExdataFileService.normalizeRelativePath(destination)) {
+          await _requireExdataPathUnused(source);
+        }
+        await _exdataFileService.move(source, destination);
+        return await _sendJson(request.response, 200, {
+          'ok': true,
+          'source': ExdataFileService.normalizeRelativePath(source),
+          'destination': ExdataFileService.normalizeRelativePath(destination),
+        });
+      }
+      if (request.method == 'DELETE' && path == '/api/files') {
+        final relativePath = request.uri.queryParameters['path'] ?? '';
+        await _requireExdataPathUnused(relativePath);
+        await _exdataFileService.delete(relativePath);
+        return await _sendJson(request.response, 200, {'ok': true});
+      }
+      if (request.method == 'POST' && path == '/api/files/change-check') {
+        final body = await _readJsonObject(request, maxBytes: 64 * 1024);
+        final paths = body['paths'];
+        if (paths is! List || paths.any((value) => value is! String)) {
+          throw const FormatException('paths 문자열 배열이 필요합니다.');
+        }
+        for (final relativePath in paths.cast<String>()) {
+          await _requireExdataPathUnused(relativePath);
+        }
+        return await _sendJson(request.response, 200, {'ok': true});
+      }
+      if (request.method == 'GET' && path == '/api/themes') {
+        final themes = await _uiThemeService.list();
+        return await _sendJson(request.response, 200, {
+          'themes': themes.map((theme) => theme.toJson()).toList(),
+        });
+      }
+      if (request.method == 'POST' && path == '/api/themes') {
+        final body = await _readJsonObject(request, maxBytes: 64 * 1024);
+        final name = body['name'];
+        final description = body['description'];
+        final values = body['values'];
+        if (name is! String || values is! Map<String, dynamic>) {
+          throw const FormatException('name 문자열과 values 객체가 필요합니다.');
+        }
+        final theme = await _uiThemeService.saveUserTheme(
+          name,
+          values,
+          description: description is String ? description : '',
+        );
+        return await _sendJson(request.response, 201, {
+          'ok': true,
+          'theme': theme.toJson(),
+        });
+      }
+      if (request.method == 'DELETE' && path == '/api/themes') {
+        await _uiThemeService.deleteUserTheme(
+          request.uri.queryParameters['id'] ?? '',
+        );
+        return await _sendJson(request.response, 200, {'ok': true});
+      }
       if (request.method == 'GET' && path == '/api/config') {
         return await _sendJson(request.response, 200, await configReader());
       }
@@ -350,13 +558,10 @@ class AdminApiController extends ChangeNotifier {
           'ok': true,
           'message': '설정 백업을 검증하고 적용했습니다.',
         });
-        unawaited(Future<void>.delayed(
-          const Duration(milliseconds: 300),
-          () async {
-            await updateSettings(importedSettings);
-            await _onConfigurationImported?.call();
-          },
-        ));
+        _applySettingsLater(
+          importedSettings,
+          afterApply: _onConfigurationImported,
+        );
         return;
       }
       if (request.method == 'POST' &&
@@ -371,13 +576,10 @@ class AdminApiController extends ChangeNotifier {
           'ok': true,
           'message': '직전 설정으로 복원했습니다.',
         });
-        unawaited(Future<void>.delayed(
-          const Duration(milliseconds: 300),
-          () async {
-            await updateSettings(restoredSettings);
-            await _onConfigurationImported?.call();
-          },
-        ));
+        _applySettingsLater(
+          restoredSettings,
+          afterApply: _onConfigurationImported,
+        );
         return;
       }
       if (request.method == 'GET' && path == '/api/diagnostics') {
@@ -436,15 +638,13 @@ class AdminApiController extends ChangeNotifier {
       if (request.method == 'PUT' && path == '/api/server-settings') {
         final body = await _readJsonObject(request);
         final updated = AdminApiSettings.fromJson(body);
+        await _validateSettings(updated);
         await _sendJson(request.response, 202, {
           'ok': true,
           'message': '관리 API가 새 설정으로 다시 시작됩니다.',
           'settings': updated.toJson(),
         });
-        unawaited(Future<void>.delayed(
-          const Duration(milliseconds: 300),
-          () => updateSettings(updated),
-        ));
+        _applySettingsLater(updated);
         return;
       }
       if (request.method == 'POST' && path.startsWith('/api/actions/')) {
@@ -469,6 +669,28 @@ class AdminApiController extends ChangeNotifier {
         405,
         {'error': 'method-not-allowed'},
       );
+    } on ExdataFileException catch (error) {
+      AppLogger.warning(
+        LogCategory.api,
+        '${request.method} ${request.uri.path}: ${error.message}',
+      );
+      try {
+        await _sendJson(request.response, error.statusCode, {
+          'error': error.code,
+          'message': error.message,
+        });
+      } catch (_) {}
+    } on UiThemeException catch (error) {
+      AppLogger.warning(
+        LogCategory.api,
+        '${request.method} ${request.uri.path}: ${error.message}',
+      );
+      try {
+        await _sendJson(request.response, error.statusCode, {
+          'error': error.code,
+          'message': error.message,
+        });
+      } catch (_) {}
     } on FormatException catch (error) {
       AppLogger.warning(
           LogCategory.api, '${request.method} ${request.uri.path}: $error');
@@ -481,6 +703,30 @@ class AdminApiController extends ChangeNotifier {
         await _sendJson(request.response, 500, {'error': '$error'});
       } catch (_) {}
     }
+  }
+
+  Future<void> _requireExdataPathUnused(String relativePath) async {
+    final normalized = ExdataFileService.normalizeRelativePath(relativePath);
+    final references = findExdataConfigReferences(
+      await _effectiveConfigReader(),
+      exdataRootPath: _exdataFileService.rootPath,
+    ).where((reference) => reference.isAffectedBy(normalized)).toList();
+    if (references.isEmpty) return;
+
+    final locations = references
+        .map((reference) => reference.settingPath)
+        .toSet()
+        .take(3)
+        .join(', ');
+    final remaining =
+        references.map((value) => value.settingPath).toSet().length - 3;
+    final suffix = remaining > 0 ? ' 외 $remaining곳' : '';
+    throw ExdataFileException(
+      409,
+      'file-in-use',
+      '현재 설정에서 사용 중인 파일 또는 폴더이므로 삭제하거나 이름을 변경할 수 없습니다.\n'
+          '사용 위치: $locations$suffix',
+    );
   }
 
   Future<void> _login(HttpRequest request) async {
