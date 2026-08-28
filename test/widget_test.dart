@@ -289,6 +289,15 @@ void main() {
     );
   });
 
+  test('Windows 릴리스 외부 필수 파일 다운로드는 검증하며 재시도한다', () {
+    final script = File('scripts/package-windows.ps1').readAsStringSync();
+    expect(script, contains('Invoke-MicrosoftDownloadWithRetry'));
+    expect(script, contains(r'$MaxAttempts = 3'));
+    expect(script,
+        contains(r'Assert-MicrosoftAuthenticodeSignature $temporaryFile'));
+    expect(script, contains(r'Move-Item -LiteralPath $temporaryFile'));
+  });
+
   test('재생 불가능한 단일 폴더 동영상은 반복 재시도하지 않는다', () {
     final idleOverlay = File('lib/widget/idle_overlay.dart').readAsStringSync();
     expect(

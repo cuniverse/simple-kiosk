@@ -109,6 +109,36 @@ function Assert-MicrosoftAuthenticodeSignature([string]$Path) {
     }
 }
 
+function Invoke-MicrosoftDownloadWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$OutFile,
+        [int]$MaxAttempts = 3
+    )
+
+    $temporaryFile = "$OutFile.download"
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            Remove-Item -LiteralPath $temporaryFile -Force -ErrorAction SilentlyContinue
+            Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $temporaryFile
+            if (-not (Test-Path -LiteralPath $temporaryFile) -or
+                (Get-Item -LiteralPath $temporaryFile).Length -eq 0) {
+                throw "다운로드한 파일이 비어 있습니다: $Uri"
+            }
+            Assert-MicrosoftAuthenticodeSignature $temporaryFile
+            Move-Item -LiteralPath $temporaryFile -Destination $OutFile -Force
+            return
+        }
+        catch {
+            Remove-Item -LiteralPath $temporaryFile -Force -ErrorAction SilentlyContinue
+            if ($attempt -ge $MaxAttempts) { throw }
+            $delaySeconds = $attempt * 2
+            Write-Warning "다운로드 실패 ($attempt/$MaxAttempts), ${delaySeconds}초 후 재시도: $($_.Exception.Message)"
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+}
+
 try {
     Write-Host "Package version: $PackageVersion"
     # 태그/인수 버전을 앱 런타임 버전에도 적용한다. 빌드 후 원본은 복원한다.
@@ -239,7 +269,7 @@ try {
         Copy-Item -LiteralPath $resolvedBootstrapper -Destination $webView2Bootstrapper -Force
     } else {
         Write-Host 'Downloading Microsoft Edge WebView2 Evergreen Bootstrapper...'
-        Invoke-WebRequest -UseBasicParsing -Uri $webView2BootstrapperUrl -OutFile $webView2Bootstrapper
+        Invoke-MicrosoftDownloadWithRetry -Uri $webView2BootstrapperUrl -OutFile $webView2Bootstrapper
     }
     Assert-MicrosoftAuthenticodeSignature $webView2Bootstrapper
     Write-Host 'Verified Microsoft signature: WebView2 Evergreen Bootstrapper'
@@ -250,7 +280,7 @@ try {
         Copy-Item -LiteralPath $resolvedRedistributable -Destination $packagedVcRedistributable -Force
     } else {
         Write-Host 'Downloading latest Microsoft Visual C++ Redistributable...'
-        Invoke-WebRequest -UseBasicParsing -Uri $visualCppRedistributableUrl -OutFile $packagedVcRedistributable
+        Invoke-MicrosoftDownloadWithRetry -Uri $visualCppRedistributableUrl -OutFile $packagedVcRedistributable
     }
     Assert-MicrosoftAuthenticodeSignature $packagedVcRedistributable
     $vcRedistributableVersion = (Get-Item -LiteralPath $packagedVcRedistributable).VersionInfo.FileVersion
