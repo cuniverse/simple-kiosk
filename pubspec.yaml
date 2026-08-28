@@ -1,7 +1,7 @@
 name: simple_kiosk
 description: 성당 로비용 Flutter 디지털 사이니지 WebView 앱 (Windows / Android 공용).
 publish_to: "none"
-version: 1.2.22
+version: 1.2.23
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -35,6 +35,10 @@ dependencies:
   tray_manager: ^0.5.3
   # 관리 API의 .local 호스트 이름과 HTTP 서비스를 mDNS로 광고.
   mdns_dart: ^2.2.2
+  # 외부 ssh.exe 없이 원격 WEB 관리자 reverse forwarding을 연결합니다.
+  # OpenSSH stream-local reverse forwarding 지원을 추가한 소스 포함 버전입니다.
+  dartssh2:
+    path: packages/dartssh2-3.3.1
 
 dev_dependencies:
   flutter_test:
@@ -52,6 +56,7 @@ flutter:
     - assets/idle/
     - assets/fonts/README.md
     - assets/fonts/licenses/
+    - assets/ssh/
   fonts:
     - family: NanumSquare
       fonts:

@@ -120,6 +120,16 @@ Windows Assigned Access 또는 Shell Launcher와 AppLocker 정책을 함께 적�
 설정은 `<프로그램 폴더>\config\admin-api.json`에 저장됩니다. 포트가 이미 사용 중이면
 사이니지는 계속 실행되며 설정 화면에 API 시작 오류가 표시됩니다.
 
+**원격 WEB 관리자 연결**은 기본값이 ON입니다. 프로그램에 포함된 SSH 라이브러리와
+접속 전용 키를 사용하므로 외부 `ssh.exe`는 실행하지 않습니다. GW의
+`/run/signage/ysignage1.sock`부터 사용 가능한 ID를 자동으로 선택하고, 성공한 ID를
+`admin-api.json`에 저장합니다. 다음 연결에서는 저장된 ID를 먼저 사용하며 해당 ID가
+거절되면 1번부터 다시 탐색합니다. 연결 후 설정 화면에 표시되는
+`http://ysignage{숫자}.signage.cuniverse.net/` 링크를 눌러 접속할 수 있습니다. 프로그램은
+외부 URL을 통한 실제 reverse forwarding 왕복 상태를 30초마다 확인합니다. 실패하면
+상태와 마지막 정상 확인 시간을 표시하고 10초 간격으로 연결 및 ID 배정을 계속
+재시도합니다.
+
 mDNS도 기본으로 사용하며 `ysignage.local`을 관리 API의 로컬 네트워크 주소로
 광고합니다. 따라서 기본 포트에서는 같은 네트워크의 브라우저로
 `http://ysignage.local`에 접속할 수 있습니다. 여러 대를 운영하면 각 장치의 mDNS

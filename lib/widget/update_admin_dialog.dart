@@ -386,6 +386,9 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
           port: port,
           mdnsEnabled: _mdnsEnabled,
           mdnsHostname: mdnsHostname,
+          webAdminSshForwardingEnabled:
+              controller.settings.webAdminSshForwardingEnabled,
+          webAdminSshForwardingId: controller.settings.webAdminSshForwardingId,
         ),
       );
       if (mounted) {
@@ -405,6 +408,19 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
           SnackBar(content: Text('관리 API 설정 저장 실패: $error')),
         );
       }
+    }
+  }
+
+  Future<void> _toggleWebAdminSshForwarding(bool enabled) async {
+    final controller = widget.adminApiController;
+    if (controller == null) return;
+    try {
+      await controller.updateWebAdminSshForwardingEnabled(enabled);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('원격 WEB 관리자 연결 설정 실패: $error')),
+      );
     }
   }
 
@@ -720,6 +736,41 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                           child: const Text('관리 API 설정 저장'),
                         ),
                       ),
+                      const Divider(height: 28),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('원격 WEB 관리자 연결'),
+                        subtitle: Text(
+                          '${widget.adminApiController!.webAdminSshTunnel.statusText}\n'
+                          '${widget.adminApiController!.webAdminSshTunnel.forwardingStateText}',
+                        ),
+                        isThreeLine: true,
+                        value: widget.adminApiController!.settings
+                            .webAdminSshForwardingEnabled,
+                        onChanged: widget.adminApiController!.busy
+                            ? null
+                            : _toggleWebAdminSshForwarding,
+                      ),
+                      if (widget.adminApiController!.settings
+                          .webAdminSshForwardingEnabled)
+                        if (widget.adminApiController!.webAdminSshRemoteUri
+                            case final remoteUri?)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: () => UpdateAdminDialog._openWebAdmin(
+                                context,
+                                remoteUri,
+                              ),
+                              icon: const Icon(Icons.open_in_new),
+                              label: Text(remoteUri.toString()),
+                            ),
+                          )
+                        else
+                          const Padding(
+                            padding: EdgeInsets.only(left: 16, bottom: 4),
+                            child: Text('접속 ID를 배정하고 있습니다.'),
+                          ),
                     ],
                     const Divider(height: 28),
                     Text('현재 버전: ${controller.currentVersion}'),

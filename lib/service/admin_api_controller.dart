@@ -14,6 +14,7 @@ import 'configuration_backup_service.dart';
 import 'diagnostics_service.dart';
 import 'menu_config_loader.dart';
 import 'mdns_service_controller.dart';
+import 'web_admin_ssh_tunnel_controller.dart';
 
 typedef AdminStatusProvider = Future<Map<String, dynamic>> Function();
 typedef AdminActionHandler = Future<Map<String, dynamic>> Function(
@@ -36,6 +37,7 @@ class AdminApiController extends ChangeNotifier {
     MdnsPublisher? mdnsPublisher,
     ConfigurationBackupService? backupService,
     DiagnosticsService? diagnosticsService,
+    WebAdminSshTunnelController? webAdminSshTunnelController,
     Future<void> Function()? onConfigurationImported,
   })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
         _defaultConfigReader =
@@ -46,7 +48,11 @@ class AdminApiController extends ChangeNotifier {
         _mdnsPublisher = mdnsPublisher ?? MdnsServiceController(),
         _backupService = backupService,
         _diagnosticsService = diagnosticsService ?? const DiagnosticsService(),
-        _onConfigurationImported = onConfigurationImported;
+        _webAdminSshTunnelController =
+            webAdminSshTunnelController ?? WebAdminSshTunnelController(),
+        _onConfigurationImported = onConfigurationImported {
+    _webAdminSshTunnelController.addListener(_handleSshTunnelChanged);
+  }
 
   static const int _maxBodyBytes = 1024 * 1024;
   static const Duration _sessionLifetime = Duration(minutes: 30);
@@ -65,6 +71,7 @@ class AdminApiController extends ChangeNotifier {
   final MdnsPublisher _mdnsPublisher;
   final ConfigurationBackupService? _backupService;
   final DiagnosticsService _diagnosticsService;
+  final WebAdminSshTunnelController _webAdminSshTunnelController;
   final Future<void> Function()? _onConfigurationImported;
   final Random _random = Random.secure();
   // 메뉴 설정 적용 시 KioskHome과 API 컨트롤러가 재생성되더라도 같은 프로그램
@@ -81,6 +88,19 @@ class AdminApiController extends ChangeNotifier {
   bool get running => _server != null;
   int? get actualPort => _server?.port;
   bool get mdnsRunning => _mdnsPublisher.running;
+  WebAdminSshTunnelController get webAdminSshTunnel =>
+      _webAdminSshTunnelController;
+  Uri? get webAdminSshRemoteUri {
+    final liveUri = _webAdminSshTunnelController.remoteUri;
+    if (liveUri != null) return liveUri;
+    final id = settings.webAdminSshForwardingId;
+    return id == null
+        ? null
+        : Uri.parse(
+            'http://$id.${WebAdminSshTunnelController.domainSuffix}/',
+          );
+  }
+
   String get address {
     if (!running) return '-';
     final portSuffix = _server!.port == 80 ? '' : ':${_server!.port}';
@@ -118,6 +138,24 @@ class AdminApiController extends ChangeNotifier {
     }
   }
 
+  Future<void> updateWebAdminSshForwardingEnabled(bool enabled) async {
+    if (busy || settings.webAdminSshForwardingEnabled == enabled) return;
+    busy = true;
+    notifyListeners();
+    try {
+      settings = settings.copyWith(webAdminSshForwardingEnabled: enabled);
+      await _settingsStore.save(settings);
+      if (enabled && running) {
+        await _startWebAdminSshTunnel();
+      } else {
+        await _webAdminSshTunnelController.stop();
+      }
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> close() async {
     await _stop();
   }
@@ -145,6 +183,9 @@ class AdminApiController extends ChangeNotifier {
           mdnsError = 'mDNS를 시작하지 못했습니다: $error';
         }
       }
+      if (settings.webAdminSshForwardingEnabled) {
+        unawaited(_startWebAdminSshTunnel());
+      }
     } catch (error) {
       AppLogger.error(LogCategory.api, error);
       _server = null;
@@ -153,12 +194,33 @@ class AdminApiController extends ChangeNotifier {
   }
 
   Future<void> _stop() async {
+    await _webAdminSshTunnelController.stop();
     await _mdnsPublisher.stop();
     mdnsError = null;
     final server = _server;
     _server = null;
     if (server != null) await server.close(force: true);
   }
+
+  Future<void> _startWebAdminSshTunnel() async {
+    final port = actualPort;
+    if (port == null || !settings.webAdminSshForwardingEnabled) return;
+    await _webAdminSshTunnelController.start(
+      localPort: port,
+      preferredId: settings.webAdminSshForwardingId,
+      onIdAssigned: (id) async {
+        if (!settings.webAdminSshForwardingEnabled ||
+            settings.webAdminSshForwardingId == id) {
+          return;
+        }
+        settings = settings.copyWith(webAdminSshForwardingId: id);
+        await _settingsStore.save(settings);
+        notifyListeners();
+      },
+    );
+  }
+
+  void _handleSshTunnelChanged() => notifyListeners();
 
   Future<void> _handle(HttpRequest request) async {
     try {
@@ -209,6 +271,21 @@ class AdminApiController extends ChangeNotifier {
             'mdnsHostname': settings.mdnsHostname,
             'mdnsRunning': mdnsRunning,
             'mdnsError': mdnsError,
+            'webAdminSshForwarding': {
+              'enabled': settings.webAdminSshForwardingEnabled,
+              'id': settings.webAdminSshForwardingId,
+              'status': _webAdminSshTunnelController.status.name,
+              'url': _webAdminSshTunnelController.remoteUri?.toString(),
+              'forwardingVerified':
+                  _webAdminSshTunnelController.forwardingVerified,
+              'forwardingState':
+                  _webAdminSshTunnelController.forwardingStateText,
+              'lastForwardingVerifiedAt': _webAdminSshTunnelController
+                  .lastForwardingVerifiedAt
+                  ?.toUtc()
+                  .toIso8601String(),
+              'error': _webAdminSshTunnelController.lastError,
+            },
           },
         });
       }
@@ -340,7 +417,21 @@ class AdminApiController extends ChangeNotifier {
         );
       }
       if (request.method == 'GET' && path == '/api/server-settings') {
-        return await _sendJson(request.response, 200, settings.toJson());
+        return await _sendJson(request.response, 200, {
+          ...settings.toJson(),
+          'webAdminSshForwardingStatus':
+              _webAdminSshTunnelController.status.name,
+          'webAdminSshForwardingState':
+              _webAdminSshTunnelController.forwardingStateText,
+          'webAdminSshForwardingVerified':
+              _webAdminSshTunnelController.forwardingVerified,
+          'webAdminSshForwardingUrl': webAdminSshRemoteUri?.toString(),
+          'webAdminSshForwardingLastVerifiedAt': _webAdminSshTunnelController
+              .lastForwardingVerifiedAt
+              ?.toUtc()
+              .toIso8601String(),
+          'webAdminSshForwardingError': _webAdminSshTunnelController.lastError,
+        });
       }
       if (request.method == 'PUT' && path == '/api/server-settings') {
         final body = await _readJsonObject(request);
@@ -545,4 +636,11 @@ class AdminApiController extends ChangeNotifier {
 
   static Future<String> _loadDefaultPage() =>
       rootBundle.loadString('assets/admin/index.html');
+
+  @override
+  void dispose() {
+    _webAdminSshTunnelController.removeListener(_handleSshTunnelChanged);
+    _webAdminSshTunnelController.dispose();
+    super.dispose();
+  }
 }

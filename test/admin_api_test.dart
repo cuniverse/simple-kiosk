@@ -8,6 +8,7 @@ import 'package:simple_kiosk/service/admin_api_controller.dart';
 import 'package:simple_kiosk/service/admin_api_settings_store.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/service/mdns_service_controller.dart';
+import 'package:simple_kiosk/service/web_admin_ssh_tunnel_controller.dart';
 
 class _FakeMdnsPublisher implements MdnsPublisher {
   @override
@@ -32,10 +33,31 @@ void main() {
 
     expect(settings.mdnsEnabled, isTrue);
     expect(settings.mdnsHostname, 'ysignage.local');
-    expect(settings.toJson()['schemaVersion'], 2);
+    expect(settings.webAdminSshForwardingEnabled, isTrue);
+    expect(settings.webAdminSshForwardingId, isNull);
+    expect(settings.toJson()['schemaVersion'], 3);
     expect(
       () => AdminApiSettings.fromJson(
         const {'mdnsHostname': 'not-a-local-name'},
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('원격 WEB 관리자 ID를 저장하고 다음 접속 후보의 첫 번째로 사용한다', () {
+    final settings = AdminApiSettings.fromJson(const {
+      'webAdminSshForwardingEnabled': true,
+      'webAdminSshForwardingId': 'ysignage7',
+    });
+    expect(settings.webAdminSshForwardingId, 'ysignage7');
+    expect(settings.toJson()['webAdminSshForwardingId'], 'ysignage7');
+    expect(
+      WebAdminSshTunnelController.candidateIds('ysignage7').take(4),
+      ['ysignage7', 'ysignage1', 'ysignage2', 'ysignage3'],
+    );
+    expect(
+      () => AdminApiSettings.fromJson(
+        const {'webAdminSshForwardingId': 'invalid'},
       ),
       throwsFormatException,
     );
@@ -51,7 +73,12 @@ void main() {
     final pinFile =
         File('${directory.path}${Platform.pathSeparator}admin-pin.json');
     final settingsStore = AdminApiSettingsStore(file: settingsFile);
-    await settingsStore.save(AdminApiSettings(port: port));
+    await settingsStore.save(
+      AdminApiSettings(
+        port: port,
+        webAdminSshForwardingEnabled: false,
+      ),
+    );
     Map<String, dynamic> config = {'schemaVersion': 1};
     String? action;
     final mdnsPublisher = _FakeMdnsPublisher();
@@ -112,6 +139,30 @@ void main() {
       expect(
         json.decode(status.body)['adminApi']['mdnsHostname'],
         'ysignage.local',
+      );
+      expect(
+        json.decode(status.body)['adminApi']['webAdminSshForwarding']
+            ['enabled'],
+        isFalse,
+      );
+      expect(
+        json.decode(status.body)['adminApi']['webAdminSshForwarding']
+            ['forwardingVerified'],
+        isFalse,
+      );
+
+      final serverSettings = await client.get(
+        Uri.parse('http://127.0.0.1:$port/api/server-settings'),
+        headers: headers,
+      );
+      expect(serverSettings.statusCode, 200);
+      expect(
+        json.decode(serverSettings.body)['webAdminSshForwardingStatus'],
+        'disabled',
+      );
+      expect(
+        json.decode(serverSettings.body)['webAdminSshForwardingState'],
+        contains('실제 reverse forwarding'),
       );
 
       final effectiveConfig = await client.get(
@@ -176,7 +227,12 @@ void main() {
       file: File('${directory.path}${Platform.pathSeparator}admin-pin.json'),
       iterations: 1,
     );
-    await settingsStore.save(AdminApiSettings(port: port));
+    await settingsStore.save(
+      AdminApiSettings(
+        port: port,
+        webAdminSshForwardingEnabled: false,
+      ),
+    );
 
     AdminApiController createController() => AdminApiController(
           pinStore: pinStore,

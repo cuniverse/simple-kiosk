@@ -103,6 +103,11 @@ void main() {
         contains('sessionStorage.getItem(\'simpleKioskAdminExpiresAt\')'));
     expect(page, isNot(contains('logout(false)')));
     expect(page, contains('/api/session/refresh'));
+    expect(page, contains('원격 WEB 관리자 연결'));
+    expect(page, contains('webAdminSshForwardingEnabled'));
+    expect(page, contains('signage.cuniverse.net'));
+    expect(page, contains('webAdminSshForwardingState'));
+    expect(page, contains(r"setInterval(()=>{if(token&&!$('adminTabApi')"));
     expect(
         page, contains("['pointerdown','keydown','input','change','wheel']"));
   });

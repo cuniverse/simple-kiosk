@@ -420,4 +420,11 @@ assets/
   config/menu.defaults.json          # 메뉴/레이아웃/대기화면 기본 설정
   icons/                             # 메뉴 아이콘 이미지
   idle/                              # 대기화면용 미디어
+  ssh/                               # 원격 WEB 관리자 접속 전용 SSH 키
+packages/
+  dartssh2-3.3.1/                    # 소스 포함 SSH 및 stream-local forwarding 라이브러리
 ```
+
+원격 WEB 관리자용 개인 키는 `assets/ssh/web-admin-tunnel-key`에 추가합니다. 이 폴더는
+Flutter asset으로 등록되어 Windows ZIP과 설치 프로그램에 자동 포함됩니다. 키가 없는
+개발 빌드는 원격 연결을 시도하지 않고 설정 화면에 키 미포함 상태를 표시합니다.
