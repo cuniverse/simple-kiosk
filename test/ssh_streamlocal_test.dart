@@ -1,11 +1,24 @@
 // ignore_for_file: implementation_imports
 
+import 'dart:io';
+
+import 'package:dartssh2/dartssh2.dart';
 import 'package:dartssh2/src/message/msg_channel.dart';
 import 'package:dartssh2/src/message/msg_request.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_kiosk/service/web_admin_ssh_tunnel_controller.dart';
 
 void main() {
+  test('내장된 전용 터널 RSA 키를 SSH 클라이언트가 파싱한다', () {
+    final pem = File(
+      'assets/ssh/web-admin-tunnel-key',
+    ).readAsStringSync();
+    final identities = SSHKeyPair.fromPem(pem);
+
+    expect(identities, hasLength(1));
+    expect(identities.single.name, 'ssh-rsa');
+  });
+
   test('포워딩 상태 확인은 UTF-8이 아닌 HTTP 첫 줄만 바이트로 읽는다', () async {
     final status = await readHttpStatusLine(Stream<List<int>>.fromIterable([
       'HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n'.codeUnits,
