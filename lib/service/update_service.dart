@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -12,8 +13,15 @@ import 'runtime_paths.dart';
 class AvailableUpdate {
   final UpdateManifest manifest;
   final Uri packageUrl;
+  final Uri? setupUrl;
+  final String? setupSha256;
 
-  const AvailableUpdate(this.manifest, this.packageUrl);
+  const AvailableUpdate(
+    this.manifest,
+    this.packageUrl, {
+    this.setupUrl,
+    this.setupSha256,
+  });
 }
 
 class UpdateService {
@@ -104,7 +112,28 @@ class UpdateService {
         !packageUrl.startsWith('https://github.com/')) {
       throw const FormatException('업데이트 패키지 asset 누락 또는 URL 오류');
     }
-    return AvailableUpdate(manifest, Uri.parse(packageUrl));
+    final setupName = 'simple-kiosk-windows-setup-${manifest.version}.exe';
+    final setupAsset = assets.whereType<Map>().cast<Map?>().firstWhere(
+          (asset) => asset?['name'] == setupName,
+          orElse: () => null,
+        );
+    final setupUrlValue = setupAsset?['browser_download_url'];
+    final setupDigestValue = setupAsset?['digest'];
+    final setupDigest = setupDigestValue is String &&
+            RegExp(r'^sha256:[0-9a-fA-F]{64}$').hasMatch(setupDigestValue)
+        ? setupDigestValue.substring('sha256:'.length).toLowerCase()
+        : null;
+    final setupUrl = setupUrlValue is String &&
+            setupUrlValue.startsWith('https://github.com/') &&
+            setupDigest != null
+        ? Uri.parse(setupUrlValue)
+        : null;
+    return AvailableUpdate(
+      manifest,
+      Uri.parse(packageUrl),
+      setupUrl: setupUrl,
+      setupSha256: setupUrl == null ? null : setupDigest,
+    );
   }
 
   Future<File> download(AvailableUpdate update) async {
@@ -141,6 +170,49 @@ class UpdateService {
     return temporary.rename(destination.path);
   }
 
+  Future<File> downloadSetupInstaller(AvailableUpdate update) async {
+    final downloads = RuntimePaths.downloads;
+    final setupUrl = update.setupUrl;
+    final expectedSha256 = update.setupSha256;
+    if (downloads == null) throw UnsupportedError('Windows 업데이트만 지원');
+    if (setupUrl == null || expectedSha256 == null) {
+      throw StateError('검증 가능한 Setup 설치 파일이 Release에 없습니다.');
+    }
+    await Directory(downloads).create(recursive: true);
+    final fileName = setupUrl.pathSegments.last;
+    final destination = File(
+      '$downloads${Platform.pathSeparator}$fileName',
+    );
+    final temporary = File('${destination.path}.part');
+    final request = http.Request('GET', setupUrl)..headers.addAll(_headers);
+    final response =
+        await _client.send(request).timeout(const Duration(seconds: 30));
+    if (response.statusCode != 200) {
+      throw http.ClientException('Setup HTTP ${response.statusCode}');
+    }
+    await response.stream.pipe(temporary.openWrite());
+    final digest = await sha256.bind(temporary.openRead()).first;
+    if (digest.toString() != expectedSha256) {
+      await temporary.delete();
+      throw const FormatException('Setup EXE SHA-256 불일치');
+    }
+    if (await destination.exists()) await destination.delete();
+    return temporary.rename(destination.path);
+  }
+
+  Future<void> launchSetupInstaller(File installer) async {
+    if (!Platform.isWindows) throw UnsupportedError('Windows만 지원');
+    if (!await installer.exists()) {
+      throw StateError('Setup 설치 파일을 찾을 수 없습니다: ${installer.path}');
+    }
+    await Process.start(
+      installer.path,
+      const [],
+      workingDirectory: installer.parent.path,
+      mode: ProcessStartMode.detached,
+    );
+  }
+
   Future<void> writeState(Map<String, dynamic> state) async {
     final path = RuntimePaths.updateState;
     if (path == null) return;
@@ -156,13 +228,37 @@ class UpdateService {
     }
     await RuntimePaths.atomicWrite(
       path,
-      const JsonEncoder.withIndent('  ').convert({
-        ...previous,
-        'schemaVersion': 1,
-        ...state,
-        'updatedAt': DateTime.now().toUtc().toIso8601String(),
-      }),
+      const JsonEncoder.withIndent('  ').convert(mergeUpdateState(
+        previous: previous,
+        state: state,
+        updatedAt: DateTime.now().toUtc(),
+      )),
     );
+  }
+
+  @visibleForTesting
+  static Map<String, dynamic> mergeUpdateState({
+    required Map<String, dynamic> previous,
+    required Map<String, dynamic> state,
+    required DateTime updatedAt,
+  }) {
+    final merged = <String, dynamic>{...previous};
+    final previousVersion = previous['version'];
+    final nextVersion = state['version'];
+    if (nextVersion is String && nextVersion != previousVersion) {
+      // A failure count belongs to one exact target release. Carrying it to a
+      // newly discovered version makes that version look blocked before its
+      // first installation attempt.
+      merged.remove('failureCount');
+      merged.remove('failureWindowStartedAt');
+      merged.remove('error');
+    }
+    return {
+      ...merged,
+      'schemaVersion': 1,
+      ...state,
+      'updatedAt': updatedAt.toIso8601String(),
+    };
   }
 
   Future<File> _updaterTool(String name) async {
@@ -194,6 +290,7 @@ class UpdateService {
     UpdateManifest manifest, {
     int retainVersions = 2,
     int logRetentionDays = 30,
+    bool forceRetry = false,
   }) async {
     if (!Platform.isWindows) throw UnsupportedError('Windows 업데이트만 지원');
     final updater = await _updaterTool('ysignage_updater.exe');
@@ -238,6 +335,7 @@ class UpdateService {
         '$logRetentionDays',
         '--signature-verifier',
         signatureVerifier.path,
+        if (forceRetry) '--force-retry',
         if (manifest.authenticodeRequired) '--require-authenticode',
         if (manifest.signerThumbprint != null) ...[
           '--signer-thumbprint',
@@ -270,17 +368,34 @@ class UpdateService {
         Future<int?>.delayed(const Duration(milliseconds: 200), () => null),
       ]);
       if (exitCode != null) {
-        final detail = stderrBuffer.toString().trim().isNotEmpty
-            ? stderrBuffer.toString().trim()
-            : stdoutBuffer.toString().trim();
-        throw StateError(
-          '업데이트 실행기가 시작되지 않았습니다 (종료 코드 $exitCode)'
-          '${detail.isEmpty ? '' : ': $detail'}',
-        );
+        final failedState = await _readUpdateState();
+        throw StateError(updateStartFailureMessage(
+          exitCode: exitCode,
+          state: failedState,
+          stdout: stdoutBuffer.toString(),
+          stderr: stderrBuffer.toString(),
+        ));
       }
     }
     process.kill();
     throw TimeoutException('업데이트 실행기 시작 확인 시간이 초과되었습니다.');
+  }
+
+  @visibleForTesting
+  static String updateStartFailureMessage({
+    required int exitCode,
+    Map<String, dynamic>? state,
+    String stdout = '',
+    String stderr = '',
+  }) {
+    final stateError = state?['error'];
+    final processDetail =
+        stderr.trim().isNotEmpty ? stderr.trim() : stdout.trim();
+    final detail = stateError is String && stateError.trim().isNotEmpty
+        ? stateError.trim()
+        : processDetail;
+    return '업데이트 실행기가 시작되지 않았습니다 (종료 코드 $exitCode)'
+        '${detail.isEmpty ? '' : ': $detail'}';
   }
 
   Future<Map<String, dynamic>?> _readUpdateState() async {

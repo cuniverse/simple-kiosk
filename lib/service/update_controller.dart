@@ -203,7 +203,10 @@ class UpdateController extends ChangeNotifier {
     }
   }
 
-  Future<void> installNow() async {
+  Future<void> installNow({
+    bool manual = false,
+    Future<bool> Function(Object error)? confirmSetupFallback,
+  }) async {
     final package = downloadedPackage;
     final update = available;
     if (package == null || update == null || busy) return;
@@ -216,14 +219,42 @@ class UpdateController extends ChangeNotifier {
         update.manifest,
         retainVersions: policy.retainVersions,
         logRetentionDays: policy.logRetentionDays,
+        forceRetry: manual,
       );
       status = '앱 종료 후 설치 예정';
       notifyListeners();
       _exitApplication(0);
-    } catch (error) {
-      AppLogger.error(LogCategory.update, error);
+    } catch (nativeError, nativeStackTrace) {
+      AppLogger.error(LogCategory.update, nativeError, nativeStackTrace);
+      final setupApproved = manual &&
+          confirmSetupFallback != null &&
+          await confirmSetupFallback(nativeError);
+      if (setupApproved) {
+        try {
+          status = '기본 업데이터 실패 / Setup 다운로드 중';
+          notifyListeners();
+          final installer = await _service.downloadSetupInstaller(update);
+          await _service.launchSetupInstaller(installer);
+          await _service.writeState({
+            'status': 'setup-launched',
+            'version': update.manifest.version,
+            'setupPath': installer.path,
+            'nativeUpdaterError': '$nativeError',
+          });
+          status = 'Setup 설치 프로그램 실행 / 앱 종료 예정';
+          notifyListeners();
+          _exitApplication(0);
+          return;
+        } catch (setupError, setupStackTrace) {
+          AppLogger.error(LogCategory.update, setupError, setupStackTrace);
+          busy = false;
+          status = '설치 요청 실패: $nativeError / Setup 실패: $setupError';
+          notifyListeners();
+          throw StateError(status);
+        }
+      }
       busy = false;
-      status = '설치 요청 실패: $error';
+      status = '설치 요청 실패: $nativeError';
       notifyListeners();
       rethrow;
     }

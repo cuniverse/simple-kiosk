@@ -43,6 +43,16 @@ class UpdateAdminDialog {
     }
   }
 
+  static Uri? _issueReportUri(AdminApiController? controller) {
+    final remoteUri = controller?.webAdminSshRemoteUri;
+    if (remoteUri == null) return null;
+    return remoteUri.replace(queryParameters: {
+      ...remoteUri.queryParameters,
+      'tab': 'diagnostics',
+      'issue': '1',
+    });
+  }
+
   static Future<void> show(
     BuildContext context,
     UpdateController controller, {
@@ -447,6 +457,46 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     await widget.onExit!();
   }
 
+  Future<void> _exportDiagnosticsAndOpenIssue(Uri issueReportUri) async {
+    try {
+      await widget.controller.exportDiagnostics();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('진단 자료를 내보내지 못했습니다: $error')),
+      );
+      return;
+    }
+    if (!mounted) return;
+    await UpdateAdminDialog._openWebAdmin(context, issueReportUri);
+  }
+
+  Future<bool> _confirmSetupFallback(Object error) async {
+    if (!mounted) return false;
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Setup으로 업데이트'),
+            content: Text(
+              '기본 업데이터가 실패했습니다.\n\n$error\n\n'
+              'GitHub Release의 Setup 설치 파일을 다운로드하고 '
+              '검증한 뒤 실행할까요?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Setup 다운로드 및 실행'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: Listenable.merge([
@@ -457,6 +507,8 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
           final controller = widget.controller;
           final webAdminUri =
               UpdateAdminDialog._webAdminUri(widget.adminApiController);
+          final issueReportUri =
+              UpdateAdminDialog._issueReportUri(widget.adminApiController);
           return AlertDialog(
             title: const Text('설정'),
             content: SizedBox(
@@ -783,7 +835,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                       '마지막 확인: '
                       '${controller.lastCheckedAt?.toLocal().toString() ?? '-'}',
                     ),
-                    Text('상태: ${controller.status}'),
+                    SelectableText('상태: ${controller.status}'),
                     const SizedBox(height: 16),
                     Wrap(
                       spacing: 8,
@@ -804,7 +856,10 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                           onPressed: controller.busy ||
                                   controller.downloadedPackage == null
                               ? null
-                              : controller.installNow,
+                              : () => controller.installNow(
+                                    manual: true,
+                                    confirmSetupFallback: _confirmSetupFallback,
+                                  ),
                           child: const Text('지금 설치'),
                         ),
                         OutlinedButton(
@@ -812,6 +867,17 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                               ? null
                               : controller.exportDiagnostics,
                           child: const Text('진단 자료 내보내기'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: controller.busy || issueReportUri == null
+                              ? null
+                              : () => unawaited(
+                                    _exportDiagnosticsAndOpenIssue(
+                                      issueReportUri,
+                                    ),
+                                  ),
+                          icon: const Icon(Icons.bug_report_outlined),
+                          label: const Text('진단 정보로 이슈 등록'),
                         ),
                       ],
                     ),

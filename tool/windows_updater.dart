@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:win32/win32.dart';
 
 const nativeUpdaterVersion = '2.0.0';
+const updateFailureResetInterval = Duration(days: 1);
 
 Future<void> main(List<String> arguments) async {
   if (!Platform.isWindows) {
@@ -31,6 +32,7 @@ class NativeUpdateOptions {
   final String dataRoot;
   final int retainVersions;
   final int logRetentionDays;
+  final bool forceRetry;
   final bool requireAuthenticode;
   final String? expectedSignerThumbprint;
   final String signatureVerifierPath;
@@ -43,6 +45,7 @@ class NativeUpdateOptions {
     required this.dataRoot,
     required this.retainVersions,
     required this.logRetentionDays,
+    required this.forceRetry,
     required this.requireAuthenticode,
     required this.expectedSignerThumbprint,
     required this.signatureVerifierPath,
@@ -50,9 +53,14 @@ class NativeUpdateOptions {
 
   factory NativeUpdateOptions.parse(List<String> arguments) {
     final values = <String, String>{};
+    var forceRetry = false;
     var requireAuthenticode = false;
     for (var index = 0; index < arguments.length; index++) {
       final argument = arguments[index];
+      if (argument == '--force-retry') {
+        forceRetry = true;
+        continue;
+      }
       if (argument == '--require-authenticode') {
         requireAuthenticode = true;
         continue;
@@ -105,6 +113,7 @@ class NativeUpdateOptions {
       dataRoot: requiredValue('--data-root'),
       retainVersions: rangedInt('--retain-versions', 2, 10),
       logRetentionDays: rangedInt('--log-retention-days', 1, 365),
+      forceRetry: forceRetry,
       requireAuthenticode: requireAuthenticode,
       expectedSignerThumbprint: thumbprint,
       signatureVerifierPath: requiredValue('--signature-verifier'),
@@ -140,6 +149,7 @@ class NativeUpdateInstaller {
   late final File _stateFile =
       File(_join(_root.path, 'state', 'update-state.json'));
   late final File _pointerFile = File(_join(_root.path, 'current.json'));
+  bool _resetFailureWindow = false;
 
   NativeUpdateInstaller(this.options);
 
@@ -150,7 +160,10 @@ class NativeUpdateInstaller {
     Directory? temporary;
     try {
       final previousState = await _readJson(_stateFile);
-      if (previousState?['version'] == options.version &&
+      _resetFailureWindow = options.forceRetry ||
+          isFailureWindowExpired(previousState, DateTime.now().toUtc());
+      if (!_resetFailureWindow &&
+          previousState?['version'] == options.version &&
           _asInt(previousState?['failureCount']) >= 3) {
         throw StateError('세 번 설치에 실패한 버전이므로 자동 설치를 차단했습니다.');
       }
@@ -418,17 +431,28 @@ class NativeUpdateInstaller {
 
   Future<void> _writeState(String status, {String? error}) async {
     var failureCount = 0;
+    String? failureWindowStartedAt;
     final previous = await _readJson(_stateFile);
-    if (previous?['version'] == options.version) {
+    if (!_resetFailureWindow && previous?['version'] == options.version) {
       failureCount = _asInt(previous?['failureCount']);
+      final previousWindow = previous?['failureWindowStartedAt'];
+      if (previousWindow is String) failureWindowStartedAt = previousWindow;
     }
-    if (status == 'failed') failureCount++;
-    if (status == 'installed') failureCount = 0;
+    if (status == 'failed') {
+      failureCount++;
+      failureWindowStartedAt ??= DateTime.now().toUtc().toIso8601String();
+    }
+    if (status == 'installed') {
+      failureCount = 0;
+      failureWindowStartedAt = null;
+    }
     await _atomicJson(_stateFile, {
       'schemaVersion': 1,
       'status': status,
       'version': options.version,
       'failureCount': failureCount,
+      if (failureWindowStartedAt != null)
+        'failureWindowStartedAt': failureWindowStartedAt,
       if (error != null && error.isNotEmpty) 'error': error,
       'updatedAt': DateTime.now().toUtc().toIso8601String(),
     });
@@ -484,6 +508,17 @@ class NativeUpdateInstaller {
       flush: true,
     );
   }
+}
+
+bool isFailureWindowExpired(
+  Map<String, dynamic>? state,
+  DateTime now,
+) {
+  final value = state?['failureWindowStartedAt'];
+  if (value is! String) return true;
+  final startedAt = DateTime.tryParse(value)?.toUtc();
+  if (startedAt == null) return true;
+  return !now.toUtc().isBefore(startedAt.add(updateFailureResetInterval));
 }
 
 int _asInt(Object? value) => value is num ? value.toInt() : 0;

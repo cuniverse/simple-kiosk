@@ -536,7 +536,7 @@ class _KioskHomeState extends State<_KioskHome> {
         if (package == null) throw StateError('업데이트 패키지를 내려받지 못했습니다.');
         Timer(
           const Duration(milliseconds: 500),
-          () => unawaited(_updateController.installNow()),
+          () => unawaited(_updateController.installNow(manual: true)),
         );
         return {
           'message': '업데이트 설치를 시작합니다.',
@@ -1326,13 +1326,42 @@ class _KioskHomeState extends State<_KioskHome> {
 
       await _runUpdateProgress(
         '업데이트 설치 및 재시작',
-        _updateController.installNow,
+        () => _updateController.installNow(
+          manual: true,
+          confirmSetupFallback: _confirmSetupUpdateFallback,
+        ),
       );
     } catch (error) {
       if (mounted) await _showMessage('업데이트 실패', '$error');
     } finally {
       _manualUpdateRunning = false;
     }
+  }
+
+  Future<bool> _confirmSetupUpdateFallback(Object error) async {
+    if (!mounted) return false;
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Setup으로 업데이트'),
+            content: Text(
+              '기본 업데이터가 실패했습니다.\n\n$error\n\n'
+              'GitHub Release의 Setup 설치 파일을 다운로드하고 '
+              '검증한 뒤 실행할까요?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Setup 다운로드 및 실행'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   /// 현재 화면 크기와 설정을 토대로 실제 적용될 위치를 계산한다.

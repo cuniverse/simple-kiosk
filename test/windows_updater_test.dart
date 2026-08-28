@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../tool/windows_updater.dart';
@@ -21,6 +24,7 @@ void main() {
       '30',
       '--signature-verifier',
       r'C:\Signage\ysignage_launcher.exe',
+      '--force-retry',
       '--require-authenticode',
       '--signer-thumbprint',
       'ab cd ef 01 23 45 67 89 ab cd ef 01 23 45 67 89 ab cd ef 01',
@@ -28,6 +32,7 @@ void main() {
 
     expect(options.version, '1.2.18');
     expect(options.appPid, 1234);
+    expect(options.forceRetry, isTrue);
     expect(options.requireAuthenticode, isTrue);
     expect(
       options.expectedSignerThumbprint,
@@ -81,5 +86,70 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('수동 재시도는 3회 실패 차단을 우회한다', () async {
+    final root = await Directory.systemTemp.createTemp('updater-force-retry-');
+    addTearDown(() => root.delete(recursive: true));
+    final stateFile = File(
+      '${root.path}${Platform.pathSeparator}state'
+      '${Platform.pathSeparator}update-state.json',
+    );
+    await stateFile.parent.create(recursive: true);
+
+    NativeUpdateOptions options({required bool forceRetry}) =>
+        NativeUpdateOptions(
+          packagePath: '${root.path}${Platform.pathSeparator}missing.zip',
+          version: '1.2.25',
+          expectedSha256: 'a' * 64,
+          appPid: 1,
+          dataRoot: root.path,
+          retainVersions: 2,
+          logRetentionDays: 30,
+          forceRetry: forceRetry,
+          requireAuthenticode: false,
+          expectedSignerThumbprint: null,
+          signatureVerifierPath: 'launcher.exe',
+        );
+
+    Future<Map<String, dynamic>> run(
+      bool forceRetry, {
+      required DateTime windowStartedAt,
+    }) async {
+      await stateFile.writeAsString(json.encode({
+        'schemaVersion': 1,
+        'status': 'failed',
+        'version': '1.2.25',
+        'failureCount': 3,
+        'failureWindowStartedAt': windowStartedAt.toUtc().toIso8601String(),
+      }));
+      await expectLater(
+        NativeUpdateInstaller(options(forceRetry: forceRetry)).run(),
+        throwsA(anything),
+      );
+      return json.decode(await stateFile.readAsString())
+          as Map<String, dynamic>;
+    }
+
+    final automatic = await run(
+      false,
+      windowStartedAt: DateTime.now().toUtc(),
+    );
+    expect(automatic['error'], contains('자동 설치를 차단'));
+    final manual = await run(
+      true,
+      windowStartedAt: DateTime.now().toUtc(),
+    );
+    expect(manual['error'], contains('업데이트 ZIP을 찾을 수 없습니다.'));
+    expect(manual['error'], isNot(contains('자동 설치를 차단')));
+    final expired = await run(
+      false,
+      windowStartedAt: DateTime.now()
+          .toUtc()
+          .subtract(updateFailureResetInterval)
+          .subtract(const Duration(minutes: 1)),
+    );
+    expect(expired['error'], contains('업데이트 ZIP을 찾을 수 없습니다.'));
+    expect(expired['failureCount'], 1);
   });
 }

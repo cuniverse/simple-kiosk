@@ -151,6 +151,9 @@ void main() {
     expect(page, contains("fetch('/api/github-issues'"));
     expect(page, contains('async function buildIssueReport()'));
     expect(page, contains('async function submitGitHubIssue()'));
+    expect(page, contains("get('tab')"));
+    expect(page, contains('selectAdminTab(requestedAdminTab)'));
+    expect(page, contains(r"$('issueTitle').focus()"));
     expect(page, contains('system.operatingSystemVersion'));
     expect(page, isNot(contains('githubToken')));
     expect(page, isNot(contains('/issues/new')));
