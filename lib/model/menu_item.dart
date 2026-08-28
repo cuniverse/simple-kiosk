@@ -8,6 +8,7 @@
 ///   "title": "홈",
 ///   "url": "https://example.com",
 ///   "icon": "assets/icons/home.png",
+///   "selectedIcon": "assets/icons/home-selected.png",
 ///   "showTitle": false
 /// }
 /// ```
@@ -38,6 +39,12 @@ class MenuItem {
   /// - 값이 없거나 비어있으면 텍스트만 표시한다.
   final String? icon;
 
+  /// 버튼이 선택되었을 때 표시할 아이콘 경로(선택).
+  ///
+  /// 값이 없거나 비어있으면 선택 상태에서도 [icon]을 사용한다.
+  /// 지원하는 경로 형식은 [icon]과 같다.
+  final String? selectedIcon;
+
   /// 버튼에 [title] 텍스트를 표시할지 여부. 기본값은 `true`.
   ///
   /// `false`로 두면 아이콘만 표시한다. 단, 아이콘이 없으면
@@ -58,6 +65,7 @@ class MenuItem {
     this.hidden = false,
     this.fontFamily,
     this.icon,
+    this.selectedIcon,
     this.showTitle = true,
     this.keepStateOnTap,
   });
@@ -65,12 +73,13 @@ class MenuItem {
   /// JSON 한 항목을 모델로 변환한다.
   ///
   /// 필수 필드(id/title/url)가 비어있으면 [FormatException]을 던진다.
-  /// `icon`/`showTitle`은 선택 필드이며, 누락되면 기본값을 사용한다.
+  /// `icon`/`selectedIcon`/`showTitle`은 선택 필드이며, 누락되면 기본값을 사용한다.
   factory MenuItem.fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     final title = json['title'];
     final url = json['url'];
     final icon = json['icon'];
+    final selectedIcon = json['selectedIcon'];
     final showTitle = json['showTitle'];
     final keepState = json['keepStateOnTap'];
     final hidden = json['hidden'];
@@ -97,6 +106,11 @@ class MenuItem {
       iconPath = icon;
     }
 
+    String? selectedIconPath;
+    if (selectedIcon is String && selectedIcon.isNotEmpty) {
+      selectedIconPath = selectedIcon;
+    }
+
     bool? keepStateOnTap;
     if (keepState != null) {
       if (keepState is! bool) {
@@ -116,6 +130,7 @@ class MenuItem {
           ? fontFamily.trim()
           : null,
       icon: iconPath,
+      selectedIcon: selectedIconPath,
       showTitle: showTitle is bool ? showTitle : true,
       keepStateOnTap: keepStateOnTap,
     );

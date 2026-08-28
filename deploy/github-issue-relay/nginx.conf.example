@@ -11,7 +11,8 @@ location = /api/github-issues {
     include fastcgi_params;
     fastcgi_param SCRIPT_FILENAME /var/www/simple-kiosk-issue-relay/public/index.php;
     fastcgi_param SCRIPT_NAME /index.php;
-    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    # Debian/Ubuntu의 alternatives가 현재 PHP-FPM 버전으로 연결하는 공용 소켓입니다.
+    fastcgi_pass unix:/run/php/php-fpm.sock;
 }
 
 # 기존 reverse forwarding 설정은 그대로 유지합니다.

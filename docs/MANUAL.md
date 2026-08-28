@@ -181,6 +181,7 @@ schemaVersion 1, 최상위 `items`, `languages[].items`와 이전 웹 관리자�
 | `title` | ✓ | 버튼에 표시될 텍스트. (아이콘만 표시할 때도 툴팁/접근성으로 사용됨) |
 | `url` | ✓ | 버튼을 눌렀을 때 WebView에 로드할 URL |
 | `icon` | ✗ | 아이콘 (자세한 형식은 [§6](#6-아이콘-사용)) |
+| `selectedIcon` | ✗ | 선택 상태에서 표시할 아이콘. 생략하거나 비우면 `icon` 사용 |
 | `hidden` | ✗ | `true`이면 이 메뉴를 툴바에서 숨김. 기본 `false` |
 | `showTitle` | ✗ | `false` 면 아이콘만 표시 (기본 `true`) |
 | `keepStateOnTap` | ✗ | 항목별 상태 유지 오버라이드. `null`(기본) 이면 `layout.keepStateOnTap` 값을 따른다. 자세한 동작은 [§5 keepStateOnTap](#keepstateontap--메뉴-상태-유지-동작) 참고 |
@@ -346,7 +347,8 @@ android:usesCleartextTraffic="true"
 
 ## 6. 아이콘 사용
 
-`icon` 필드에는 3가지 형식이 가능합니다.
+`icon`과 `selectedIcon` 필드에는 3가지 형식이 가능합니다. `selectedIcon`은
+선택 사항이며 지정하지 않으면 선택 상태에서도 `icon`을 사용합니다.
 
 ### A. Material 아이콘 (권장)
 
@@ -396,6 +398,20 @@ search, help, link, web, music, mic, camera, image, download, qr
 ```
 
 `title` 은 툴팁/스크린리더 라벨로 사용됩니다.
+
+### 선택 상태 아이콘 변경
+
+```json
+{
+  "id": "home",
+  "title": "홈",
+  "url": "https://example.com",
+  "icon": "assets/icons/home.png",
+  "selectedIcon": "assets/icons/home-selected.png"
+}
+```
+
+메뉴가 선택되면 `selectedIcon`을 표시하고, 선택이 해제되면 다시 `icon`을 표시합니다.
 
 ---
 

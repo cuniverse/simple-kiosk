@@ -181,6 +181,7 @@ flutter pub get
 | `title` | string | (필수) | 버튼에 표시될 텍스트 / 접근성 라벨 |
 | `url` | string | (필수) | WebView에 로드할 URL. **운영 환경에서는 HTTPS 권장** |
 | `icon` | string | `null` | 아이콘 경로. `assets/...`, `http(s)://...`, 또는 `icon:이름` (내장 머터리얼 아이콘) |
+| `selectedIcon` | string | `null` | 선택 상태에서 사용할 아이콘 경로. 생략하면 `icon`을 그대로 사용 |
 | `hidden` | bool | `false` | `true`이면 이 메뉴를 툴바에서 숨김 |
 | `showTitle` | bool | `true` | 아이콘 있을 때 텍스트 동시 표시 여부. 아이콘 없으면 무시(텍스트 강제 표시) |
 | `keepStateOnTap` | bool | `null` (=layout 값 상속) | 단일 클릭 시 이 항목의 현재 페이지 상태 유지 여부. 항목별 오버라이드 |

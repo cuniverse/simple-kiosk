@@ -24,11 +24,13 @@ GitHub의 이슈 생성 API에는 `Issues: write` 권한이 필요합니다. Git
 
 ## 2. Ubuntu/Debian GW 서버 설치
 
-PHP 버전이 다르면 아래 `8.3`을 실제 버전으로 바꿉니다.
+배포판의 기본 PHP 버전을 따르는 메타 패키지를 설치합니다. Nginx 설정은
+`/run/php/php-fpm.sock` 공용 소켓을 사용하므로 PHP 버전이 바뀌어도 수정할 필요가
+없습니다.
 
 ```bash
 sudo apt update
-sudo apt install php8.3-fpm php8.3-curl
+sudo apt install php-fpm php-curl
 sudo install -d -o root -g www-data -m 0750 /etc/simple-kiosk-issue-relay
 sudo install -d -o root -g root -m 0755 /var/www/simple-kiosk-issue-relay/public
 sudo install -o root -g root -m 0644 public/index.php /var/www/simple-kiosk-issue-relay/public/index.php
@@ -59,14 +61,15 @@ sudo editor /etc/simple-kiosk-issue-relay/config.php
 
 ```bash
 sudo nginx -t
-sudo systemctl reload php8.3-fpm
+sudo systemctl reload "$(basename "$(readlink -f /run/php/php-fpm.sock)" .sock)"
 sudo systemctl reload nginx
 ```
 
 PHP-FPM 소켓은 다음 명령으로 확인합니다.
 
 ```bash
-ls -l /run/php/php*-fpm.sock
+ls -l /run/php/php-fpm.sock
+readlink -f /run/php/php-fpm.sock
 ```
 
 ## 4. 동작 확인
@@ -93,7 +96,7 @@ curl -i -X POST 'http://ysignage1.signage.cuniverse.net/api/github-issues' \
 오류 원인은 PHP-FPM/Nginx 로그에서 확인합니다.
 
 ```bash
-sudo journalctl -u php8.3-fpm -n 100 --no-pager
+sudo journalctl -u "$(basename "$(readlink -f /run/php/php-fpm.sock)" .sock)" -n 100 --no-pager
 sudo tail -n 100 /var/log/nginx/error.log
 ```
 

@@ -217,6 +217,7 @@ class NavigationMenu extends StatelessWidget {
                           _NavButton(
                             title: items[i].title,
                             iconPath: items[i].icon,
+                            selectedIconPath: items[i].selectedIcon,
                             showTitle: items[i].showTitle,
                             selected: i == selectedIndex,
                             orientation: NavigationOrientation.side,
@@ -456,6 +457,7 @@ class NavigationMenu extends StatelessWidget {
                               child: _NavButton(
                                 title: items[i].title,
                                 iconPath: items[i].icon,
+                                selectedIconPath: items[i].selectedIcon,
                                 showTitle: items[i].showTitle,
                                 selected: i == selectedIndex,
                                 orientation: NavigationOrientation.bottom,
@@ -1310,6 +1312,7 @@ class _KeyboardToggleState extends State<_KeyboardToggle> {
 class _NavButton extends StatelessWidget {
   final String title;
   final String? iconPath;
+  final String? selectedIconPath;
   final bool showTitle;
   final bool selected;
   final NavigationOrientation orientation;
@@ -1329,6 +1332,7 @@ class _NavButton extends StatelessWidget {
   const _NavButton({
     required this.title,
     required this.iconPath,
+    required this.selectedIconPath,
     required this.showTitle,
     required this.selected,
     required this.orientation,
@@ -1356,7 +1360,10 @@ class _NavButton extends StatelessWidget {
         ? scheme.primary.withValues(alpha: 0.62)
         : scheme.outlineVariant.withValues(alpha: 0.68);
 
-    final hasIcon = iconPath != null && iconPath!.isNotEmpty;
+    final effectiveIconPath = selected && selectedIconPath?.isNotEmpty == true
+        ? selectedIconPath
+        : iconPath;
+    final hasIcon = effectiveIconPath != null && effectiveIconPath.isNotEmpty;
     // 아이콘 없으면 텍스트는 무조건 보여줘야 빈 버튼이 안 된다.
     final showLabel = showTitle || !hasIcon;
     final iconOnly = hasIcon && !showLabel;
@@ -1398,7 +1405,12 @@ class _NavButton extends StatelessWidget {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
-            child: _buildContent(foreground, hasIcon, showLabel),
+            child: _buildContent(
+              foreground,
+              effectiveIconPath,
+              hasIcon,
+              showLabel,
+            ),
           ),
           if (selected)
             Positioned(
@@ -1432,7 +1444,12 @@ class _NavButton extends StatelessWidget {
     return button;
   }
 
-  Widget _buildContent(Color foreground, bool hasIcon, bool showLabel) {
+  Widget _buildContent(
+    Color foreground,
+    String? effectiveIconPath,
+    bool hasIcon,
+    bool showLabel,
+  ) {
     final label = _AutoSizeTwoLineText(title: title);
 
     if (!hasIcon) {
@@ -1440,7 +1457,7 @@ class _NavButton extends StatelessWidget {
       return label;
     }
 
-    final icon = _IconImage(path: iconPath!, color: foreground);
+    final icon = _IconImage(path: effectiveIconPath!, color: foreground);
 
     if (!showLabel) {
       // 아이콘만 표시(텍스트 숨김) — 영역을 충분히 채우도록 한다.

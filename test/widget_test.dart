@@ -97,6 +97,8 @@ void main() {
     expect(page, contains('layout.menuFontFamily'));
     expect(page, contains('언어 선택 전체 글꼴'));
     expect(page, contains("restoreProperty('fontFamily')"));
+    expect(page, contains('선택 아이콘 (선택 사항)'));
+    expect(page, contains("restoreProperty('selectedIcon')"));
     expect(page, contains('Local Storage'));
     expect(page, contains('id="reauthOverlay"'));
     expect(page, contains('현재 화면과 저장하지 않은 설정은 그대로 유지됩니다.'));
@@ -174,6 +176,8 @@ void main() {
     expect(config, isNot(contains('github_pat_')));
     expect(nginx, contains('location = /api/github-issues'));
     expect(nginx, contains('limit_req zone='));
+    expect(nginx, contains('unix:/run/php/php-fpm.sock'));
+    expect(nginx, isNot(contains(RegExp(r'php\d+\.\d+-fpm\.sock'))));
   });
 
   test('웹 관리자는 레이아웃과 UI 모양을 분리하고 사용자 테마를 관리한다', () {
@@ -500,6 +504,26 @@ void main() {
     expect(config.items.map((item) => item.title), ['Home', 'News']);
     expect(config.language('en').defaultItem.id, 'news');
     expect(config.language('ko').defaultItem.id, 'home');
+  });
+
+  test('메뉴 선택 아이콘을 선택적으로 파싱한다', () {
+    final selected = MenuItem.fromJson({
+      'id': 'home',
+      'title': '홈',
+      'url': 'https://example.com',
+      'icon': 'icon:home',
+      'selectedIcon': 'icon:favorite',
+    });
+    final fallback = MenuItem.fromJson({
+      'id': 'notice',
+      'title': '공지',
+      'url': 'https://example.com/notice',
+      'icon': 'icon:notice',
+    });
+
+    expect(selected.icon, 'icon:home');
+    expect(selected.selectedIcon, 'icon:favorite');
+    expect(fallback.selectedIcon, isNull);
   });
 
   test('등록되지 않은 defaultMenu는 설정 오류로 거부한다', () {
@@ -1165,6 +1189,49 @@ void main() {
       find.byKey(const ValueKey('selected-navigation-indicator')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('선택된 메뉴만 selectedIcon을 사용하고 해제되면 기본 icon으로 돌아간다', (tester) async {
+    const items = [
+      MenuItem(
+        id: 'home',
+        title: '홈',
+        url: 'https://example.com',
+        icon: 'icon:home',
+        selectedIcon: 'icon:favorite',
+      ),
+      MenuItem(
+        id: 'notice',
+        title: '공지',
+        url: 'https://example.com/notice',
+        icon: 'icon:notice',
+        selectedIcon: 'icon:star',
+      ),
+    ];
+
+    Widget buildMenu(int selectedIndex) => MaterialApp(
+          home: Scaffold(
+            body: NavigationMenu(
+              items: items,
+              selectedIndex: selectedIndex,
+              onSelected: (_) {},
+              orientation: NavigationOrientation.bottom,
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(buildMenu(0));
+    expect(find.byIcon(Icons.favorite_outline), findsOneWidget);
+    expect(find.byIcon(Icons.home_filled), findsNothing);
+    expect(find.byIcon(Icons.campaign_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.star_outline), findsNothing);
+
+    await tester.pumpWidget(buildMenu(1));
+    await tester.pump();
+    expect(find.byIcon(Icons.favorite_outline), findsNothing);
+    expect(find.byIcon(Icons.home_filled), findsOneWidget);
+    expect(find.byIcon(Icons.campaign_outlined), findsNothing);
+    expect(find.byIcon(Icons.star_outline), findsOneWidget);
   });
 
   test('semantic versions and overnight install windows are handled', () {

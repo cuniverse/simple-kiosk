@@ -120,7 +120,7 @@
           "id": "wyd",
           "label": "WYD 서울 2027",
           "subtitle": "",
-          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar.png",
           "defaultMenu": "home",
           "items": [
             {
@@ -129,6 +129,7 @@
               "fontFamily": "Pretendard",
               "url": "https://wydseoul.org/",
               "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
@@ -143,7 +144,7 @@
         {
           "id": "ycatholic",
           "label": "여의도동 성당",
-          "icon": "icon:church",
+          "icon": "assets/icons/ycatholic.png",
           "defaultMenu": "ycatholic",
           "items": [
             {
@@ -151,7 +152,8 @@
               "title": "홈페이지",
               "fontFamily": "NanumSquare",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic-white.png",
+              "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
@@ -189,7 +191,7 @@
               "title": "홈페이지",
               "fontFamily": "NanumSquare",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
@@ -232,7 +234,7 @@
           "id": "wyd",
           "label": "WYD Seoul 2027",
           "subtitle": "",
-          "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar.png",
           "defaultMenu": "home",
           "items": [
             {
@@ -241,6 +243,7 @@
               "fontFamily": "Pretendard",
               "url": "https://wydseoul.org/en",
               "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
@@ -256,7 +259,7 @@
           "id": "ycatholic",
           "label": "Yeouido-dong Catholic Church",
           "subtitle": "",
-          "icon": "icon:church",
+          "icon": "assets/icons/ycatholic.png",
           "defaultMenu": "ycatholic",
           "items": [
             {
@@ -264,7 +267,8 @@
               "title": "Homepage",
               "fontFamily": "Pretendard",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic-white.png",
+              "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
@@ -302,7 +306,8 @@
               "title": "Yeouido-dong Catholic Church",
               "fontFamily": "Pretendard",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic-white.png",
+              "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
@@ -355,6 +360,7 @@
               "fontFamily": "Pretendard",
               "url": "https://wydseoul.org/es",
               "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
@@ -369,7 +375,8 @@
               "title": "Parish Website",
               "fontFamily": "Pretendard",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic-white.png",
+              "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
@@ -405,6 +412,7 @@
               "fontFamily": "Pretendard",
               "url": "https://wydseoul.org/fr",
               "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
@@ -419,7 +427,8 @@
               "title": "Parish Website",
               "fontFamily": "Pretendard",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic-white.png",
+              "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
@@ -455,6 +464,7 @@
               "fontFamily": "Pretendard",
               "url": "https://wydseoul.org/pt",
               "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
@@ -469,7 +479,8 @@
               "title": "Parish Website",
               "fontFamily": "Pretendard",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic-white.png",
+              "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
@@ -505,6 +516,7 @@
               "fontFamily": "Pretendard",
               "url": "https://wydseoul.org/it",
               "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
@@ -519,7 +531,8 @@
               "title": "Parish Website",
               "fontFamily": "Pretendard",
               "url": "http://ycatholic.or.kr/",
-              "icon": "icon:church",
+              "icon": "assets/icons/ycatholic-white.png",
+              "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
