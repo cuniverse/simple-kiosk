@@ -56,6 +56,20 @@ class WindowsKioskMode {
     await windowManager.setAlwaysOnTop(false);
   }
 
+  /// 숨긴 사이니지 창에 남은 foreground 소유권을 Windows 셸에 돌려준다.
+  ///
+  /// 전체 화면 창을 `SW_HIDE`로 감춘 뒤에도 Windows가 해당 프로세스의 자식
+  /// 창을 foreground로 유지하는 경우가 있다. 이 상태에서는 바탕화면의 첫
+  /// 클릭이 아이콘 실행 대신 foreground 전환에 소비된다.
+  static Future<void> releaseForeground() async {
+    if (!Platform.isWindows) return;
+    try {
+      await _channel.invokeMethod<bool>('releaseForeground');
+    } on MissingPluginException {
+      // Windows 이외 테스트 환경이나 이전 네이티브 실행기에서는 무시한다.
+    }
+  }
+
   /// Windows 렌더 표면을 실제 크기 변경으로 다시 동기화한다.
   ///
   /// 전체화면 전환, 숨김 복원, 디스플레이 절전 복귀 과정에서 Flutter 프레임은

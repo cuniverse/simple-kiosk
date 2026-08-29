@@ -10,70 +10,14 @@ import 'package:simple_kiosk/service/update_controller.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 
 void main() {
-  test('Release의 Setup EXE URL과 GitHub SHA-256을 확인한다', () async {
-    const setupHash =
-        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-    final client = MockClient((request) async {
-      if (request.url.path.endsWith('/releases/latest')) {
-        return http.Response(
-          json.encode({
-            'draft': false,
-            'prerelease': false,
-            'assets': [
-              {
-                'name': 'update-manifest.json',
-                'browser_download_url':
-                    'https://github.com/example/update-manifest.json',
-              },
-              {
-                'name': 'simple-kiosk-windows-1.2.25.zip',
-                'browser_download_url': 'https://github.com/example/update.zip',
-              },
-              {
-                'name': 'simple-kiosk-windows-setup-1.2.25.exe',
-                'browser_download_url': 'https://github.com/example/setup.exe',
-                'digest': 'sha256:$setupHash',
-              },
-            ],
-          }),
-          200,
-        );
-      }
-      return http.Response(
-        json.encode({
-          'schemaVersion': 1,
-          'version': '1.2.25',
-          'channel': 'stable',
-          'publishedAt': '2026-08-28T00:00:00Z',
-          'minimumUpdaterVersion': '1.0.0',
-          'configSchemaVersion': 1,
-          'package': {
-            'file': 'simple-kiosk-windows-1.2.25.zip',
-            'sha256': 'a' * 64,
-            'authenticodeRequired': false,
-          },
-        }),
-        200,
-      );
-    });
-    final service = UpdateService(client: client);
-    addTearDown(service.close);
-
-    final update = await service.check(currentVersion: '1.2.22');
-
-    expect(update?.setupUrl, Uri.parse('https://github.com/example/setup.exe'));
-    expect(update?.setupSha256, setupHash);
-  });
-
-  test('GitHub API 한도 초과 시 공개 Release 경로로 업데이트한다', () async {
+  test('GitHub API 없이 공개 Release 페이지만 사용해 업데이트를 확인한다', () async {
     const packageHash =
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     const setupHash =
         'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    final requestedHosts = <String>[];
     final client = MockClient((request) async {
-      if (request.url.host == 'api.github.com') {
-        return http.Response('rate limit exceeded', 403);
-      }
+      requestedHosts.add(request.url.host);
       if (request.url.path == '/cuniverse/simple-kiosk/releases/latest') {
         return http.Response(
           '',
@@ -127,6 +71,8 @@ void main() {
       ),
     );
     expect(update?.setupSha256, setupHash);
+    expect(requestedHosts, isNot(contains('api.github.com')));
+    expect(requestedHosts, everyElement('github.com'));
   });
 
   test('새 대상 버전에 이전 버전의 실패 횟수를 승계하지 않는다', () {

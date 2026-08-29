@@ -2428,6 +2428,27 @@ void main() {
     expect(traySource, contains('recoverRenderingSurface'));
   });
 
+  test('사이니지 숨김 뒤 Windows foreground를 바탕화면에 반환한다', () {
+    final tray = File(
+      'lib/service/kiosk_tray_controller.dart',
+    ).readAsStringSync();
+    final main = File('lib/main.dart').readAsStringSync();
+    final kioskMode = File(
+      'lib/service/windows_kiosk_mode.dart',
+    ).readAsStringSync();
+    final runner = File(
+      'windows/runner/flutter_window.cpp',
+    ).readAsStringSync();
+
+    expect(tray, contains('await WindowsKioskMode.releaseForeground();'));
+    expect(main, contains('await WindowsKioskMode.releaseForeground();'));
+    expect(kioskMode, contains("invokeMethod<bool>('releaseForeground')"));
+    expect(runner, contains('call.method_name() == "releaseForeground"'));
+    expect(runner, contains('::GetForegroundWindow()'));
+    expect(runner, contains('::GetShellWindow()'));
+    expect(runner, contains('::SetForegroundWindow(shell)'));
+  });
+
   test('관리 API는 네트워크 종료를 마친 뒤 컨트롤러를 폐기한다', () {
     final appSource = File('lib/app.dart').readAsStringSync();
     final closeIndex = appSource.indexOf('await _adminApiController.close()');

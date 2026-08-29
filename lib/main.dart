@@ -88,6 +88,7 @@ Future<void> _applyInitialWindowState({
       if (!windowed) await windowManager.setFullScreen(true);
       await windowManager.setSkipTaskbar(true);
       await windowManager.hide();
+      await WindowsKioskMode.releaseForeground();
       return;
     }
 

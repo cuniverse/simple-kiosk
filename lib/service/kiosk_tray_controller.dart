@@ -110,6 +110,7 @@ class KioskTrayController with TrayListener, WindowListener {
     await WindowsKioskMode.deactivate();
     await windowManager.setSkipTaskbar(true);
     await windowManager.hide();
+    await WindowsKioskMode.releaseForeground();
   }
 
   Future<void> toggleWindow() async {

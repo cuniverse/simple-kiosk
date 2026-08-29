@@ -26,13 +26,9 @@ class AvailableUpdate {
 
 class UpdateService {
   static const updaterVersion = '2.0.0';
-  static const _api =
-      'https://api.github.com/repos/cuniverse/simple-kiosk/releases/latest';
   static const _webLatest =
       'https://github.com/cuniverse/simple-kiosk/releases/latest';
   static const _headers = {
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'SimpleKiosk-Updater/1.0',
   };
 
@@ -58,86 +54,9 @@ class UpdateService {
   }
 
   Future<AvailableUpdate?> check({String? currentVersion}) async {
-    final releaseResponse = await _client
-        .get(Uri.parse(_api), headers: _headers)
-        .timeout(const Duration(seconds: 20));
-    if (releaseResponse.statusCode == 403 ||
-        releaseResponse.statusCode == 429) {
-      return _checkWithoutApi(currentVersion: currentVersion);
-    }
-    if (releaseResponse.statusCode != 200) {
-      throw http.ClientException('GitHub HTTP ${releaseResponse.statusCode}');
-    }
-    final release = json.decode(utf8.decode(releaseResponse.bodyBytes));
-    if (release is! Map ||
-        release['draft'] == true ||
-        release['prerelease'] == true) {
-      return null;
-    }
-    final assets = release['assets'];
-    if (assets is! List) {
-      throw const FormatException('GitHub Release assets 누락');
-    }
-    Map? manifestAsset;
-    for (final asset in assets.whereType<Map>()) {
-      if (asset['name'] == 'update-manifest.json') manifestAsset = asset;
-    }
-    if (manifestAsset == null) return null;
-    final manifestUrl = manifestAsset['browser_download_url'];
-    if (manifestUrl is! String ||
-        !manifestUrl.startsWith('https://github.com/')) {
-      throw const FormatException('허용되지 않은 manifest URL');
-    }
-    final manifestResponse = await _client
-        .get(Uri.parse(manifestUrl), headers: _headers)
-        .timeout(const Duration(seconds: 20));
-    if (manifestResponse.statusCode != 200) {
-      throw http.ClientException(
-          'Manifest HTTP ${manifestResponse.statusCode}');
-    }
-    final manifest = _parseManifest(manifestResponse);
-    if (!await _isNewer(manifest, currentVersion: currentVersion)) {
-      return null;
-    }
-    final packageAsset = assets.whereType<Map>().cast<Map?>().firstWhere(
-          (asset) => asset?['name'] == manifest.packageFile,
-          orElse: () => null,
-        );
-    final packageUrl = packageAsset?['browser_download_url'];
-    if (packageUrl is! String ||
-        !packageUrl.startsWith('https://github.com/')) {
-      throw const FormatException('업데이트 패키지 asset 누락 또는 URL 오류');
-    }
-    final setupName = manifest.setupFile ??
-        'simple-kiosk-windows-setup-${manifest.version}.exe';
-    final setupAsset = assets.whereType<Map>().cast<Map?>().firstWhere(
-          (asset) => asset?['name'] == setupName,
-          orElse: () => null,
-        );
-    final setupUrlValue = setupAsset?['browser_download_url'];
-    final setupDigestValue = setupAsset?['digest'];
-    final apiSetupDigest = setupDigestValue is String &&
-            RegExp(r'^sha256:[0-9a-fA-F]{64}$').hasMatch(setupDigestValue)
-        ? setupDigestValue.substring('sha256:'.length).toLowerCase()
-        : null;
-    final setupDigest = apiSetupDigest ?? manifest.setupSha256;
-    final setupUrl = setupUrlValue is String &&
-            setupUrlValue.startsWith('https://github.com/') &&
-            setupDigest != null
-        ? Uri.parse(setupUrlValue)
-        : null;
-    return AvailableUpdate(
-      manifest,
-      Uri.parse(packageUrl),
-      setupUrl: setupUrl,
-      setupSha256: setupUrl == null ? null : setupDigest,
-    );
-  }
-
-  Future<AvailableUpdate?> _checkWithoutApi({String? currentVersion}) async {
     final latestRequest = http.Request('GET', Uri.parse(_webLatest))
       ..followRedirects = false
-      ..headers['User-Agent'] = 'SimpleKiosk-Updater/1.0';
+      ..headers.addAll(_headers);
     final latestResponse =
         await _client.send(latestRequest).timeout(const Duration(seconds: 20));
     await latestResponse.stream.drain<void>().timeout(
@@ -147,8 +66,7 @@ class UpdateService {
     if (!const {301, 302, 303, 307, 308}.contains(latestResponse.statusCode) ||
         redirect == null) {
       throw http.ClientException(
-        'GitHub API HTTP 403, Release redirect HTTP '
-        '${latestResponse.statusCode}',
+        'GitHub Release latest HTTP ${latestResponse.statusCode}',
       );
     }
 

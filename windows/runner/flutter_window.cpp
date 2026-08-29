@@ -588,6 +588,24 @@ bool FlutterWindow::OnCreate() {
         } else if (call.method_name() == "recoverSurface") {
           RecoverRenderingSurface(true);
           result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "releaseForeground") {
+          // ShowWindow(SW_HIDE) normally activates another window, but a
+          // fullscreen Flutter/WebView window can leave one of this process's
+          // windows as the foreground owner. In that case the first desktop
+          // click is consumed only to reactivate Explorer. Explicitly return
+          // foreground ownership to the shell after the signage is hidden.
+          const HWND foreground = ::GetForegroundWindow();
+          DWORD foreground_process_id = 0;
+          if (foreground != nullptr) {
+            ::GetWindowThreadProcessId(foreground, &foreground_process_id);
+          }
+          bool released = foreground_process_id != ::GetCurrentProcessId();
+          if (!released) {
+            const HWND shell = ::GetShellWindow();
+            released = shell != nullptr && ::IsWindow(shell) &&
+                       ::SetForegroundWindow(shell) != FALSE;
+          }
+          result->Success(flutter::EncodableValue(released));
         } else {
           result->NotImplemented();
         }
