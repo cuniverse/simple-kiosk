@@ -14,6 +14,7 @@ import 'app_identity.dart';
 import 'model/idle_config.dart';
 import 'model/layout_config.dart';
 import 'model/menu_config.dart';
+import 'model/menu_file_target.dart';
 import 'model/menu_item.dart';
 import 'model/menu_language.dart';
 import 'model/menu_topic.dart';
@@ -26,6 +27,7 @@ import 'service/font_resource_service.dart';
 import 'service/menu_config_loader.dart';
 import 'service/runtime_paths.dart';
 import 'widget/idle_gate.dart';
+import 'widget/kiosk_file_content.dart';
 import 'widget/kiosk_webview.dart';
 import 'widget/navigation_menu.dart';
 import 'widget/virtual_keyboard.dart';
@@ -744,7 +746,7 @@ class _KioskHomeState extends State<_KioskHome> {
               languageId: language.id,
               topicId: topic.id,
               menuId: item.id,
-            ): item.url,
+            ): item.targetKey,
     };
     final newUrls = <WebViewSlotId, String>{
       for (final language in newWidget.languages)
@@ -754,7 +756,7 @@ class _KioskHomeState extends State<_KioskHome> {
               languageId: language.id,
               topicId: topic.id,
               menuId: item.id,
-            ): item.url,
+            ): item.targetKey,
     };
     // 순서만 바뀐 경우에는 슬롯과 WebView 상태를 그대로 유지한다.
     if (!setEquals(oldUrls.keys.toSet(), newUrls.keys.toSet())) return true;
@@ -916,10 +918,15 @@ class _KioskHomeState extends State<_KioskHome> {
     _controllers.remove(slot);
   }
 
-  void _reloadSlot(WebViewSlotId slot, String url, DateTime now) {
+  void _reloadSlot(WebViewSlotId slot, MenuItem item, DateTime now) {
     if (!_touchInputGuard.acceptReload(slot, now)) return;
     final controller = _controllers[slot];
-    if (controller != null) unawaited(controller.loadUrl(url));
+    if (controller == null) return;
+    if (item.isFile) {
+      unawaited(controller.reload());
+    } else {
+      unawaited(controller.loadUrl(item.target));
+    }
   }
 
   void _retryPendingSelection() {
@@ -932,7 +939,11 @@ class _KioskHomeState extends State<_KioskHome> {
       if (controller == null) _mountedSlots.remove(slot);
     });
     if (controller != null) {
-      controller.loadUrl(item.url);
+      if (item.isFile) {
+        controller.reload();
+      } else {
+        controller.loadUrl(item.target);
+      }
       return;
     }
     // 컨트롤러 생성 자체가 지연된 경우 해당 슬롯만 한 프레임 언mount한 뒤
@@ -956,7 +967,6 @@ class _KioskHomeState extends State<_KioskHome> {
     // 전환하지 않는다.
     if (_pendingSlot == slot) return;
 
-    final url = item.url;
     // 더블 탭 판정: 같은 메뉴를 윈도우 내에 다시 누른 경우.
     final isDoubleTap = _lastTapSlot == slot &&
         _lastTapAt != null &&
@@ -999,7 +1009,7 @@ class _KioskHomeState extends State<_KioskHome> {
         });
       }
       if (isDoubleTap || !keepState) {
-        _reloadSlot(slot, url, now);
+        _reloadSlot(slot, item, now);
       }
       return;
     }
@@ -1027,7 +1037,7 @@ class _KioskHomeState extends State<_KioskHome> {
     // 이미 mount 되어 있는 항목.
     if (wasMounted && (isDoubleTap || !keepState)) {
       // 강제 재로드: keepState=false 이거나 더블 탭.
-      _reloadSlot(slot, url, now);
+      _reloadSlot(slot, item, now);
     }
     // keepState=true & 단일 탭 & 이미 mount 됨 → 아무 것도 안 함(상태 유지).
   }
@@ -1098,7 +1108,9 @@ class _KioskHomeState extends State<_KioskHome> {
           widget.webViewDataPolicy,
           knownUrls: widget.languages.expand(
             (language) => language.effectiveTopics.expand(
-              (topic) => topic.items.map((item) => item.url),
+              (topic) => topic.items
+                  .where((item) => !item.isFile)
+                  .map((item) => item.target),
             ),
           ),
         );
@@ -1110,7 +1122,12 @@ class _KioskHomeState extends State<_KioskHome> {
       if (!mounted) return;
       if (_selectedLanguage.id == languageIdAtEntry &&
           !_showLanguageSelection) {
-        _controllers[_selectedSlot]?.loadUrl(_defaultMenu.url);
+        final controller = _controllers[_selectedSlot];
+        if (_defaultMenu.isFile) {
+          controller?.reload();
+        } else {
+          controller?.loadUrl(_defaultMenu.target);
+        }
       }
     }();
   }
@@ -1569,11 +1586,45 @@ class _KioskHomeState extends State<_KioskHome> {
                               ),
                             );
                           }
+                          final configuredFile = item.file;
+                          final fileKind = configuredFile == null
+                              ? null
+                              : MenuFileTarget.classify(configuredFile);
+                          if (configuredFile != null &&
+                              fileKind != MenuFileKind.page) {
+                            return KioskFileContent(
+                              key: ValueKey(
+                                'kiosk-file-${slot.languageId}-${slot.menuId}-$generation',
+                              ),
+                              file: configuredFile,
+                              active: slot == _selectedSlot,
+                              webViewBrightness:
+                                  widget.layout.webViewBrightness,
+                              backgroundColor: item.backgroundColor,
+                              onInitialLoadReady: () =>
+                                  _onInitialLoadReady(slot, generation),
+                            );
+                          }
+                          final assetPage = configuredFile != null &&
+                                  MenuFileTarget.isAsset(configuredFile)
+                              ? MenuFileTarget.assetPath(configuredFile)
+                              : null;
+                          final pageUrl = configuredFile == null
+                              ? item.target
+                              : assetPage == null
+                                  ? Uri.file(
+                                      MenuFileTarget.fileSystemPath(
+                                        configuredFile,
+                                      ),
+                                      windows: Platform.isWindows,
+                                    ).toString()
+                                  : null;
                           return KioskWebView(
                             key: ValueKey(
                               'kiosk-webview-${slot.languageId}-${slot.menuId}-$generation',
                             ),
-                            initialUrl: item.url,
+                            initialUrl: pageUrl,
+                            initialFile: assetPage,
                             active: slot == _selectedSlot,
                             webViewBrightness: widget.layout.webViewBrightness,
                             onShowManual: _showUserManual,
@@ -1642,6 +1693,10 @@ class _KioskHomeState extends State<_KioskHome> {
                             ? _showAdminSettings
                             : null,
                         onSelectLanguage: _showLanguageSelectionScreen,
+                        languageSelectionBackLabel:
+                            _selectedLanguage.languageSelectionBackLabel,
+                        languageSelectionLabel:
+                            _selectedLanguage.languageSelectionLabel,
                         onPrepareHideKiosk: _prepareHideSignageGesture,
                         onHideKiosk: _completeHideSignageGesture,
                         versionLabel: _versionLabel,

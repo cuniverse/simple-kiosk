@@ -11,6 +11,8 @@ class MenuLanguage {
   final bool hidden;
   final String? subtitle;
   final String? icon;
+  final String? _languageSelectionBackLabel;
+  final String? _languageSelectionLabel;
   final List<MenuItem> _legacyItems;
   final List<MenuTopic> topics;
   final String? _defaultMenuId;
@@ -42,6 +44,12 @@ class MenuLanguage {
 
   MenuItem get defaultItem => defaultTopic.defaultItem;
 
+  String get languageSelectionBackLabel =>
+      _languageSelectionBackLabel ?? _defaultLanguageSelectionLabels(id).$1;
+
+  String get languageSelectionLabel =>
+      _languageSelectionLabel ?? _defaultLanguageSelectionLabels(id).$2;
+
   const MenuLanguage({
     required this.id,
     required this.label,
@@ -53,7 +61,11 @@ class MenuLanguage {
     String? defaultTopicId,
     this.subtitle,
     this.icon,
-  })  : _legacyItems = items,
+    String? languageSelectionBackLabel,
+    String? languageSelectionLabel,
+  })  : _languageSelectionBackLabel = languageSelectionBackLabel,
+        _languageSelectionLabel = languageSelectionLabel,
+        _legacyItems = items,
         _defaultMenuId = defaultMenuId,
         _defaultTopicId = defaultTopicId;
 
@@ -62,6 +74,8 @@ class MenuLanguage {
     final label = json['label'];
     final subtitle = json['subtitle'];
     final icon = json['icon'];
+    final languageSelectionBackLabel = json['languageSelectionBackLabel'];
+    final languageSelectionLabel = json['languageSelectionLabel'];
     final rawItems = json['items'];
     final rawTopics = json['topics'];
     final defaultMenu = json['defaultMenu'];
@@ -81,6 +95,17 @@ class MenuLanguage {
     }
     if (icon != null && icon is! String) {
       throw FormatException('menu.json languages[$index].icon: 문자열 필요');
+    }
+    if (languageSelectionBackLabel != null &&
+        languageSelectionBackLabel is! String) {
+      throw FormatException(
+        'menu.json languages[$index].languageSelectionBackLabel: 문자열 필요',
+      );
+    }
+    if (languageSelectionLabel != null && languageSelectionLabel is! String) {
+      throw FormatException(
+        'menu.json languages[$index].languageSelectionLabel: 문자열 필요',
+      );
     }
     if (hidden != null && hidden is! bool) {
       throw FormatException('menu.json languages[$index].hidden: bool 필요');
@@ -171,6 +196,14 @@ class MenuLanguage {
             ? subtitle.trim()
             : null,
         icon: icon is String && icon.trim().isNotEmpty ? icon.trim() : null,
+        languageSelectionBackLabel: languageSelectionBackLabel is String &&
+                languageSelectionBackLabel.trim().isNotEmpty
+            ? languageSelectionBackLabel.trim()
+            : null,
+        languageSelectionLabel: languageSelectionLabel is String &&
+                languageSelectionLabel.trim().isNotEmpty
+            ? languageSelectionLabel.trim()
+            : null,
         items: selectedTopic?.items ?? const [],
         topics: List.unmodifiable(topics),
         defaultMenuId: selectedTopic?.defaultMenuId,
@@ -226,8 +259,29 @@ class MenuLanguage {
           ? subtitle.trim()
           : null,
       icon: icon is String && icon.trim().isNotEmpty ? icon.trim() : null,
+      languageSelectionBackLabel: languageSelectionBackLabel is String &&
+              languageSelectionBackLabel.trim().isNotEmpty
+          ? languageSelectionBackLabel.trim()
+          : null,
+      languageSelectionLabel: languageSelectionLabel is String &&
+              languageSelectionLabel.trim().isNotEmpty
+          ? languageSelectionLabel.trim()
+          : null,
       items: List.unmodifiable(items),
       defaultMenuId: defaultMenuId,
     );
   }
+}
+
+(String, String) _defaultLanguageSelectionLabels(String languageId) {
+  final normalized =
+      languageId.trim().toLowerCase().split(RegExp(r'[-_]')).first;
+  return switch (normalized) {
+    'en' => ('Back to language selection', 'Language'),
+    'es' => ('Volver a la selección de idioma', 'Idioma'),
+    'fr' => ('Retour au choix de la langue', 'Langue'),
+    'pt' => ('Voltar à seleção de idioma', 'Idioma'),
+    'it' => ('Torna alla selezione della lingua', 'Lingua'),
+    _ => ('언어 선택으로 돌아가기', '언어 선택'),
+  };
 }

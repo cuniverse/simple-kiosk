@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:simple_kiosk/model/idle_config.dart';
 import 'package:simple_kiosk/model/layout_config.dart';
+import 'package:simple_kiosk/model/menu_file_target.dart';
 import 'package:simple_kiosk/model/menu_language.dart';
 import 'package:simple_kiosk/model/menu_item.dart';
 import 'package:simple_kiosk/model/menu_topic.dart';
@@ -34,6 +35,7 @@ import 'package:simple_kiosk/widget/idle_gate.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
 import 'package:simple_kiosk/widget/icon_path_candidates.dart';
 import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
+import 'package:simple_kiosk/widget/kiosk_file_content.dart';
 import 'package:simple_kiosk/widget/kiosk_webview.dart';
 import 'package:simple_kiosk/widget/language_selection.dart';
 import 'package:simple_kiosk/widget/navigation_menu.dart';
@@ -147,6 +149,8 @@ void main() {
     expect(page, contains("webViewData.idlePolicy"));
     expect(page, contains('layout.menuFontFamily'));
     expect(page, contains('언어 선택 전체 글꼴'));
+    expect(page, contains('언어 선택 돌아가기 문구'));
+    expect(page, contains('언어 선택 짧은 문구'));
     expect(page, contains("restoreProperty('fontFamily')"));
     expect(page, contains('선택 아이콘 (선택 사항)'));
     expect(page, contains("restoreProperty('selectedIcon')"));
@@ -199,6 +203,16 @@ void main() {
     expect(page, contains('event.ctrlKey||event.metaKey'));
     expect(page, contains("e.key.toLowerCase()==='a'"));
     expect(page, contains(r'선택한 ${entries.length}개 항목'));
+  });
+
+  test('웹 관리자 메뉴는 URL과 자동 판별 로컬 파일 대상을 선택한다', () {
+    final page = File('assets/admin/index.html').readAsStringSync();
+
+    expect(page, contains("['url','웹 URL']"));
+    expect(page, contains("['file','로컬 파일 (자동 판별)']"));
+    expect(page, contains("delete item.url;item.file='exdata/'"));
+    expect(page, contains('assets/..., exdata/... 또는 절대경로'));
+    expect(page, contains('이미지 배경색'));
   });
 
   test('웹 관리자 화면 미리보기는 기본 2fps, 최대 5fps로 필요할 때만 동작한다', () {
@@ -455,6 +469,17 @@ void main() {
     expect(webView, contains('// 보이지 않는 메뉴가 백그라운드에서 계속 새로고침되지 않게 한다.'));
   });
 
+  test('WebView는 리다이렉트 탐색 취소를 실제 페이지 오류와 구분한다', () {
+    final source = File('lib/widget/kiosk_webview.dart').readAsStringSync();
+
+    expect(source, contains('WebResourceErrorType.CANCELLED'));
+    expect(source, contains('WebResourceErrorType.CONNECTION_ABORTED'));
+    expect(source, contains('_connectionAbortGrace'));
+    expect(source, contains('_hasCommittedVisibleDocument'));
+    expect(source, contains("evaluateJavascript(source: 'void 0')"));
+    expect(source, contains('_maxHealthProbeFailures'));
+  });
+
   testWidgets('관리자 PIN 키패드로 숫자 입력과 삭제를 수행한다', (tester) async {
     final controller = TextEditingController();
     addTearDown(controller.dispose);
@@ -708,6 +733,26 @@ void main() {
     expect(config.items.map((item) => item.title), ['Home', 'News']);
     expect(config.language('en').defaultItem.id, 'news');
     expect(config.language('ko').defaultItem.id, 'home');
+    expect(
+      config.language('en').languageSelectionBackLabel,
+      'Back to language selection',
+    );
+    expect(config.language('en').languageSelectionLabel, 'Language');
+  });
+
+  test('언어 선택 돌아가기 문구는 언어별 설정으로 재정의한다', () {
+    final language = MenuLanguage.fromJson({
+      'id': 'en',
+      'label': 'English',
+      'languageSelectionBackLabel': 'Choose another language',
+      'languageSelectionLabel': 'Languages',
+      'items': [
+        {'id': 'home', 'title': 'Home', 'url': 'https://example.com'},
+      ],
+    }, 0);
+
+    expect(language.languageSelectionBackLabel, 'Choose another language');
+    expect(language.languageSelectionLabel, 'Languages');
   });
 
   test('메뉴 선택 아이콘을 선택적으로 파싱한다', () {
@@ -728,6 +773,75 @@ void main() {
     expect(selected.icon, 'icon:home');
     expect(selected.selectedIcon, 'icon:favorite');
     expect(fallback.selectedIcon, isNull);
+  });
+
+  test('메뉴 대상은 url 또는 file 중 하나만 허용한다', () {
+    final web = MenuItem.fromJson({
+      'id': 'web',
+      'title': '웹',
+      'url': 'https://example.com',
+    });
+    final file = MenuItem.fromJson({
+      'id': 'media',
+      'title': '미디어',
+      'file': 'exdata/media/intro.mp4',
+    });
+
+    expect(web.target, 'https://example.com');
+    expect(web.isFile, isFalse);
+    expect(file.target, 'exdata/media/intro.mp4');
+    expect(file.isFile, isTrue);
+    expect(
+      () => MenuItem.fromJson({'id': 'empty', 'title': '없음'}),
+      throwsFormatException,
+    );
+    expect(
+      () => MenuItem.fromJson({
+        'id': 'both',
+        'title': '중복',
+        'url': 'https://example.com',
+        'file': 'exdata/page.html',
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('로컬 메뉴 파일은 확장자로 콘텐츠 종류를 자동 판별한다', () {
+    expect(
+      MenuFileTarget.classify('exdata/photo.JPG?cache=1'),
+      MenuFileKind.image,
+    );
+    expect(
+      MenuFileTarget.classify('assets/media/intro.MP4#start'),
+      MenuFileKind.video,
+    );
+    expect(
+      MenuFileTarget.classify('exdata/pages/index.html'),
+      MenuFileKind.page,
+    );
+    expect(MenuFileTarget.classify('exdata/document.pdf'), MenuFileKind.page);
+    expect(MenuFileTarget.assetPath('asset/pages/index.html'),
+        'assets/pages/index.html');
+  });
+
+  test('이미지 메뉴 배경색을 파싱하고 잘못된 색상을 거부한다', () {
+    final item = MenuItem.fromJson({
+      'id': 'image',
+      'title': '사진',
+      'file': 'exdata/photo.png',
+      'backgroundColor': '#123456',
+    });
+
+    expect(item.backgroundColor, const Color(0xFF123456));
+    expect(
+      () => MenuItem.fromJson({
+        'id': 'invalid',
+        'title': '사진',
+        'file': 'exdata/photo.png',
+        'backgroundColor': 'white',
+      }),
+      throwsFormatException,
+    );
   });
 
   test('메뉴 아이콘 표시 재정의를 nullable bool로 파싱한다', () {
@@ -1451,7 +1565,7 @@ void main() {
     expect(appSource, contains('_touchInputGuard.acceptSelection'));
     expect(idleSource, contains('_activityTimerResetInterval'));
     expect(webViewSource, contains('_zoomUpdateInterval'));
-    expect(webViewSource, contains('Heartbeat timeout'));
+    expect(webViewSource, contains('Heartbeat and renderer probe failed'));
     expect(webViewSource, contains('Navigation response timeout'));
   });
 
@@ -1485,6 +1599,43 @@ void main() {
     expect(zoomOutCount, 1);
     expect(zoomInCount, 1);
     expect(resetCount, 1);
+  });
+
+  testWidgets('이미지는 WebView 밝기 배경과 같은 확대 컨트롤을 사용한다', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: KioskFileContent(
+            file: 'assets/missing-image.png',
+            active: true,
+            webViewBrightness: Brightness.light,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      tester
+          .widgetList<ColoredBox>(find.byType(ColoredBox))
+          .any((box) => box.color == Colors.white),
+      isTrue,
+    );
+
+    final viewer = find.byType(InteractiveViewer);
+    final center = tester.getCenter(viewer);
+    final first = await tester.startGesture(center - const Offset(30, 0));
+    final second = await tester.startGesture(
+      center + const Offset(30, 0),
+      pointer: 2,
+    );
+    await first.moveTo(center - const Offset(80, 0));
+    await second.moveTo(center + const Offset(80, 0));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('web-zoom-controls')), findsOneWidget);
+    await first.up();
+    await second.up();
   });
 
   testWidgets('툴바 제목은 최대 두 줄로 줄바꿈하고 이후 내용을 생략한다', (tester) async {
@@ -3201,6 +3352,32 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(hideCount, 1);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('언어 선택 돌아가기 버튼은 현재 언어 문구를 표시한다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 260,
+            height: 400,
+            child: NavigationMenu(
+              items: const [],
+              selectedIndex: 0,
+              onSelected: (_) {},
+              orientation: NavigationOrientation.side,
+              onSelectLanguage: () {},
+              languageSelectionBackLabel: 'Back to language selection',
+              languageSelectionLabel: 'Language',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Back to language selection'), findsOneWidget);
+    expect(find.byTooltip('Back to language selection'), findsOneWidget);
+    expect(find.text('언어 선택으로 돌아가기'), findsNothing);
   });
 
   testWidgets('기능 버튼은 표시 개수와 툴바 크기에 맞춰 동일 크기로 정렬된다', (tester) async {

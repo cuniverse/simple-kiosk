@@ -119,4 +119,29 @@ void main() {
     expect(effective['layout']['barHeight'], 123);
     expect(effective['layout']['toolbarAutoHideSec'], 17);
   });
+
+  test('legacy item override can replace a default url with a file target', () {
+    final defaults = {
+      'schemaVersion': 2,
+      'items': [
+        {
+          'id': 'home',
+          'title': '홈',
+          'url': 'https://example.com',
+        },
+      ],
+    };
+    final result = MenuConfigMerger.merge(defaults, {
+      'schemaVersion': 2,
+      'items': {
+        'overrides': {
+          'home': {'file': 'exdata/pages/home.html'},
+        },
+      },
+    }).json;
+    final item = (result['items'] as List).single as Map;
+
+    expect(item['file'], 'exdata/pages/home.html');
+    expect(item.containsKey('url'), isFalse);
+  });
 }

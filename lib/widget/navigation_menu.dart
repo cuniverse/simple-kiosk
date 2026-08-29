@@ -107,6 +107,12 @@ class NavigationMenu extends StatelessWidget {
   /// 언어 선택 화면으로 돌아가는 콜백.
   final VoidCallback? onSelectLanguage;
 
+  /// 언어 선택 화면으로 돌아가기 버튼의 현재 언어 문구.
+  final String languageSelectionBackLabel;
+
+  /// 좁은 가로 툴바에서 사용하는 현재 언어의 짧은 문구.
+  final String languageSelectionLabel;
+
   /// 화면 보호기 더블클릭으로 사이니지 감추기 순서를 시작하는 콜백.
   final VoidCallback? onPrepareHideKiosk;
 
@@ -144,6 +150,8 @@ class NavigationMenu extends StatelessWidget {
     this.onEnterIdle,
     this.onOpenAdmin,
     this.onSelectLanguage,
+    this.languageSelectionBackLabel = '언어 선택으로 돌아가기',
+    this.languageSelectionLabel = '언어 선택',
     this.onPrepareHideKiosk,
     this.onHideKiosk,
     this.versionLabel,
@@ -190,6 +198,8 @@ class NavigationMenu extends StatelessWidget {
                       child: _LanguageSelectionBackButton(
                         orientation: NavigationOrientation.side,
                         onPressed: onSelectLanguage!,
+                        backLabel: languageSelectionBackLabel,
+                        shortLabel: languageSelectionLabel,
                       ),
                     ),
                   if (selectedTopicLabel != null)
@@ -445,6 +455,8 @@ class NavigationMenu extends StatelessWidget {
                     child: _LanguageSelectionBackButton(
                       orientation: NavigationOrientation.bottom,
                       onPressed: onSelectLanguage!,
+                      backLabel: languageSelectionBackLabel,
+                      shortLabel: languageSelectionLabel,
                     ),
                   ),
                   SizedBox(width: buttonGap),
@@ -987,10 +999,14 @@ class _CollapsedToolbarOverlayState extends State<CollapsedToolbarOverlay> {
 class _LanguageSelectionBackButton extends StatelessWidget {
   final NavigationOrientation orientation;
   final VoidCallback onPressed;
+  final String backLabel;
+  final String shortLabel;
 
   const _LanguageSelectionBackButton({
     required this.orientation,
     required this.onPressed,
+    required this.backLabel,
+    required this.shortLabel,
   });
 
   @override
@@ -1002,7 +1018,7 @@ class _LanguageSelectionBackButton extends StatelessWidget {
       width: side ? double.infinity : 108,
       height: 56,
       child: Tooltip(
-        message: '언어 선택으로 돌아가기',
+        message: backLabel,
         child: FilledButton.icon(
           onPressed: onPressed,
           style: FilledButton.styleFrom(
@@ -1020,7 +1036,7 @@ class _LanguageSelectionBackButton extends StatelessWidget {
           ),
           icon: const Icon(Icons.arrow_back_rounded, size: 24),
           label: Text(
-            side ? '언어 선택으로 돌아가기' : '언어 선택',
+            side ? backLabel : shortLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

@@ -80,7 +80,10 @@ const _keyboardFocusScript = r'''
 /// - 외부에서 [KioskWebViewController]로 URL 변경, 뒤로가기 제어
 class KioskWebView extends StatefulWidget {
   /// 최초로 로드할 URL.
-  final String initialUrl;
+  final String? initialUrl;
+
+  /// Flutter 에셋으로 포함된 로컬 HTML 파일. [initialUrl]과 동시에 지정하지 않는다.
+  final String? initialFile;
 
   /// 컨트롤러를 외부에 노출하기 위한 콜백.
   final ValueChanged<KioskWebViewController>? onReady;
@@ -105,7 +108,8 @@ class KioskWebView extends StatefulWidget {
 
   const KioskWebView({
     super.key,
-    required this.initialUrl,
+    this.initialUrl,
+    this.initialFile,
     this.onReady,
     this.onInitialLoadReady,
     this.onShowManual,
@@ -113,7 +117,7 @@ class KioskWebView extends StatefulWidget {
     this.onCheckUpdate,
     this.active = true,
     this.webViewBrightness = Brightness.light,
-  });
+  }) : assert((initialUrl == null) != (initialFile == null));
 
   @override
   State<KioskWebView> createState() => _KioskWebViewState();
@@ -298,6 +302,31 @@ class _KioskWebViewState extends State<KioskWebView> {
   String? _currentUrl;
   bool _initialLoadReadyReported = false;
 
+  String get _configuredTarget => widget.initialUrl ?? widget.initialFile!;
+  bool get _isLocalPage =>
+      widget.initialFile != null ||
+      Uri.tryParse(widget.initialUrl ?? '')?.scheme.toLowerCase() == 'file';
+
+  Future<void> _reloadCurrentTarget() async {
+    final controller = _webController;
+    if (controller == null) return;
+    final navigatedTarget = _currentUrl ?? _lastGoodUrl;
+    if (navigatedTarget != null) {
+      await controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(navigatedTarget)),
+      );
+      return;
+    }
+    final initialFile = widget.initialFile;
+    if (initialFile != null) {
+      await controller.loadFile(assetFilePath: initialFile);
+      return;
+    }
+    await controller.loadUrl(
+      urlRequest: URLRequest(url: WebUri(widget.initialUrl!)),
+    );
+  }
+
   /// 마지막으로 정상 로드된 URL. 재생성 후 복귀 대상.
   String? _lastGoodUrl;
 
@@ -436,11 +465,23 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// heartbeat 가 이 시간 동안 들어오지 않으면 WebView 가 죽은 것으로 본다.
   static const Duration _heartbeatTimeout = Duration(seconds: 4);
 
+  /// heartbeat가 늦을 때 렌더러 직접 확인을 중복 실행하지 않도록 막는다.
+  bool _healthProbeInProgress = false;
+  int _healthProbeFailures = 0;
+  static const int _maxHealthProbeFailures = 2;
+  static const Duration _healthProbeTimeout = Duration(seconds: 2);
+
   /// 마지막으로 heartbeat 가 도달한 시각. null 이면 아직 한 번도 받지 못함.
   DateTime? _lastHeartbeat;
 
   /// 컨트롤러가 준비되었는지(=heartbeat 검사가 의미 있는지) 표시.
   bool _heartbeatArmed = false;
+
+  /// WebView2의 CONNECTION_ABORTED는 리다이렉트로 이전 탐색이 교체될 때도
+  /// 발생한다. 새 문서 커밋 여부를 기다린 뒤 실제 실패인 경우에만 표시한다.
+  Timer? _deferredConnectionAbort;
+  static const Duration _connectionAbortGrace = Duration(seconds: 2);
+  bool _hasCommittedVisibleDocument = false;
 
   /// 사용자가 메뉴를 눌러 [KioskWebViewController.loadUrl] 을 호출한 후,
   /// 응답(onLoadStart/onLoadStop)이 도달하기를 기다리는 감시 타이머.
@@ -625,8 +666,11 @@ class _KioskWebViewState extends State<KioskWebView> {
     _healthCheck?.cancel();
     _heartbeatArmed = false;
     _lastHeartbeat = null;
-    _healthCheck =
-        Timer.periodic(_healthCheckInterval, (_) => _checkHeartbeat());
+    _healthProbeFailures = 0;
+    _healthCheck = Timer.periodic(
+      _healthCheckInterval,
+      (_) => unawaited(_checkHeartbeat()),
+    );
   }
 
   void _stopHealthCheck() {
@@ -634,6 +678,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     _healthCheck = null;
     _heartbeatArmed = false;
     _lastHeartbeat = null;
+    _healthProbeFailures = 0;
   }
 
   /// 페이지에서 보낸 heartbeat 가 아직 살아있는지 검사한다.
@@ -641,25 +686,70 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// 첫 heartbeat 가 한 번이라도 도착해 [_heartbeatArmed] 가 true 가 된 이후
   /// [_heartbeatTimeout] 동안 추가 heartbeat 가 없으면 WebView 가 죽은 것으로
   /// 판단하고 [_recreateWebView] 를 호출한다.
-  void _checkHeartbeat() {
+  Future<void> _checkHeartbeat() async {
     if (!mounted) return;
     if (!widget.active) return;
     if (!_heartbeatArmed) return;
     final last = _lastHeartbeat;
     if (last == null) return;
-    if (DateTime.now().difference(last) > _heartbeatTimeout) {
+    if (DateTime.now().difference(last) <= _heartbeatTimeout) return;
+    if (_healthProbeInProgress) return;
+    final controller = _webController;
+    if (controller == null) return;
+
+    _healthProbeInProgress = true;
+    try {
+      // JS 타이머는 페이지 작업량에 따라 늦어질 수 있다. 렌더러가 직접
+      // 응답하면 살아 있는 것이므로 heartbeat 기준 시각만 갱신한다.
+      await controller
+          .evaluateJavascript(source: 'void 0')
+          .timeout(_healthProbeTimeout);
+      if (!mounted || !identical(controller, _webController)) return;
+      _lastHeartbeat = DateTime.now();
+      _healthProbeFailures = 0;
+    } catch (error) {
+      if (!mounted || !identical(controller, _webController)) return;
+      _healthProbeFailures += 1;
+      if (_healthProbeFailures < _maxHealthProbeFailures) return;
       AppLogger.warning(
         LogCategory.webview,
-        'Heartbeat timeout after ${_heartbeatTimeout.inSeconds}s; '
-        'recreating active WebView: ${_currentUrl ?? widget.initialUrl}',
+        'Heartbeat and renderer probe failed $_healthProbeFailures times; '
+        'recreating active WebView: ${_currentUrl ?? _configuredTarget} '
+        '($error)',
       );
-      if (kDebugMode) {
-        debugPrint(
-          '[KioskWebView] heartbeat 끊김 → WebView 재생성',
-        );
-      }
-      _recreateWebView();
+      _recreateWebView(source: controller);
+    } finally {
+      _healthProbeInProgress = false;
     }
+  }
+
+  void _cancelDeferredConnectionAbort() {
+    _deferredConnectionAbort?.cancel();
+    _deferredConnectionAbort = null;
+  }
+
+  void _showMainFrameLoadError(String description) {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _errorMessage = '페이지를 불러올 수 없습니다.\n($description)';
+    });
+    _reportInitialLoadReady();
+    if (widget.active) _scheduleAutoRetry();
+  }
+
+  void _deferConnectionAbort(String url, String description) {
+    _cancelDeferredConnectionAbort();
+    _deferredConnectionAbort = Timer(_connectionAbortGrace, () {
+      _deferredConnectionAbort = null;
+      if (!mounted) return;
+      AppLogger.warning(
+        LogCategory.webview,
+        'Connection remained aborted after redirect grace: $url - '
+        '$description',
+      );
+      _showMainFrameLoadError(description);
+    });
   }
 
   /// 페이지에 1초 간격 heartbeat 스크립트를 주입한다. `onLoadStop` 마다 다시
@@ -802,15 +892,12 @@ class _KioskWebViewState extends State<KioskWebView> {
       _recreateWebView(resetToHome: true);
       return;
     }
-    final target = _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
     setState(() {
       _errorMessage = null;
       _isLoading = true;
     });
     _scheduleLoadingFallback();
-    _webController?.loadUrl(
-      urlRequest: URLRequest(url: WebUri(target)),
-    );
+    unawaited(_reloadCurrentTarget());
   }
 
   /// WebView 위젯을 통째로 새로 만든다.
@@ -820,7 +907,7 @@ class _KioskWebViewState extends State<KioskWebView> {
   ///   `onWebContentProcessDidTerminate`)
   /// - 렌더러가 응답하지 않는 경우(`onRenderProcessUnresponsive`)
   /// - 인라인 자동 재시도가 [_maxRetriesBeforeRecreate] 회 연속 실패한 경우
-  /// - watchdog 헬스체크가 [_maxHealthFailures] 회 연속 실패한 경우
+  /// - heartbeat와 렌더러 직접 확인이 연속 실패한 경우
   ///   (Windows 에서 Alt+F4 로 WebView2 자식 창만 닫힌 상황 등)
   void _recreateWebView({
     bool resetToHome = false,
@@ -831,6 +918,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     if (source != null && !identical(source, _webController)) return;
     _cancelAutoRetry();
     _loadingFallback?.cancel();
+    _cancelDeferredConnectionAbort();
     _zoomUpdateDebounce?.cancel();
     _zoomUpdateDebounce = null;
     _pendingNativeZoomScale = null;
@@ -843,9 +931,7 @@ class _KioskWebViewState extends State<KioskWebView> {
         '[KioskWebView] WebView 재생성 (resetToHome=$resetToHome)',
       );
     }
-    final target = resetToHome
-        ? widget.initialUrl
-        : (pending ?? _lastGoodUrl ?? widget.initialUrl);
+    final target = resetToHome ? null : (pending ?? _lastGoodUrl);
     _kioskController?._dispose();
     _webController = null;
     _kioskController = null;
@@ -857,6 +943,7 @@ class _KioskWebViewState extends State<KioskWebView> {
       _isLoading = true;
       _currentUrl = target;
       _lastGoodUrl = target;
+      _hasCommittedVisibleDocument = false;
     });
   }
 
@@ -866,6 +953,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     _loadingFallback?.cancel();
     _autoRetryTimer?.cancel();
     _healthCheck?.cancel();
+    _cancelDeferredConnectionAbort();
     _loadResponseWatchdog?.cancel();
     _keyboardHideDebounce?.cancel();
     _zoomUpdateDebounce?.cancel();
@@ -898,6 +986,11 @@ class _KioskWebViewState extends State<KioskWebView> {
     displayZoomControls: false,
     transparentBackground: false,
     useHybridComposition: true,
+    // 로컬 HTML이 같은 폴더의 CSS·스크립트·이미지를 상대경로로 읽게 한다.
+    // file 문서에서 임의의 네트워크 출처까지 읽는 권한은 열지 않는다.
+    allowFileAccess: true,
+    allowFileAccessFromFileURLs: true,
+    allowUniversalAccessFromFileURLs: false,
   );
 
   Future<void> _applyPreferredColorScheme(
@@ -938,9 +1031,13 @@ class _KioskWebViewState extends State<KioskWebView> {
               // 세대 카운터를 키에 포함하면 [_recreateWebView] 호출 시
               // Flutter 가 InAppWebView 를 폐기하고 새로 빌드한다.
               key: ValueKey('kiosk-inappwebview-$_webviewGeneration'),
-              initialUrlRequest: URLRequest(
-                url: WebUri(_lastGoodUrl ?? widget.initialUrl),
-              ),
+              initialUrlRequest:
+                  _lastGoodUrl != null || widget.initialUrl != null
+                      ? URLRequest(
+                          url: WebUri(_lastGoodUrl ?? widget.initialUrl!),
+                        )
+                      : null,
+              initialFile: _lastGoodUrl == null ? widget.initialFile : null,
               initialSettings: _settings,
               // 문서 로드 완료 전 클릭과 iframe 내부 입력 요소도 감지한다.
               initialUserScripts: UnmodifiableListView([
@@ -959,7 +1056,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                 // 메뉴 클릭(loadUrl) 시 응답 감시 타이머를 건다.
                 kc._onLoadRequested = _startLoadResponseWatchdog;
                 // 초기 URL을 히스토리 첫 항목으로 등록(메뉴 첫 항목과 동일).
-                kc._resetHistory(_lastGoodUrl ?? widget.initialUrl);
+                kc._resetHistory(_lastGoodUrl ?? _configuredTarget);
                 widget.onReady?.call(kc);
                 _scheduleLoadingFallback();
                 // 페이지에서 보낼 heartbeat 수신용 핸들러 등록.
@@ -975,6 +1072,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                   callback: (_) {
                     _lastHeartbeat = DateTime.now();
                     _heartbeatArmed = true;
+                    _healthProbeFailures = 0;
                     return null;
                   },
                 );
@@ -1020,6 +1118,12 @@ class _KioskWebViewState extends State<KioskWebView> {
               },
               onLoadStart: (controller, url) {
                 if (!mounted) return;
+                _cancelDeferredConnectionAbort();
+                // 이전 문서의 heartbeat를 새 탐색 중에 검사하지 않는다.
+                _heartbeatArmed = false;
+                _lastHeartbeat = null;
+                _healthProbeFailures = 0;
+                _hasCommittedVisibleDocument = false;
                 // 새 탐색이 시작되면 이전 오류의 예약 재시도가 중간에 끼어들지 않게 한다.
                 _cancelAutoRetry();
                 setState(() {
@@ -1036,6 +1140,8 @@ class _KioskWebViewState extends State<KioskWebView> {
               // 이미지·스크립트 등 나머지 리소스는 표시된 화면에서 계속 로드된다.
               onPageCommitVisible: (controller, url) {
                 if (!mounted || url?.toString() == 'about:blank') return;
+                _hasCommittedVisibleDocument = true;
+                _cancelDeferredConnectionAbort();
                 _reportInitialLoadReady();
               },
               onLoadStop: (controller, url) {
@@ -1082,6 +1188,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                 final scheme = uri.scheme.toLowerCase();
                 if (scheme == 'http' ||
                     scheme == 'https' ||
+                    (scheme == 'file' && _isLocalPage) ||
                     scheme == 'about') {
                   return NavigationActionPolicy.ALLOW;
                 }
@@ -1107,20 +1214,42 @@ class _KioskWebViewState extends State<KioskWebView> {
                 // 별도 처리 없이 무시 → 다운로드 진행하지 않음.
               },
               onReceivedError: (controller, request, error) {
+                if (!mounted) return;
+                final isMainFrame = request.isForMainFrame == true;
+                if (isMainFrame &&
+                    error.type == WebResourceErrorType.CANCELLED) {
+                  AppLogger.info(
+                    LogCategory.webview,
+                    'Ignored cancelled navigation: ${request.url}',
+                  );
+                  return;
+                }
+                if (isMainFrame &&
+                    error.type == WebResourceErrorType.CONNECTION_ABORTED) {
+                  if (_hasCommittedVisibleDocument) {
+                    AppLogger.info(
+                      LogCategory.webview,
+                      'Ignored aborted superseded navigation after page commit: '
+                      '${request.url}',
+                    );
+                    return;
+                  }
+                  AppLogger.info(
+                    LogCategory.webview,
+                    'Deferring possibly superseded navigation: ${request.url}',
+                  );
+                  _deferConnectionAbort(
+                    request.url.toString(),
+                    error.description,
+                  );
+                  return;
+                }
                 AppLogger.warning(
                   LogCategory.webview,
                   'Load error (${error.type}): ${request.url} - ${error.description}',
                 );
-                if (!mounted) return;
-                // 메인 프레임에서 발생한 오류만 사용자에게 표시.
-                if (request.isForMainFrame == true) {
-                  setState(() {
-                    _isLoading = false;
-                    _errorMessage = '페이지를 불러올 수 없습니다.\n(${error.description})';
-                  });
-                  _reportInitialLoadReady();
-                  if (widget.active) _scheduleAutoRetry();
-                }
+                // 메인 프레임에서 발생한 실제 오류만 사용자에게 표시.
+                if (isMainFrame) _showMainFrameLoadError(error.description);
               },
               onReceivedHttpError: (controller, request, errorResponse) {
                 AppLogger.warning(
@@ -1220,16 +1349,12 @@ class _KioskWebViewState extends State<KioskWebView> {
                     _autoRetryTimer != null ? _autoRetrySecondsLeft : null,
                 onRetry: () {
                   _cancelAutoRetry();
-                  final target =
-                      _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
                   setState(() {
                     _errorMessage = null;
                     _isLoading = true;
                   });
                   _scheduleLoadingFallback();
-                  _webController?.loadUrl(
-                    urlRequest: URLRequest(url: WebUri(target)),
-                  );
+                  unawaited(_reloadCurrentTarget());
                 },
               ),
             ),

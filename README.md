@@ -250,6 +250,10 @@ flutter pub get
 언어를 추가하려면 `languages` 배열에 고유한 `id`, `label`, 한 개 이상의 `topics`를
 가진 객체를 추가합니다. 각 주제는 고유한 `id`, 버튼 이름인 `label`, 독립된 `items`
 목록을 가집니다. 기존 `languages[].items`는 단일 기본 주제로 자동 변환됩니다.
+툴바에서 언어 선택 화면으로 돌아가는 문구는 언어별
+`languageSelectionBackLabel`에, 좁은 가로 툴바의 짧은 문구는
+`languageSelectionLabel`에 지정합니다. 생략하면 `ko`, `en`, `es`, `fr`, `pt`,
+`it` 언어 ID에 맞는 기본 번역을 사용합니다.
 선택 화면 아이콘은 `icon`에 함께 배포되는 국기 이미지
 (`assets/icons/languages/kr.png` 등), `icon:language`, 다른 `assets/...` 경로
 또는 `https://...` 형식으로 지정합니다.
@@ -265,13 +269,25 @@ flutter pub get
 |---|---|---|---|
 | `id` | string | (필수) | 메뉴 식별자 (중복 불가 권장) |
 | `title` | string | (필수) | 버튼에 표시될 텍스트 / 접근성 라벨 |
-| `url` | string | (필수) | WebView에 로드할 URL. **운영 환경에서는 HTTPS 권장** |
+| `url` | string | `file`과 택 1 | WebView에 로드할 URL. **운영 환경에서는 HTTPS 권장** |
+| `file` | string | `url`과 택 1 | 로컬 파일. 확장자로 이미지·동영상·페이지를 자동 판별하며 `assets/...`, `exdata/...`, 절대경로 지원 |
+| `backgroundColor` | string | `null` | 이미지 파일의 배경색. 생략하면 `webViewBrightness`가 `light`일 때 흰색, `dark`일 때 검정 계열 사용 |
 | `icon` | string | `null` | 아이콘 경로. `assets/...`, `http(s)://...`, 또는 `icon:이름` (내장 머터리얼 아이콘). 확장자 없는 로컬 경로는 테마 밝기에 맞는 아이콘 패밀리를 자동 선택 |
 | `selectedIcon` | string | `null` | 선택 상태에서 사용할 아이콘 경로. 생략하면 `icon`을 그대로 사용. 확장자 없는 로컬 경로는 `icon`과 같은 자동 선택 규칙 적용 |
 | `showIcon` | bool | `null` (=테마 값 상속) | `true`면 아이콘 표시, `false`면 경로 값을 지우지 않고 감춤. 테마 기본값을 명시적으로 재정의 |
 | `hidden` | bool | `false` | `true`이면 이 메뉴를 툴바에서 숨김 |
 | `showTitle` | bool | `true` | 아이콘 있을 때 텍스트 동시 표시 여부. 아이콘 없으면 무시(텍스트 강제 표시) |
 | `keepStateOnTap` | bool | `null` (=layout 값 상속) | 단일 클릭 시 이 항목의 현재 페이지 상태 유지 여부. 항목별 오버라이드 |
+
+`url`과 `file`은 동시에 사용할 수 없습니다. 이미지(`jpg`, `jpeg`, `png`, `gif`,
+`webp`, `bmp`)는 이미지 뷰어로, 동영상(`mp4`, `mov`, `m4v`, `webm`, `mkv`,
+`avi`)은 동영상 플레이어로 표시합니다. 그 밖의 파일은 로컬 페이지로 WebView에서
+엽니다. WEB 관리자로 업로드한 파일은 예를 들어 `"file": "exdata/media/intro.mp4"`로
+지정합니다.
+
+이미지는 두 손가락 핀치로 `50%~300%` 확대·축소할 수 있습니다. 배율이 변경되면
+WebView와 같은 확대 컨트롤이 나타나며 `25%` 단위 버튼 조절과 배율 아이콘
+더블클릭 `100%` 복원을 지원합니다.
 
 ### layout — 네비게이션/외관 설정
 

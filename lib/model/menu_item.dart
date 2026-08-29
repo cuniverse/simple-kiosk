@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// 메뉴 항목 모델.
 ///
 /// `assets/config/menu.json`에 정의된 단일 항목을 표현한다.
@@ -29,9 +31,28 @@ class MenuItem {
   /// 접근성(스크린리더, 툴팁 등) 용도로는 계속 사용된다.
   final String title;
 
-  /// 버튼을 눌렀을 때 WebView에 로드할 URL.
-  /// 운영에서는 HTTPS 사용을 권장한다.
-  final String url;
+  /// 버튼을 눌렀을 때 WebView에 로드할 원격 URL.
+  ///
+  /// [file]과 동시에 지정할 수 없다.
+  final String? url;
+
+  /// 버튼을 눌렀을 때 표시할 로컬 파일.
+  ///
+  /// 파일 확장자로 이미지·동영상·로컬 페이지를 자동 판별한다. `assets/...`,
+  /// `exdata/...`, 절대 파일시스템 경로를 사용할 수 있으며 [url]과 동시에
+  /// 지정할 수 없다.
+  final String? file;
+
+  /// URL 또는 파일 중 실제 콘텐츠 대상.
+  String get target => url ?? file!;
+
+  /// URL과 파일에 같은 문자열이 지정된 경우도 구분하는 상태 비교 키.
+  String get targetKey => url != null ? 'url:$url' : 'file:$file';
+
+  bool get isFile => file != null;
+
+  /// 이미지 파일 주위의 배경색. 생략하면 WebView 밝기를 따른다.
+  final Color? backgroundColor;
 
   /// 버튼에 표시할 아이콘 경로(선택).
   ///
@@ -68,7 +89,9 @@ class MenuItem {
   const MenuItem({
     required this.id,
     required this.title,
-    required this.url,
+    this.url,
+    this.file,
+    this.backgroundColor,
     this.hidden = false,
     this.fontFamily,
     this.icon,
@@ -76,16 +99,19 @@ class MenuItem {
     this.showIcon,
     this.showTitle = true,
     this.keepStateOnTap,
-  });
+  }) : assert((url == null) != (file == null));
 
   /// JSON 한 항목을 모델로 변환한다.
   ///
-  /// 필수 필드(id/title/url)가 비어있으면 [FormatException]을 던진다.
+  /// 필수 필드(id/title)와 대상(url 또는 file)이 비어있으면
+  /// [FormatException]을 던진다.
   /// `icon`/`selectedIcon`/`showTitle`은 선택 필드이며, 누락되면 기본값을 사용한다.
   factory MenuItem.fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     final title = json['title'];
     final url = json['url'];
+    final file = json['file'];
+    final backgroundColor = json['backgroundColor'];
     final icon = json['icon'];
     final selectedIcon = json['selectedIcon'];
     final showIcon = json['showIcon'];
@@ -100,8 +126,17 @@ class MenuItem {
     if (title is! String || title.isEmpty) {
       throw const FormatException('menu item: "title" 누락 또는 형식 오류');
     }
-    if (url is! String || url.isEmpty) {
-      throw const FormatException('menu item: "url" 누락 또는 형식 오류');
+    if (url != null && url is! String || file != null && file is! String) {
+      throw const FormatException(
+        'menu item: "url"과 "file"은 문자열이어야 함',
+      );
+    }
+    final normalizedUrl = url is String ? url.trim() : '';
+    final normalizedFile = file is String ? file.trim() : '';
+    if (normalizedUrl.isEmpty == normalizedFile.isEmpty) {
+      throw const FormatException(
+        'menu item: "url" 또는 "file" 중 하나만 지정해야 함',
+      );
     }
     if (hidden != null && hidden is! bool) {
       throw const FormatException('menu item: "hidden"은 bool 이어야 함');
@@ -136,7 +171,9 @@ class MenuItem {
     return MenuItem(
       id: id,
       title: title,
-      url: url,
+      url: normalizedUrl.isEmpty ? null : normalizedUrl,
+      file: normalizedFile.isEmpty ? null : normalizedFile,
+      backgroundColor: _parseItemColor(backgroundColor, 'backgroundColor'),
       hidden: hidden as bool? ?? false,
       fontFamily: fontFamily is String && fontFamily.trim().isNotEmpty
           ? fontFamily.trim()
@@ -148,4 +185,27 @@ class MenuItem {
       keepStateOnTap: keepStateOnTap,
     );
   }
+}
+
+Color? _parseItemColor(Object? raw, String key) {
+  if (raw == null) return null;
+  if (raw is! String) {
+    throw FormatException('menu item: "$key"는 색상 문자열이어야 함');
+  }
+  var value = raw.trim().toLowerCase();
+  if (value.isEmpty) return null;
+  if (value == 'transparent') return const Color(0x00000000);
+  if (value.startsWith('#')) value = value.substring(1);
+  if (value.length == 3) {
+    value = value.split('').map((part) => '$part$part').join();
+  }
+  if (value.length == 6) value = 'ff$value';
+  final parsed = int.tryParse(value, radix: 16);
+  if (value.length != 8 || parsed == null) {
+    throw FormatException(
+      'menu item: "$key" 색상 형식 오류 "$raw" '
+      '(예: "#ffffff", "#80ffffff")',
+    );
+  }
+  return Color(parsed);
 }

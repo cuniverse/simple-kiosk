@@ -137,7 +137,17 @@ class MenuConfigMerger {
       }
       if (disabled.contains(id)) continue;
       final patch = overrides is Map ? overrides[id] : null;
-      result.add(_mergeValue(item, patch) as Map<String, dynamic>);
+      final merged = _mergeValue(item, patch) as Map<String, dynamic>;
+      if (patch is Map) {
+        final patchedUrl = patch['url'];
+        final patchedFile = patch['file'];
+        if (patchedFile is String && patchedFile.trim().isNotEmpty) {
+          merged.remove('url');
+        } else if (patchedUrl is String && patchedUrl.trim().isNotEmpty) {
+          merged.remove('file');
+        }
+      }
+      result.add(merged);
     }
 
     if (overrides is Map) {
