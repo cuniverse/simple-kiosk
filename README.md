@@ -254,6 +254,9 @@ flutter pub get
 `languageSelectionBackLabel`에, 좁은 가로 툴바의 짧은 문구는
 `languageSelectionLabel`에 지정합니다. 생략하면 `ko`, `en`, `es`, `fr`, `pt`,
 `it` 언어 ID에 맞는 기본 번역을 사용합니다.
+주제 선택 화면의 제목·부제와 언어 변경 버튼은 언어별 `topicSelectionTitle`,
+`topicSelectionSubtitle`, `changeLanguageLabel`에 지정합니다. 생략하면 지원 언어 ID에
+맞는 기본 번역을 사용하고, 알 수 없는 언어 ID는 전역 주제 문구를 사용합니다.
 선택 화면 아이콘은 `icon`에 함께 배포되는 국기 이미지
 (`assets/icons/languages/kr.png` 등), `icon:language`, 다른 `assets/...` 경로
 또는 `https://...` 형식으로 지정합니다.

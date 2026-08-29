@@ -187,6 +187,10 @@ schemaVersion 1, 최상위 `items`, `languages[].items`와 이전 웹 관리자�
   툴바의 짧은 문구는 `languageSelectionLabel`로 설정합니다. 생략하면 `ko`, `en`,
   `es`, `fr`, `pt`, `it` 언어 ID에 맞는 기본 번역을 사용하고 알 수 없는 ID는
   한국어 문구를 사용합니다.
+- 주제 선택 화면의 제목과 부제는 언어별 `topicSelectionTitle`,
+  `topicSelectionSubtitle`로 설정하고, 언어 목록으로 돌아가는 버튼은
+  `changeLanguageLabel`로 설정합니다. 생략하면 지원 언어 ID에 맞는 기본 번역을
+  사용하며, 알 수 없는 언어 ID의 제목·부제는 전역 설정을 사용합니다.
 - 언어를 추가하려면 고유한 `id`, 버튼에 표시할 `label`, 한 개 이상의 `topics`를 추가합니다.
 - `defaultLanguage`는 앱 내부에서 언어 선택 전 준비할 기본 언어입니다.
 - `languages[].defaultTopic`은 해당 언어의 기본 주제이며 생략하면 첫 주제를 사용합니다.

@@ -13,6 +13,9 @@ class MenuLanguage {
   final String? icon;
   final String? _languageSelectionBackLabel;
   final String? _languageSelectionLabel;
+  final String? _topicSelectionTitle;
+  final String? _topicSelectionSubtitle;
+  final String? _changeLanguageLabel;
   final List<MenuItem> _legacyItems;
   final List<MenuTopic> topics;
   final String? _defaultMenuId;
@@ -50,6 +53,15 @@ class MenuLanguage {
   String get languageSelectionLabel =>
       _languageSelectionLabel ?? _defaultLanguageSelectionLabels(id).$2;
 
+  String topicSelectionTitle(String fallback) =>
+      _topicSelectionTitle ?? _defaultSelectionLabels(id)?.$1 ?? fallback;
+
+  String topicSelectionSubtitle(String fallback) =>
+      _topicSelectionSubtitle ?? _defaultSelectionLabels(id)?.$2 ?? fallback;
+
+  String get changeLanguageLabel =>
+      _changeLanguageLabel ?? _defaultSelectionLabels(id)?.$3 ?? '다른 언어 선택';
+
   const MenuLanguage({
     required this.id,
     required this.label,
@@ -63,8 +75,14 @@ class MenuLanguage {
     this.icon,
     String? languageSelectionBackLabel,
     String? languageSelectionLabel,
+    String? topicSelectionTitle,
+    String? topicSelectionSubtitle,
+    String? changeLanguageLabel,
   })  : _languageSelectionBackLabel = languageSelectionBackLabel,
         _languageSelectionLabel = languageSelectionLabel,
+        _topicSelectionTitle = topicSelectionTitle,
+        _topicSelectionSubtitle = topicSelectionSubtitle,
+        _changeLanguageLabel = changeLanguageLabel,
         _legacyItems = items,
         _defaultMenuId = defaultMenuId,
         _defaultTopicId = defaultTopicId;
@@ -76,6 +94,9 @@ class MenuLanguage {
     final icon = json['icon'];
     final languageSelectionBackLabel = json['languageSelectionBackLabel'];
     final languageSelectionLabel = json['languageSelectionLabel'];
+    final topicSelectionTitle = json['topicSelectionTitle'];
+    final topicSelectionSubtitle = json['topicSelectionSubtitle'];
+    final changeLanguageLabel = json['changeLanguageLabel'];
     final rawItems = json['items'];
     final rawTopics = json['topics'];
     final defaultMenu = json['defaultMenu'];
@@ -105,6 +126,21 @@ class MenuLanguage {
     if (languageSelectionLabel != null && languageSelectionLabel is! String) {
       throw FormatException(
         'menu.json languages[$index].languageSelectionLabel: 문자열 필요',
+      );
+    }
+    if (topicSelectionTitle != null && topicSelectionTitle is! String) {
+      throw FormatException(
+        'menu.json languages[$index].topicSelectionTitle: 문자열 필요',
+      );
+    }
+    if (topicSelectionSubtitle != null && topicSelectionSubtitle is! String) {
+      throw FormatException(
+        'menu.json languages[$index].topicSelectionSubtitle: 문자열 필요',
+      );
+    }
+    if (changeLanguageLabel != null && changeLanguageLabel is! String) {
+      throw FormatException(
+        'menu.json languages[$index].changeLanguageLabel: 문자열 필요',
       );
     }
     if (hidden != null && hidden is! bool) {
@@ -204,6 +240,17 @@ class MenuLanguage {
                 languageSelectionLabel.trim().isNotEmpty
             ? languageSelectionLabel.trim()
             : null,
+        topicSelectionTitle: topicSelectionTitle is String &&
+                topicSelectionTitle.trim().isNotEmpty
+            ? topicSelectionTitle.trim()
+            : null,
+        topicSelectionSubtitle: topicSelectionSubtitle is String
+            ? topicSelectionSubtitle.trim()
+            : null,
+        changeLanguageLabel: changeLanguageLabel is String &&
+                changeLanguageLabel.trim().isNotEmpty
+            ? changeLanguageLabel.trim()
+            : null,
         items: selectedTopic?.items ?? const [],
         topics: List.unmodifiable(topics),
         defaultMenuId: selectedTopic?.defaultMenuId,
@@ -267,10 +314,55 @@ class MenuLanguage {
               languageSelectionLabel.trim().isNotEmpty
           ? languageSelectionLabel.trim()
           : null,
+      topicSelectionTitle:
+          topicSelectionTitle is String && topicSelectionTitle.trim().isNotEmpty
+              ? topicSelectionTitle.trim()
+              : null,
+      topicSelectionSubtitle: topicSelectionSubtitle is String
+          ? topicSelectionSubtitle.trim()
+          : null,
+      changeLanguageLabel:
+          changeLanguageLabel is String && changeLanguageLabel.trim().isNotEmpty
+              ? changeLanguageLabel.trim()
+              : null,
       items: List.unmodifiable(items),
       defaultMenuId: defaultMenuId,
     );
   }
+}
+
+(String, String, String)? _defaultSelectionLabels(String languageId) {
+  final normalized =
+      languageId.trim().toLowerCase().split(RegExp(r'[-_]')).first;
+  return switch (normalized) {
+    'ko' => ('주제를 선택하세요', '원하는 주제를 선택하세요', '다른 언어 선택'),
+    'en' => (
+        'Select a topic',
+        'Please select a topic',
+        'Choose another language'
+      ),
+    'es' => (
+        'Seleccione un tema',
+        'Elija el tema que desea consultar',
+        'Seleccionar otro idioma'
+      ),
+    'fr' => (
+        'Choisissez un thème',
+        'Veuillez sélectionner un thème',
+        'Choisir une autre langue'
+      ),
+    'pt' => (
+        'Selecione um tema',
+        'Escolha o tema que deseja consultar',
+        'Selecionar outro idioma'
+      ),
+    'it' => (
+        'Seleziona un argomento',
+        'Scegli l\'argomento da consultare',
+        'Seleziona un\'altra lingua'
+      ),
+    _ => null,
+  };
 }
 
 (String, String) _defaultLanguageSelectionLabels(String languageId) {

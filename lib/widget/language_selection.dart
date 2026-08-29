@@ -247,6 +247,9 @@ class _LanguageSelectionState extends State<LanguageSelection> {
     final language = widget.languages[languageIndex];
     final topics = language.effectiveTopics;
     final skipping = widget.skipSingleTopic && topics.length == 1;
+    final topicTitle = language.topicSelectionTitle(widget.topicTitle);
+    final topicSubtitle = language.topicSelectionSubtitle(widget.topicSubtitle);
+    final changeLanguageLabel = language.changeLanguageLabel;
     return SingleChildScrollView(
       key: ValueKey('topic-step-${language.id}'),
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 88),
@@ -287,7 +290,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
             const CircularProgressIndicator(),
           ] else ...[
             Text(
-              widget.topicTitle,
+              topicTitle,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                     fontSize: 40,
@@ -296,10 +299,10 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                     color: widget.foregroundColor,
                   ),
             ),
-            if (widget.topicSubtitle.isNotEmpty) ...[
+            if (topicSubtitle.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
-                widget.topicSubtitle,
+                topicSubtitle,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontSize: 25,
@@ -339,8 +342,8 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               onPressed: _showLanguages,
               icon: const Icon(Icons.arrow_back),
               label: Text(
-                keepButtonWordsTogether('다른 언어 선택'),
-                semanticsLabel: '다른 언어 선택',
+                keepButtonWordsTogether(changeLanguageLabel),
+                semanticsLabel: changeLanguageLabel,
                 style: TextStyle(fontSize: 20, fontFamily: widget.fontFamily),
               ),
             ),
