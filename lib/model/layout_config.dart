@@ -10,6 +10,24 @@ enum NavPosition { auto, left, right, top, bottom }
 /// Windows에서 사용할 화면 키보드 종류.
 enum KeyboardMode { windows, builtIn }
 
+Brightness _parseBrightness(Object? raw) {
+  if (raw == null) return Brightness.light;
+  if (raw is! String) {
+    throw const FormatException('menu.json layout.brightness: 문자열 필요');
+  }
+  switch (raw.trim().toLowerCase()) {
+    case 'light':
+    case 'white':
+      return Brightness.light;
+    case 'dark':
+      return Brightness.dark;
+    default:
+      throw const FormatException(
+        'menu.json layout.brightness: light 또는 dark 필요',
+      );
+  }
+}
+
 /// 네비게이션 바 내부에서 버튼들을 배치할 정렬 방식.
 ///
 /// - [start]: 시작(위/왼쪽)에 모음
@@ -205,6 +223,12 @@ class WindowsKioskShortcutSettings {
 /// `menu.json`의 선택적 `layout` 섹션에서 로드된다.
 /// 값이 누락되면 모두 기본값을 사용한다.
 class LayoutConfig {
+  /// UI 밝기 계열. 테마에서 생략하면 밝은(light/white) 계열을 사용한다.
+  final Brightness brightness;
+
+  /// 개별 재정의가 없는 메뉴 항목의 아이콘을 기본적으로 감출지 여부.
+  final bool hideItemIcons;
+
   /// 앱 UI에 사용할 글꼴 이름. 비어 있으면 Flutter 기본 글꼴을 사용한다.
   final String? fontFamily;
 
@@ -312,8 +336,10 @@ class LayoutConfig {
   final Color? selectedButtonForegroundColor;
 
   const LayoutConfig({
-    this.fontFamily = 'Pretendard',
-    this.menuFontFamily = 'Pretendard',
+    this.brightness = Brightness.light,
+    this.hideItemIcons = false,
+    this.fontFamily = 'Catholic',
+    this.menuFontFamily = 'Catholic',
     this.navPosition = NavPosition.auto,
     this.sideWidth = 230,
     this.barHeight = 102,
@@ -326,7 +352,7 @@ class LayoutConfig {
     this.showKeyboardToggle = false,
     this.showSelectedTopic = true,
     this.selectedTopicLabelColor = const Color(0xFFF8FAFC),
-    this.windowsKioskLockdown = true,
+    this.windowsKioskLockdown = false,
     this.windowsKioskShortcuts = WindowsKioskShortcutSettings.defaults,
     this.windowsDisableEdgeSwipe = true,
     this.windowsAlwaysOnTop = false,
@@ -374,6 +400,15 @@ class LayoutConfig {
     }
 
     return LayoutConfig(
+      brightness: _parseBrightness(json['brightness']),
+      hideItemIcons: () {
+        final value = json['hideItemIcons'];
+        if (value == null) return defaults.hideItemIcons;
+        if (value is bool) return value;
+        throw const FormatException(
+          'menu.json layout.hideItemIcons: bool 필요',
+        );
+      }(),
       fontFamily: () {
         final value = json['fontFamily'];
         if (value == null) return defaults.fontFamily;

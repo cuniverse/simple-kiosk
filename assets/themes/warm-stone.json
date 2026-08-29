@@ -4,8 +4,10 @@
   "name": "따뜻한 스톤",
   "description": "부드러운 갈색 계열과 차분한 강조색을 사용하는 테마입니다.",
   "values": {
-    "fontFamily": "Pretendard",
-    "menuFontFamily": "NanumSquare",
+    "brightness": "dark",
+    "hideItemIcons": false,
+    "fontFamily": "Catholic",
+    "menuFontFamily": "Catholic",
     "sideWidth": 224,
     "barHeight": 98,
     "buttonHeight": 0,
@@ -16,6 +18,18 @@
     "buttonColor": "#44403c",
     "buttonForegroundColor": "#fafaf9",
     "selectedButtonColor": "#b45309",
-    "selectedButtonForegroundColor": "#ffffff"
+    "selectedButtonForegroundColor": "#ffffff",
+    "languageSelection": {
+      "fontFamily": "Catholic",
+      "backgroundColor": "#1c1917",
+      "foregroundColor": "#fafaf9",
+      "secondaryForegroundColor": "#d6d3d1",
+      "buttonWidth": 400,
+      "buttonHeight": 190,
+      "buttonColor": "#44403c",
+      "buttonForegroundColor": "#fafaf9",
+      "selectedButtonColor": "#b45309",
+      "selectedButtonForegroundColor": "#ffffff"
+    }
   }
 }

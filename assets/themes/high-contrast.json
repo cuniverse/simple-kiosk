@@ -4,8 +4,10 @@
   "name": "고대비",
   "description": "밝은 글자와 선명한 선택 색상으로 가독성을 높인 테마입니다.",
   "values": {
-    "fontFamily": "Pretendard",
-    "menuFontFamily": "Pretendard",
+    "brightness": "dark",
+    "hideItemIcons": false,
+    "fontFamily": "Catholic",
+    "menuFontFamily": "Catholic",
     "sideWidth": 230,
     "barHeight": 102,
     "buttonHeight": 0,
@@ -16,6 +18,18 @@
     "buttonColor": "#171717",
     "buttonForegroundColor": "#ffffff",
     "selectedButtonColor": "#facc15",
-    "selectedButtonForegroundColor": "#000000"
+    "selectedButtonForegroundColor": "#000000",
+    "languageSelection": {
+      "fontFamily": "Catholic",
+      "backgroundColor": "#000000",
+      "foregroundColor": "#ffffff",
+      "secondaryForegroundColor": "#d1d5db",
+      "buttonWidth": 400,
+      "buttonHeight": 190,
+      "buttonColor": "#171717",
+      "buttonForegroundColor": "#ffffff",
+      "selectedButtonColor": "#facc15",
+      "selectedButtonForegroundColor": "#000000"
+    }
   }
 }

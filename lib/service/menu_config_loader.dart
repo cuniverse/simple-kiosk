@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../model/idle_config.dart';
@@ -194,6 +195,15 @@ class MenuConfigLoader {
     var selectionTitle = '언어를 선택하세요';
     var selectionSubtitle = 'Please select your language';
     String? selectionFontFamily;
+    Color? selectionBackgroundColor;
+    Color? selectionForegroundColor;
+    Color? selectionSecondaryForegroundColor;
+    var selectionButtonWidth = 400.0;
+    var selectionButtonHeight = 190.0;
+    Color? selectionButtonColor;
+    Color? selectionButtonForegroundColor;
+    Color? selectionSelectedButtonColor;
+    Color? selectionSelectedButtonForegroundColor;
     var topicSelectionTitle = '주제를 선택하세요';
     var topicSelectionSubtitle = 'Please select a topic';
     var skipSingleTopic = true;
@@ -285,6 +295,17 @@ class MenuConfigLoader {
         final title = selectionValue['title'];
         final subtitle = selectionValue['subtitle'];
         final fontFamily = selectionValue['fontFamily'];
+        final backgroundColor = selectionValue['backgroundColor'];
+        final foregroundColor = selectionValue['foregroundColor'];
+        final secondaryForegroundColor =
+            selectionValue['secondaryForegroundColor'];
+        final buttonWidth = selectionValue['buttonWidth'];
+        final buttonHeight = selectionValue['buttonHeight'];
+        final buttonColor = selectionValue['buttonColor'];
+        final buttonForegroundColor = selectionValue['buttonForegroundColor'];
+        final selectedButtonColor = selectionValue['selectedButtonColor'];
+        final selectedButtonForegroundColor =
+            selectionValue['selectedButtonForegroundColor'];
         final topicTitle = selectionValue['topicTitle'];
         final topicSubtitle = selectionValue['topicSubtitle'];
         final skipSingle = selectionValue['skipSingleTopic'];
@@ -301,6 +322,8 @@ class MenuConfigLoader {
             'menu.json languageSelection.fontFamily: 문자열 필요',
           );
         }
+        _validatePositiveNumber(buttonWidth, 'buttonWidth');
+        _validatePositiveNumber(buttonHeight, 'buttonHeight');
         if (topicTitle != null &&
             (topicTitle is! String || topicTitle.trim().isEmpty)) {
           throw const FormatException(
@@ -322,6 +345,35 @@ class MenuConfigLoader {
         if (fontFamily is String && fontFamily.trim().isNotEmpty) {
           selectionFontFamily = fontFamily.trim();
         }
+        selectionBackgroundColor = _parseSelectionColor(
+          backgroundColor,
+          'backgroundColor',
+        );
+        selectionForegroundColor = _parseSelectionColor(
+          foregroundColor,
+          'foregroundColor',
+        );
+        selectionSecondaryForegroundColor = _parseSelectionColor(
+          secondaryForegroundColor,
+          'secondaryForegroundColor',
+        );
+        if (buttonWidth is num) selectionButtonWidth = buttonWidth.toDouble();
+        if (buttonHeight is num) {
+          selectionButtonHeight = buttonHeight.toDouble();
+        }
+        selectionButtonColor = _parseSelectionColor(buttonColor, 'buttonColor');
+        selectionButtonForegroundColor = _parseSelectionColor(
+          buttonForegroundColor,
+          'buttonForegroundColor',
+        );
+        selectionSelectedButtonColor = _parseSelectionColor(
+          selectedButtonColor,
+          'selectedButtonColor',
+        );
+        selectionSelectedButtonForegroundColor = _parseSelectionColor(
+          selectedButtonForegroundColor,
+          'selectedButtonForegroundColor',
+        );
         if (topicTitle is String) topicSelectionTitle = topicTitle.trim();
         if (topicSubtitle is String) {
           topicSelectionSubtitle = topicSubtitle.trim();
@@ -357,11 +409,54 @@ class MenuConfigLoader {
       languageSelectionTitle: selectionTitle,
       languageSelectionSubtitle: selectionSubtitle,
       languageSelectionFontFamily: selectionFontFamily,
+      languageSelectionBackgroundColor: selectionBackgroundColor,
+      languageSelectionForegroundColor: selectionForegroundColor,
+      languageSelectionSecondaryForegroundColor:
+          selectionSecondaryForegroundColor,
+      languageSelectionButtonWidth: selectionButtonWidth,
+      languageSelectionButtonHeight: selectionButtonHeight,
+      languageSelectionButtonColor: selectionButtonColor,
+      languageSelectionButtonForegroundColor: selectionButtonForegroundColor,
+      languageSelectionSelectedButtonColor: selectionSelectedButtonColor,
+      languageSelectionSelectedButtonForegroundColor:
+          selectionSelectedButtonForegroundColor,
       topicSelectionTitle: topicSelectionTitle,
       topicSelectionSubtitle: topicSelectionSubtitle,
       skipSingleTopic: skipSingleTopic,
       webViewDataPolicy: webViewDataPolicy,
     );
+  }
+
+  static void _validatePositiveNumber(Object? value, String key) {
+    if (value == null) return;
+    if (value is! num || !value.isFinite || value <= 0) {
+      throw FormatException(
+        'menu.json languageSelection.$key: 0보다 큰 숫자 필요',
+      );
+    }
+  }
+
+  static Color? _parseSelectionColor(Object? raw, String key) {
+    if (raw == null) return null;
+    if (raw is! String) {
+      throw FormatException(
+        'menu.json languageSelection.$key: 문자열 필요',
+      );
+    }
+    var value = raw.trim().toLowerCase();
+    if (value.isEmpty) return null;
+    if (value == 'transparent') return const Color(0x00000000);
+    if (value.startsWith('#')) value = value.substring(1);
+    if (value.length == 3) {
+      value = value.split('').map((character) => '$character$character').join();
+    }
+    if (value.length == 6) value = 'ff$value';
+    if (value.length != 8 || int.tryParse(value, radix: 16) == null) {
+      throw FormatException(
+        'menu.json languageSelection.$key: 색상 형식 오류 "$raw"',
+      );
+    }
+    return Color(int.parse(value, radix: 16));
   }
 
   static MenuLanguage _legacyLanguage(List<dynamic> rawItems) {

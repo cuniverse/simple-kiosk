@@ -51,7 +51,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 - **Windows 업데이트·복구**: GitHub stable Release와 SHA-256을 검증하는 자동·수동 업데이트, 네이티브 Updater, 시작 실패 자동 롤백, 사용자 승인형 Setup 보조 설치 지원
 - **원격 파일 관리**: WEB 관리자에서 업데이트에 유지되는 `exdata/` 폴더의 파일을 Windows 탐색기 형태로 업로드·다운로드·이름 변경·삭제
 - **원격 운영·진단**: 로컬·원격 WEB 관리자에서 상태 확인, 1~5fps 화면 미리보기, 설정·업데이트·재시작, 진단 자료 내보내기와 GitHub 이슈 등록 지원
-- **UI 테마**: 레이아웃·동작과 UI 모양을 분리하고, 프리로드 테마 적용 및 편집한 모양의 사용자 테마 저장 지원
+- **UI 테마**: 레이아웃·동작과 UI 모양을 분리하고, 언어 선택 화면을 포함한 프리로드 테마 적용 및 편집한 모양의 사용자 테마 저장 지원
 
 ## 실행 방법
 
@@ -266,8 +266,9 @@ flutter pub get
 | `id` | string | (필수) | 메뉴 식별자 (중복 불가 권장) |
 | `title` | string | (필수) | 버튼에 표시될 텍스트 / 접근성 라벨 |
 | `url` | string | (필수) | WebView에 로드할 URL. **운영 환경에서는 HTTPS 권장** |
-| `icon` | string | `null` | 아이콘 경로. `assets/...`, `http(s)://...`, 또는 `icon:이름` (내장 머터리얼 아이콘) |
-| `selectedIcon` | string | `null` | 선택 상태에서 사용할 아이콘 경로. 생략하면 `icon`을 그대로 사용 |
+| `icon` | string | `null` | 아이콘 경로. `assets/...`, `http(s)://...`, 또는 `icon:이름` (내장 머터리얼 아이콘). 확장자 없는 로컬 경로는 테마 밝기에 맞는 아이콘 패밀리를 자동 선택 |
+| `selectedIcon` | string | `null` | 선택 상태에서 사용할 아이콘 경로. 생략하면 `icon`을 그대로 사용. 확장자 없는 로컬 경로는 `icon`과 같은 자동 선택 규칙 적용 |
+| `showIcon` | bool | `null` (=테마 값 상속) | `true`면 아이콘 표시, `false`면 경로 값을 지우지 않고 감춤. 테마 기본값을 명시적으로 재정의 |
 | `hidden` | bool | `false` | `true`이면 이 메뉴를 툴바에서 숨김 |
 | `showTitle` | bool | `true` | 아이콘 있을 때 텍스트 동시 표시 여부. 아이콘 없으면 무시(텍스트 강제 표시) |
 | `keepStateOnTap` | bool | `null` (=layout 값 상속) | 단일 클릭 시 이 항목의 현재 페이지 상태 유지 여부. 항목별 오버라이드 |
@@ -278,6 +279,8 @@ flutter pub get
 
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
+| `brightness` | `light`/`dark` | `dark` (생략 시 `light`) | 테마의 밝은(White)·어두운(Dark) 계열 지정 |
+| `hideItemIcons` | bool | `true` | `showIcon`을 생략한 메뉴 아이콘을 기본적으로 감춤. 개별 `showIcon: true`는 표시 |
 | `navPosition` | `auto`/`left`/`right`/`top`/`bottom` | `right` | 네비게이션 위치. `auto` 는 폭 `breakpoint` 기준 자동 전환 |
 | `breakpoint` | number(dp) | `720` | `auto` 모드에서 사이드/하단을 가르는 폭 |
 | `sideWidth` | number(dp) | `230` | 사이드 모드 폭 |
@@ -290,7 +293,7 @@ flutter pub get
 | `showKeyboardToggle` | bool | `true` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
 | `showSelectedTopic` | bool | `true` | 현재 주제만 작은 읽기 전용 상태 라벨로 표시 |
 | `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
-| `windowsKioskLockdown` | bool | `true` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단 |
+| `windowsKioskLockdown` | bool | `false` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단. 기본적으로 사용하지 않음 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsDisableEdgeSwipe` | bool | `true` | 전체화면 가장자리 스와이프로 Windows 시스템 UI가 열리는 동작 차단 |
 | `windowsAlwaysOnTop` | bool | `false` | Windows 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
@@ -325,6 +328,12 @@ flutter pub get
 
 빈 값이나 생략된 개별 설정은 상위 전체 설정을 상속합니다.
 
+언어·주제 선택 화면은 `languageSelection`에서 별도로 꾸밀 수 있습니다.
+`backgroundColor`, `foregroundColor`, `secondaryForegroundColor`,
+`buttonWidth`, `buttonHeight`, `buttonColor`, `buttonForegroundColor`,
+`selectedButtonColor`, `selectedButtonForegroundColor`를 지원합니다. 색상을
+생략하거나 비우면 현재 테마 색상을 사용합니다.
+
 ### idle — 대기화면 설정
 
 자세한 옵션은 [docs/MANUAL.md](docs/MANUAL.md) 참고. 현재 배포 기본값은 300초 후
@@ -342,7 +351,7 @@ flutter pub get
     "showKeyboardToggle": true,
     "showSelectedTopic": true,
     "selectedTopicLabelColor": "#f8fafc",
-    "windowsKioskLockdown": true,
+    "windowsKioskLockdown": false,
     "windowsDisableEdgeSwipe": true,
     "windowsKioskShortcuts": {
       "windowsKey": true,

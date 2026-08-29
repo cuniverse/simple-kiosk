@@ -9,9 +9,6 @@ import 'material_icon_registry.dart';
 import 'platform_file_image.dart';
 import 'version_overlay.dart';
 
-const double _selectionButtonMaxWidth = 400;
-const double _selectionButtonHeight = 190;
-
 /// 화면보호기 해제 후 표시하는 터치 친화적인 언어 선택 화면.
 class LanguageSelection extends StatefulWidget {
   final List<MenuLanguage> languages;
@@ -21,6 +18,15 @@ class LanguageSelection extends StatefulWidget {
   final String topicSubtitle;
   final bool skipSingleTopic;
   final String? fontFamily;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+  final Color? secondaryForegroundColor;
+  final double buttonWidth;
+  final double buttonHeight;
+  final Color? buttonColor;
+  final Color? buttonForegroundColor;
+  final Color? selectedButtonColor;
+  final Color? selectedButtonForegroundColor;
   final void Function(int languageIndex, int topicIndex) onSelected;
   final VoidCallback onReturnToIdle;
   final String? versionLabel;
@@ -34,6 +40,15 @@ class LanguageSelection extends StatefulWidget {
     this.topicSubtitle = 'Please select a topic',
     this.skipSingleTopic = true,
     this.fontFamily,
+    this.backgroundColor,
+    this.foregroundColor,
+    this.secondaryForegroundColor,
+    this.buttonWidth = 400,
+    this.buttonHeight = 190,
+    this.buttonColor,
+    this.buttonForegroundColor,
+    this.selectedButtonColor,
+    this.selectedButtonForegroundColor,
     required this.onSelected,
     required this.onReturnToIdle,
     this.versionLabel,
@@ -86,11 +101,12 @@ class _LanguageSelectionState extends State<LanguageSelection> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final availableWidth = MediaQuery.sizeOf(context).width - 48;
-    final buttonWidth = availableWidth < _selectionButtonMaxWidth
+    final buttonWidth = availableWidth < widget.buttonWidth
         ? availableWidth
-        : _selectionButtonMaxWidth;
+        : widget.buttonWidth;
     return Material(
-      color: colors.surface,
+      key: const ValueKey('language-selection-background'),
+      color: widget.backgroundColor ?? colors.surface,
       child: SafeArea(
         child: Stack(
           children: [
@@ -161,7 +177,11 @@ class _LanguageSelectionState extends State<LanguageSelection> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.language, size: 88, color: colors.primary),
+          Icon(
+            Icons.language,
+            size: 88,
+            color: widget.foregroundColor ?? colors.primary,
+          ),
           const SizedBox(height: 24),
           Text(
             widget.title,
@@ -170,6 +190,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                   fontSize: 44,
                   fontWeight: FontWeight.w800,
                   fontFamily: widget.fontFamily,
+                  color: widget.foregroundColor,
                 ),
           ),
           if (widget.subtitle.isNotEmpty) ...[
@@ -179,7 +200,8 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontSize: 28,
-                    color: colors.onSurfaceVariant,
+                    color: widget.secondaryForegroundColor ??
+                        colors.onSurfaceVariant,
                     fontFamily: widget.fontFamily,
                   ),
             ),
@@ -194,7 +216,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               return _SelectionButton(
                 key: ValueKey('language-${language.id}'),
                 width: buttonWidth,
-                height: _selectionButtonHeight,
+                height: widget.buttonHeight,
                 label: language.label,
                 subtitle: language.subtitle,
                 icon: language.icon,
@@ -202,6 +224,11 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                       language.fontFamily,
                     ) ??
                     widget.fontFamily,
+                buttonColor: widget.buttonColor,
+                buttonForegroundColor: widget.buttonForegroundColor,
+                selectedButtonColor: widget.selectedButtonColor,
+                selectedButtonForegroundColor:
+                    widget.selectedButtonForegroundColor,
                 onPressed: () => _selectLanguage(index),
               );
             }),
@@ -236,7 +263,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
             child: _SelectionButton(
               key: ValueKey('selected-language-${language.id}'),
               width: buttonWidth,
-              height: _selectionButtonHeight,
+              height: widget.buttonHeight,
               label: language.label,
               subtitle: language.subtitle,
               icon: language.icon,
@@ -244,6 +271,11 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                     language.fontFamily,
                   ) ??
                   widget.fontFamily,
+              buttonColor: widget.buttonColor,
+              buttonForegroundColor: widget.buttonForegroundColor,
+              selectedButtonColor: widget.selectedButtonColor,
+              selectedButtonForegroundColor:
+                  widget.selectedButtonForegroundColor,
               selected: true,
               onPressed: _showLanguages,
             ),
@@ -260,6 +292,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                     fontSize: 40,
                     fontWeight: FontWeight.w800,
                     fontFamily: widget.fontFamily,
+                    color: widget.foregroundColor,
                   ),
             ),
             if (widget.topicSubtitle.isNotEmpty) ...[
@@ -269,7 +302,8 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontSize: 25,
-                      color: colors.onSurfaceVariant,
+                      color: widget.secondaryForegroundColor ??
+                          colors.onSurfaceVariant,
                       fontFamily: widget.fontFamily,
                     ),
               ),
@@ -284,7 +318,13 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                 return _TopicButton(
                   topic: topic,
                   width: buttonWidth,
+                  height: widget.buttonHeight,
                   fontFamily: widget.fontFamily,
+                  buttonColor: widget.buttonColor,
+                  buttonForegroundColor: widget.buttonForegroundColor,
+                  selectedButtonColor: widget.selectedButtonColor,
+                  selectedButtonForegroundColor:
+                      widget.selectedButtonForegroundColor,
                   onPressed: () => widget.onSelected(
                     languageIndex,
                     topicIndex,
@@ -312,25 +352,39 @@ class _LanguageSelectionState extends State<LanguageSelection> {
 class _TopicButton extends StatelessWidget {
   final MenuTopic topic;
   final double width;
+  final double height;
   final VoidCallback onPressed;
   final String? fontFamily;
+  final Color? buttonColor;
+  final Color? buttonForegroundColor;
+  final Color? selectedButtonColor;
+  final Color? selectedButtonForegroundColor;
 
   const _TopicButton({
     required this.topic,
     required this.width,
+    required this.height,
     required this.onPressed,
     this.fontFamily,
+    this.buttonColor,
+    this.buttonForegroundColor,
+    this.selectedButtonColor,
+    this.selectedButtonForegroundColor,
   });
 
   @override
   Widget build(BuildContext context) => _SelectionButton(
         key: ValueKey('topic-${topic.id}'),
         width: width,
-        height: _selectionButtonHeight,
+        height: height,
         label: topic.label,
         subtitle: topic.subtitle,
         icon: topic.icon,
         fontFamily: fontFamily,
+        buttonColor: buttonColor,
+        buttonForegroundColor: buttonForegroundColor,
+        selectedButtonColor: selectedButtonColor,
+        selectedButtonForegroundColor: selectedButtonForegroundColor,
         onPressed: onPressed,
       );
 }
@@ -344,6 +398,10 @@ class _SelectionButton extends StatelessWidget {
   final VoidCallback onPressed;
   final bool selected;
   final String? fontFamily;
+  final Color? buttonColor;
+  final Color? buttonForegroundColor;
+  final Color? selectedButtonColor;
+  final Color? selectedButtonForegroundColor;
 
   const _SelectionButton({
     super.key,
@@ -355,21 +413,32 @@ class _SelectionButton extends StatelessWidget {
     this.icon,
     this.selected = false,
     this.fontFamily,
+    this.buttonColor,
+    this.buttonForegroundColor,
+    this.selectedButtonColor,
+    this.selectedButtonForegroundColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveForeground = selected
+        ? (selectedButtonForegroundColor ?? buttonForegroundColor)
+        : buttonForegroundColor;
     return SizedBox(
       width: width,
       height: height,
       child: FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
+          backgroundColor:
+              selected ? (selectedButtonColor ?? buttonColor) : buttonColor,
+          foregroundColor: effectiveForeground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(28),
             side: selected
                 ? BorderSide(
-                    color: Theme.of(context).colorScheme.onPrimary,
+                    color: effectiveForeground ??
+                        Theme.of(context).colorScheme.onPrimary,
                     width: 3,
                   )
                 : BorderSide.none,

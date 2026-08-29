@@ -45,6 +45,8 @@ typedef PreloadedThemeLoader = Future<List<Map<String, dynamic>>> Function();
 
 class UiThemeService {
   static const appearanceKeys = <String>{
+    'brightness',
+    'hideItemIcons',
     'fontFamily',
     'menuFontFamily',
     'sideWidth',
@@ -54,6 +56,19 @@ class UiThemeService {
     'buttonGap',
     'barColor',
     'selectedTopicLabelColor',
+    'buttonColor',
+    'buttonForegroundColor',
+    'selectedButtonColor',
+    'selectedButtonForegroundColor',
+  };
+
+  static const languageSelectionAppearanceKeys = <String>{
+    'fontFamily',
+    'backgroundColor',
+    'foregroundColor',
+    'secondaryForegroundColor',
+    'buttonWidth',
+    'buttonHeight',
     'buttonColor',
     'buttonForegroundColor',
     'selectedButtonColor',
@@ -226,6 +241,44 @@ class UiThemeService {
   static Map<String, dynamic> _normalizeValues(Map<String, dynamic> values) {
     final result = <String, dynamic>{};
     for (final entry in values.entries) {
+      if (entry.key == 'languageSelection') {
+        final raw = entry.value;
+        if (raw is! Map) {
+          throw const UiThemeException(
+            400,
+            'invalid-theme-language-selection',
+            '테마 languageSelection은 객체여야 합니다.',
+          );
+        }
+        final selection = <String, dynamic>{};
+        for (final selectionEntry in raw.entries) {
+          final key = selectionEntry.key;
+          final value = selectionEntry.value;
+          if (key is! String ||
+              !languageSelectionAppearanceKeys.contains(key)) {
+            continue;
+          }
+          if (key == 'buttonWidth' || key == 'buttonHeight') {
+            if (value != null &&
+                (value is! num || !value.isFinite || value <= 0)) {
+              throw const UiThemeException(
+                400,
+                'invalid-theme-language-selection',
+                '테마 languageSelection 버튼 크기는 0보다 큰 숫자여야 합니다.',
+              );
+            }
+          } else if (value != null && value is! String) {
+            throw const UiThemeException(
+              400,
+              'invalid-theme-language-selection',
+              '테마 languageSelection 글꼴과 색상은 문자열이어야 합니다.',
+            );
+          }
+          selection[key] = value;
+        }
+        if (selection.isNotEmpty) result['languageSelection'] = selection;
+        continue;
+      }
       if (!appearanceKeys.contains(entry.key)) continue;
       final value = entry.value;
       if (value is String || value is num || value is bool || value == null) {
@@ -234,6 +287,31 @@ class UiThemeService {
     }
     if (result.isEmpty) {
       throw const UiThemeException(400, 'empty-theme', '저장할 UI 모양 값이 없습니다.');
+    }
+    final brightness = result['brightness'];
+    if (brightness == null) {
+      result['brightness'] = 'light';
+    } else if (brightness is! String ||
+        !const {'light', 'white', 'dark'}
+            .contains(brightness.trim().toLowerCase())) {
+      throw const UiThemeException(
+        400,
+        'invalid-theme-brightness',
+        '테마 brightness는 light 또는 dark여야 합니다.',
+      );
+    } else {
+      result['brightness'] =
+          brightness.trim().toLowerCase() == 'dark' ? 'dark' : 'light';
+    }
+    final hideItemIcons = result['hideItemIcons'];
+    if (hideItemIcons == null) {
+      result['hideItemIcons'] = false;
+    } else if (hideItemIcons is! bool) {
+      throw const UiThemeException(
+        400,
+        'invalid-theme-hide-item-icons',
+        '테마 hideItemIcons는 bool이어야 합니다.',
+      );
     }
     return result;
   }

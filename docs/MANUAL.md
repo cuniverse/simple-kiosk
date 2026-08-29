@@ -112,6 +112,16 @@ schemaVersion 1, 최상위 `items`, `languages[].items`와 이전 웹 관리자�
 ```json
 "defaultLanguage": "ko",
 "languageSelection": {
+  "fontFamily": "Catholic",
+  "backgroundColor": "#ffffff",
+  "foregroundColor": "#111827",
+  "secondaryForegroundColor": "#4b5563",
+  "buttonWidth": 400,
+  "buttonHeight": 190,
+  "buttonColor": "#3f51b5",
+  "buttonForegroundColor": "#ffffff",
+  "selectedButtonColor": "#3f51b5",
+  "selectedButtonForegroundColor": "#ffffff",
   "title": "언어를 선택하세요",
   "subtitle": "Please select your language",
   "topicTitle": "주제를 선택하세요",
@@ -152,6 +162,18 @@ schemaVersion 1, 최상위 `items`, `languages[].items`와 이전 웹 관리자�
 ]
 ```
 
+| `languageSelection` 키 | 기본값 | 설명 |
+|---|---:|---|
+| `fontFamily` | `Catholic` | 제목·부제·선택 버튼의 전체 글꼴 |
+| `backgroundColor` | `#ffffff` | 언어·주제 선택 화면 배경색 |
+| `foregroundColor` | `#111827` | 제목과 기본 강조 요소 색상 |
+| `secondaryForegroundColor` | `#4b5563` | 부제 글자색 |
+| `buttonWidth` / `buttonHeight` | `400` / `190` | 언어·주제 선택 버튼 크기(dp). 좁은 화면에서는 너비 자동 축소 |
+| `buttonColor` / `buttonForegroundColor` | `#3f51b5` / `#ffffff` | 일반 선택 버튼 배경·전경색 |
+| `selectedButtonColor` / `selectedButtonForegroundColor` | `#3f51b5` / `#ffffff` | 선택되어 상단으로 이동한 언어 버튼 배경·전경색 |
+
+색상 값을 생략하거나 빈 문자열로 두면 현재 테마 색상을 상속합니다.
+
 - 화면보호기를 해제하면 언어 버튼이 표시되고, 언어를 선택하면 해당 버튼이 상단으로
   이동한 뒤 `topics`의 주제 버튼이 표시됩니다.
 - `languageSelection.skipSingleTopic`이 `true`이면 주제가 하나뿐인 언어는 주제 화면을
@@ -185,6 +207,7 @@ schemaVersion 1, 최상위 `items`, `languages[].items`와 이전 웹 관리자�
 | `url` | ✓ | 버튼을 눌렀을 때 WebView에 로드할 URL |
 | `icon` | ✗ | 아이콘 (자세한 형식은 [§6](#6-아이콘-사용)) |
 | `selectedIcon` | ✗ | 선택 상태에서 표시할 아이콘. 생략하거나 비우면 `icon` 사용 |
+| `showIcon` | ✗ | 아이콘 표시 재정의. 생략하면 테마 설정을 따르고, `false`는 경로를 보존한 채 감추며, `true`는 테마가 기본 감춤이어도 표시 |
 | `hidden` | ✗ | `true`이면 이 메뉴를 툴바에서 숨김. 기본 `false` |
 | `showTitle` | ✗ | `false` 면 아이콘만 표시 (기본 `true`) |
 | `keepStateOnTap` | ✗ | 항목별 상태 유지 오버라이드. `null`(기본) 이면 `layout.keepStateOnTap` 값을 따른다. 자세한 동작은 [§5 keepStateOnTap](#keepstateontap--메뉴-상태-유지-동작) 참고 |
@@ -217,6 +240,8 @@ android:usesCleartextTraffic="true"
 
 ```json
 "layout": {
+  "brightness": "dark",
+  "hideItemIcons": true,
   "navPosition": "bottom",
   "sideWidth": 230,
   "barHeight": 102,
@@ -241,6 +266,8 @@ android:usesCleartextTraffic="true"
 
 | 키 | 타입 | 기본값 | 설명 |
 |----|------|--------|------|
+| `brightness` | `light` / `dark` | `dark` (생략 시 `light`) | 테마의 밝은(White)·어두운(Dark) 계열 지정 |
+| `hideItemIcons` | bool | `true` | 개별 `showIcon`이 없는 메뉴의 아이콘을 기본적으로 감춤 |
 | `navPosition` | `auto`\|`left`\|`right`\|`top`\|`bottom` | `right` | 네비 위치. `auto`는 화면 폭에 따라 자동 |
 | `sideWidth` | 숫자 > 0 | `230` | `left`/`right`일 때 사이드 폭(dp) |
 | `barHeight` | 숫자 > 0 | `102` | `top`/`bottom`일 때 바 높이(dp) |
@@ -253,7 +280,7 @@ android:usesCleartextTraffic="true"
 | `showKeyboardToggle` | bool | `true` | 네비 **끝점** 에 OS 가상 키보드 토글 버튼 표시 ([§9](#9-가상-키보드) 참고) |
 | `showSelectedTopic` | bool | `true` | 현재 주제만 버튼이 아닌 작은 읽기 전용 상태 라벨로 표시 |
 | `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
-| `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
+| `windowsKioskLockdown` | bool | `false` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단. 기본적으로 사용하지 않음 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsDisableEdgeSwipe` | bool | `true` | 전체화면 가장자리 스와이프로 작업 표시줄 등 시스템 UI가 열리는 동작 차단 |
 | `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
@@ -376,7 +403,7 @@ search, help, link, web, music, mic, camera, image, download, qr
 
 새 아이콘이 필요하면 위 파일의 `_icons` 맵에 한 줄 추가하면 됩니다.
 
-### B. 로컬 PNG 파일
+### B. 로컬 이미지 파일
 
 ```json
 "icon": "assets/icons/custom.png"
@@ -385,6 +412,19 @@ search, help, link, web, music, mic, camera, image, download, qr
 - 파일을 `assets/icons/` 폴더에 넣고
 - 권장 크기: **96×96px** 이상 정사각형, 투명 배경
 - `pubspec.yaml` 의 `assets/icons/` 가 이미 등록되어 있어 자동으로 포함됨
+
+확장자를 생략하면 같은 이름의 아이콘 패밀리에서 테마의 `brightness`에
+맞는 파일을 자동 선택합니다.
+
+```json
+"icon": "assets/icons/custom"
+```
+
+- `dark`: `custom-white.*` 우선
+- `light`: `custom-black.*` 우선
+- 우선 변형이 없으면 `custom-color.*`, `custom.*`, 반대 명암 변형 순으로 대체
+- 검색 확장자: `png`, `jpg`, `jpeg`, `webp`, `bmp`, `gif`
+- `custom.png`처럼 확장자를 명시하면 자동 선택 없이 지정한 파일만 사용
 
 ### C. 네트워크 이미지
 
@@ -858,10 +898,10 @@ Windows에서는 기본적으로 Windows 화상 키보드를 사용합니다. **
 - 실행 상태·화면 미리보기·관리 API·파일 관리·사이니지 구성·백업 및 진단은 탭으로 구분됩니다. 복수 표시 모드는 체크박스로 선택하고 메뉴 항목 화면에서도 언어를 추가하거나 삭제할 수 있습니다.
 - **파일 관리** 탭은 데이터 루트의 `exdata/`만 표시합니다. Windows 탐색기 형태의 경로 이동·검색·정렬과 새 폴더, 다중/드래그 업로드, 다운로드, 이름 변경, 삭제를 지원합니다. `..`, 절대경로, 링크를 통한 `exdata/` 외부 접근은 거부합니다.
 - `exdata/`에 올린 운영 파일은 업데이트 후에도 유지되며 설정에서는 `exdata/photos/`, `exdata/welcome.jpg` 같은 상대경로로 지정할 수 있습니다. 폴더 전체는 `*` 대신 폴더 경로 자체를 사용합니다.
-- **사이니지 구성 → UI 모양·테마**에서는 글꼴, 툴바·버튼 크기와 간격, 색상만 테마로 적용합니다. 툴바 위치, 표시 기능, 키오스크 잠금 같은 레이아웃·동작 값은 바뀌지 않습니다.
+- **사이니지 구성 → UI 모양·테마**에서는 밝기 계열, 메뉴 아이콘 기본 표시, 글꼴, 툴바·버튼 크기와 간격, 색상 및 **언어 선택 화면의 글꼴·배경·버튼 크기·색상**을 테마로 적용합니다. 툴바 위치, 표시 기능, 키오스크 잠금 같은 레이아웃·동작 값은 바뀌지 않습니다.
 - 프리로드 테마 이름은 각 `assets/themes/*.json` 파일에서 읽습니다. 직접 편집한 UI 모양은 데이터 루트의 `themes/`에 사용자 테마로 별도 저장되며 업데이트 후에도 유지됩니다. 프리로드 테마와 같은 이름은 사용할 수 없습니다.
 - 테마 적용 후 UI 모양 값을 직접 바꾸면 경고가 표시됩니다. 다른 테마를 적용하기 전에 현재 모양을 사용자 테마로 저장할 수 있습니다.
-- 기본 테마는 **고대비**입니다. 이 변경이 포함된 버전으로 업데이트하면 기존 UI 모양 오버라이드도 최초 실행 시 한 번 고대비 값으로 강제 변경됩니다. 툴바 위치와 키오스크 동작은 유지되며, 이전 설정은 `backups/menu.override.before-high-contrast-*.json`에 백업됩니다.
+- 기본 테마는 **고대비(텍스트)**입니다. 메뉴 아이콘은 기본적으로 감추며, 메뉴별 `showIcon: true`로 명시한 항목만 표시합니다. 기존 고대비 기본값 마이그레이션은 툴바 위치와 키오스크 동작을 유지하며, 이전 설정은 `backups/menu.override.before-high-contrast-*.json`에 백업합니다.
 - 메뉴 설정은 저장 전에 기본 설정과 병합 검증되며, 올바른 설정은 저장 직후 사이니지에 적용됩니다.
 - 백업 및 진단 탭에서 메뉴·언어·툴바·관리 API·업데이트 정책을 하나의 JSON으로 내보내거나 가져올 수 있습니다. 저장·가져오기 전 상태는 직전 설정으로 보관되어 복원할 수 있으며 관리자 PIN은 백업하지 않습니다.
 - 같은 화면에서 프로그램·WebView·업데이트·API 로그와 시스템 정보를 포함한 진단 보고서를 다운로드할 수 있습니다.

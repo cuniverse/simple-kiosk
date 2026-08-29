@@ -1,8 +1,10 @@
 {
   "schemaVersion": 2,
   "layout": {
-    "fontFamily": "Pretendard",
-    "menuFontFamily": "Pretendard",
+    "brightness": "dark",
+    "hideItemIcons": true,
+    "fontFamily": "Catholic",
+    "menuFontFamily": "Catholic",
     "navPosition": "right",
     "sideWidth": 230,
     "barHeight": 102,
@@ -15,7 +17,7 @@
     "showKeyboardToggle": true,
     "showSelectedTopic": true,
     "selectedTopicLabelColor": "#f8fafc",
-    "windowsKioskLockdown": true,
+    "windowsKioskLockdown": false,
     "windowsDisableEdgeSwipe": true,
     "windowsKioskShortcuts": {
       "windowsKey": true,
@@ -97,7 +99,16 @@
   },
   "defaultLanguage": "ko",
   "languageSelection": {
-    "fontFamily": "Pretendard",
+    "fontFamily": "Catholic",
+    "backgroundColor": "#000000",
+    "foregroundColor": "#ffffff",
+    "secondaryForegroundColor": "#d1d5db",
+    "buttonWidth": 400,
+    "buttonHeight": 190,
+    "buttonColor": "#171717",
+    "buttonForegroundColor": "#ffffff",
+    "selectedButtonColor": "#facc15",
+    "selectedButtonForegroundColor": "#000000",
     "title": "언어를 선택하세요",
     "subtitle": "Please select your language",
     "topicTitle": "주제를 선택하세요",
@@ -111,7 +122,7 @@
   "languages": [
     {
       "id": "ko",
-      "fontFamily": "NanumSquare",
+      "fontFamily": "Catholic",
       "icon": "assets/icons/languages/kr.png",
       "label": "한국어",
       "subtitle": "",
@@ -127,9 +138,9 @@
             {
               "id": "home",
               "title": "WYD 서울 2027",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://wydseoul.org/",
-              "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "icon": "assets/icons/wyd-seoul-2027-toolbar",
               "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
@@ -138,7 +149,7 @@
               "title": "서울대교구",
               "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
             }
           ]
@@ -152,37 +163,37 @@
             {
               "id": "ycatholic",
               "title": "홈페이지",
-              "fontFamily": "NanumSquare",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic-white.png",
+              "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
               "id": "notice",
               "title": "공지",
-              "fontFamily": "KoPubDotum",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=notice",
               "icon": "icon:notice"
             },
             {
               "id": "gallery",
               "title": "포토갤러리",
-              "fontFamily": "NanumSquare",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
               "icon": "icon:gallery"
             },
             {
               "id": "jubo",
               "title": "주보",
-              "fontFamily": "NanumBrush",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
               "icon": "icon:book"
             },
             {
               "id": "annual-events",
               "title": "연중행사",
-              "fontFamily": "NanumSquare",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=schedule",
               "icon": "icon:event"
             },
@@ -212,7 +223,7 @@
             {
               "id": "ycatholic",
               "title": "홈페이지",
-              "fontFamily": "NanumSquare",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
               "icon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
@@ -222,7 +233,7 @@
               "title": "굿뉴스",
               "fontFamily": "Catholic",
               "url": "https://www.catholic.or.kr/",
-              "icon": "assets/icons/goodnews-white.png",
+              "icon": "assets/icons/goodnews",
               "selectedIcon": "assets/icons/goodnews.png",
               "showTitle": true
             },
@@ -231,7 +242,7 @@
               "title": "서울대교구",
               "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png",
               "showTitle": true
             },
@@ -240,16 +251,16 @@
               "title": "바티칸 뉴스",
               "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/ko.html",
-              "icon": "assets/icons/vatican-news-white.png",
+              "icon": "assets/icons/vatican-news",
               "selectedIcon": "assets/icons/vatican-news.png",
               "showTitle": true
             },
             {
               "id": "notice",
               "title": "순교자 현양위원회",
-              "fontFamily": "KoPubDotum",
+              "fontFamily": "Catholic",
               "url": "https://martyrs.or.kr/_web/main/main.html",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png",
               "showTitle": true
             }
@@ -259,7 +270,7 @@
     },
     {
       "id": "en",
-      "fontFamily": "Pretendard",
+      "fontFamily": "Catholic",
       "icon": "assets/icons/languages/en-us-gb.png",
       "label": "English",
       "subtitle": "",
@@ -275,18 +286,18 @@
             {
               "id": "home",
               "title": "WYD Seoul 2027",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://wydseoul.org/en",
-              "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "icon": "assets/icons/wyd-seoul-2027-toolbar",
               "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
               "id": "aos",
               "title": "Archdiocese of Seoul",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/en/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
             }
           ]
@@ -301,30 +312,30 @@
             {
               "id": "ycatholic",
               "title": "Homepage",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic-white.png",
+              "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
               "id": "notice",
               "title": "Notice",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=notice",
               "icon": "icon:notice"
             },
             {
               "id": "gallery",
               "title": "Photo Gallery",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
               "icon": "icon:gallery"
             },
             {
               "id": "jubo",
               "title": "Bulletin",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
               "icon": "icon:book"
             }
@@ -340,45 +351,45 @@
             {
               "id": "ycatholic",
               "title": "Yeouido-dong Catholic Church",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic-white.png",
+              "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
               "id": "goodnews",
               "title": "Good News",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.catholic.or.kr/",
-              "icon": "assets/icons/goodnews-white.png",
+              "icon": "assets/icons/goodnews",
               "selectedIcon": "assets/icons/goodnews.png",
               "showTitle": true
             },
             {
               "id": "aos",
               "title": "Archdiocese of Seoul",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/en/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png",
               "showTitle": true
             },
             {
               "id": "vatican-news",
               "title": "Vatican News",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/en.html",
-              "icon": "assets/icons/vatican-news-white.png",
+              "icon": "assets/icons/vatican-news",
               "selectedIcon": "assets/icons/vatican-news.png",
               "showTitle": true
             },
             {
               "id": "notice",
               "title": "Korean Martyrs Foundation",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://martyrs.or.kr/en/main/main.html",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png",
               "showTitle": true
             }
@@ -388,7 +399,7 @@
     },
     {
       "id": "es",
-      "fontFamily": "Pretendard",
+      "fontFamily": "Catholic",
       "icon": "assets/icons/languages/es.png",
       "label": "Español",
       "subtitle": "",
@@ -405,42 +416,42 @@
             {
               "id": "home",
               "title": "WYD Seoul 2027",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://wydseoul.org/es",
-              "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "icon": "assets/icons/wyd-seoul-2027-toolbar",
               "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
               "id": "aos",
               "title": "Archdiocese of Seoul",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/en/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
             },
             {
               "id": "vatican-news",
               "title": "Vatican News",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/es.html",
-              "icon": "assets/icons/vatican-news-white.png",
+              "icon": "assets/icons/vatican-news",
               "selectedIcon": "assets/icons/vatican-news.png",
               "showTitle": true
             },
             {
               "id": "ycatholic",
               "title": "Parish Website",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic-white.png",
+              "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
               "id": "jubo",
               "title": "Bulletin",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
               "icon": "icon:book"
             }
@@ -450,7 +461,7 @@
     },
     {
       "id": "fr",
-      "fontFamily": "Pretendard",
+      "fontFamily": "Catholic",
       "icon": "assets/icons/languages/fr.png",
       "label": "Français",
       "subtitle": "",
@@ -467,42 +478,42 @@
             {
               "id": "home",
               "title": "WYD Seoul 2027",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://wydseoul.org/fr",
-              "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "icon": "assets/icons/wyd-seoul-2027-toolbar",
               "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
               "id": "aos",
               "title": "Archdiocese of Seoul",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/en/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
             },
             {
               "id": "vatican-news",
               "title": "Vatican News",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/fr.html",
-              "icon": "assets/icons/vatican-news-white.png",
+              "icon": "assets/icons/vatican-news",
               "selectedIcon": "assets/icons/vatican-news.png",
               "showTitle": true
             },
             {
               "id": "ycatholic",
               "title": "Parish Website",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic-white.png",
+              "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
               "id": "jubo",
               "title": "Bulletin",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
               "icon": "icon:book"
             }
@@ -512,7 +523,7 @@
     },
     {
       "id": "pt",
-      "fontFamily": "Pretendard",
+      "fontFamily": "Catholic",
       "icon": "assets/icons/languages/pt.png",
       "label": "Português",
       "subtitle": "",
@@ -529,42 +540,42 @@
             {
               "id": "home",
               "title": "WYD Seoul 2027",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://wydseoul.org/pt",
-              "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "icon": "assets/icons/wyd-seoul-2027-toolbar",
               "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
               "id": "aos",
               "title": "Archdiocese of Seoul",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/en/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
             },
             {
               "id": "vatican-news",
               "title": "Vatican News",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/pt.html",
-              "icon": "assets/icons/vatican-news-white.png",
+              "icon": "assets/icons/vatican-news",
               "selectedIcon": "assets/icons/vatican-news.png",
               "showTitle": true
             },
             {
               "id": "ycatholic",
               "title": "Parish Website",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic-white.png",
+              "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
               "id": "jubo",
               "title": "Bulletin",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
               "icon": "icon:book"
             }
@@ -574,7 +585,7 @@
     },
     {
       "id": "it",
-      "fontFamily": "Pretendard",
+      "fontFamily": "Catholic",
       "icon": "assets/icons/languages/it.png",
       "label": "Italiano",
       "subtitle": "",
@@ -591,42 +602,42 @@
             {
               "id": "home",
               "title": "WYD Seoul 2027",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://wydseoul.org/it",
-              "icon": "assets/icons/wyd-seoul-2027-toolbar-white.png",
+              "icon": "assets/icons/wyd-seoul-2027-toolbar",
               "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
               "showTitle": false
             },
             {
               "id": "aos",
               "title": "Archdiocese of Seoul",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/en/index",
-              "icon": "assets/icons/aos-toolbar-white.png",
+              "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
             },
             {
               "id": "vatican-news",
               "title": "Vatican News",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/it.html",
-              "icon": "assets/icons/vatican-news-white.png",
+              "icon": "assets/icons/vatican-news",
               "selectedIcon": "assets/icons/vatican-news.png",
               "showTitle": true
             },
             {
               "id": "ycatholic",
               "title": "Parish Website",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic-white.png",
+              "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
             },
             {
               "id": "jubo",
               "title": "Bulletin",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
               "icon": "icon:book"
             }

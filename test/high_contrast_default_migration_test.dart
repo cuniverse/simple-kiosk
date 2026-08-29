@@ -13,8 +13,8 @@ void main() {
   const defaults = <String, dynamic>{
     'schemaVersion': 2,
     'layout': {
-      'fontFamily': 'Pretendard',
-      'menuFontFamily': 'Pretendard',
+      'fontFamily': 'Catholic',
+      'menuFontFamily': 'Catholic',
       'navPosition': 'right',
       'sideWidth': 230,
       'barHeight': 102,

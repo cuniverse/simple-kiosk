@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 import 'menu_item.dart';
 import 'menu_language.dart';
 import 'layout_config.dart';
@@ -30,6 +32,15 @@ class MenuConfig {
   final String languageSelectionTitle;
   final String languageSelectionSubtitle;
   final String? languageSelectionFontFamily;
+  final Color? languageSelectionBackgroundColor;
+  final Color? languageSelectionForegroundColor;
+  final Color? languageSelectionSecondaryForegroundColor;
+  final double languageSelectionButtonWidth;
+  final double languageSelectionButtonHeight;
+  final Color? languageSelectionButtonColor;
+  final Color? languageSelectionButtonForegroundColor;
+  final Color? languageSelectionSelectedButtonColor;
+  final Color? languageSelectionSelectedButtonForegroundColor;
   final String topicSelectionTitle;
   final String topicSelectionSubtitle;
   final bool skipSingleTopic;
@@ -49,6 +60,15 @@ class MenuConfig {
     this.languageSelectionTitle = '언어를 선택하세요',
     this.languageSelectionSubtitle = 'Please select your language',
     this.languageSelectionFontFamily,
+    this.languageSelectionBackgroundColor,
+    this.languageSelectionForegroundColor,
+    this.languageSelectionSecondaryForegroundColor,
+    this.languageSelectionButtonWidth = 400,
+    this.languageSelectionButtonHeight = 190,
+    this.languageSelectionButtonColor,
+    this.languageSelectionButtonForegroundColor,
+    this.languageSelectionSelectedButtonColor,
+    this.languageSelectionSelectedButtonForegroundColor,
     this.topicSelectionTitle = '주제를 선택하세요',
     this.topicSelectionSubtitle = 'Please select a topic',
     this.skipSingleTopic = true,

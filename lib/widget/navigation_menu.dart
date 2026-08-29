@@ -9,6 +9,7 @@ import '../service/keyboard_controller.dart';
 import '../service/font_resource_service.dart';
 import '../service/system_keyboard.dart';
 import 'kiosk_webview.dart';
+import 'icon_path_candidates.dart';
 import 'material_icon_registry.dart';
 import 'platform_file_image.dart';
 import 'version_overlay.dart';
@@ -48,6 +49,9 @@ class NavigationMenu extends StatelessWidget {
 
   /// 버튼 사이 간격(dp).
   final double buttonGap;
+
+  /// 항목별 재정의가 없을 때 메뉴 아이콘을 기본적으로 감출지 여부.
+  final bool hideItemIcons;
 
   /// 버튼 정렬 방식.
   final NavAlignment buttonAlignment;
@@ -122,6 +126,7 @@ class NavigationMenu extends StatelessWidget {
     this.buttonHeight = 0,
     this.buttonWidth = 0,
     this.buttonGap = 8,
+    this.hideItemIcons = false,
     this.buttonAlignment = NavAlignment.stretch,
     this.showHistoryButtons = false,
     this.historyController,
@@ -228,6 +233,7 @@ class NavigationMenu extends StatelessWidget {
                                 title: items[i].title,
                                 iconPath: items[i].icon,
                                 selectedIconPath: items[i].selectedIcon,
+                                showIcon: items[i].showIcon ?? !hideItemIcons,
                                 showTitle: items[i].showTitle,
                                 selected: i == selectedIndex,
                                 orientation: NavigationOrientation.side,
@@ -481,6 +487,7 @@ class NavigationMenu extends StatelessWidget {
                                 title: items[i].title,
                                 iconPath: items[i].icon,
                                 selectedIconPath: items[i].selectedIcon,
+                                showIcon: items[i].showIcon ?? !hideItemIcons,
                                 showTitle: items[i].showTitle,
                                 selected: i == selectedIndex,
                                 orientation: NavigationOrientation.bottom,
@@ -1348,6 +1355,7 @@ class _NavButton extends StatelessWidget {
   final String title;
   final String? iconPath;
   final String? selectedIconPath;
+  final bool showIcon;
   final bool showTitle;
   final bool selected;
   final NavigationOrientation orientation;
@@ -1368,6 +1376,7 @@ class _NavButton extends StatelessWidget {
     required this.title,
     required this.iconPath,
     required this.selectedIconPath,
+    required this.showIcon,
     required this.showTitle,
     required this.selected,
     required this.orientation,
@@ -1395,9 +1404,11 @@ class _NavButton extends StatelessWidget {
         ? scheme.primary.withValues(alpha: 0.62)
         : scheme.outlineVariant.withValues(alpha: 0.68);
 
-    final effectiveIconPath = selected && selectedIconPath?.isNotEmpty == true
-        ? selectedIconPath
-        : iconPath;
+    final effectiveIconPath = !showIcon
+        ? null
+        : selected && selectedIconPath?.isNotEmpty == true
+            ? selectedIconPath
+            : iconPath;
     final hasIcon = effectiveIconPath != null && effectiveIconPath.isNotEmpty;
     // 아이콘 없으면 텍스트는 무조건 보여줘야 빈 버튼이 안 된다.
     final showLabel = showTitle || !hasIcon;
@@ -1485,7 +1496,14 @@ class _NavButton extends StatelessWidget {
     bool hasIcon,
     bool showLabel,
   ) {
-    final label = _AutoSizeTwoLineText(title: title);
+    final label = _AutoSizeTwoLineText(
+      title: title,
+      maxFontSize: hasIcon
+          ? 18
+          : orientation == NavigationOrientation.side
+              ? 28
+              : 24,
+    );
 
     if (!hasIcon) {
       // 아이콘 없음 → 텍스트만
@@ -1517,15 +1535,19 @@ class _NavButton extends StatelessWidget {
 
 class _AutoSizeTwoLineText extends StatelessWidget {
   final String title;
+  final double maxFontSize;
 
-  const _AutoSizeTwoLineText({required this.title});
+  const _AutoSizeTwoLineText({
+    required this.title,
+    this.maxFontSize = 18,
+  });
 
   @override
   Widget build(BuildContext context) {
     final inherited = DefaultTextStyle.of(context).style;
     return LayoutBuilder(
       builder: (context, constraints) {
-        var fontSize = inherited.fontSize ?? 18;
+        var fontSize = maxFontSize;
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : double.infinity;
@@ -1600,22 +1622,40 @@ class _IconImage extends StatelessWidget {
       );
     }
 
+    final candidates = buildIconPathCandidates(
+      path,
+      Theme.of(context).brightness,
+    );
+    return _buildLocalImage(candidates, 0, fallback);
+  }
+
+  Widget _buildLocalImage(
+    List<String> candidates,
+    int index,
+    Widget fallback,
+  ) {
+    if (index >= candidates.length) return fallback;
+    final candidate = candidates[index];
+    Widget onError(Object _, StackTrace? __) =>
+        _buildLocalImage(candidates, index + 1, fallback);
+
     // 3) 데이터 루트의 외부 파일 이미지.
-    if (_isAbsoluteFilePath(path)) {
+    if (_isAbsoluteFilePath(candidate)) {
       return PlatformFileImage(
-        path: path,
+        path: candidate,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => fallback,
+        errorBuilder: (context, error, stackTrace) =>
+            onError(error, stackTrace),
       );
     }
 
     // 4) 에셋 이미지.
     return Image.asset(
-      path,
+      candidate,
       fit: BoxFit.contain,
       gaplessPlayback: true,
       filterQuality: FilterQuality.medium,
-      errorBuilder: (_, __, ___) => fallback,
+      errorBuilder: (context, error, stackTrace) => onError(error, stackTrace),
     );
   }
 }

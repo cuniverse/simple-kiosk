@@ -9,6 +9,7 @@
 ///   "url": "https://example.com",
 ///   "icon": "assets/icons/home.png",
 ///   "selectedIcon": "assets/icons/home-selected.png",
+///   "showIcon": true,
 ///   "showTitle": false
 /// }
 /// ```
@@ -45,6 +46,12 @@ class MenuItem {
   /// 지원하는 경로 형식은 [icon]과 같다.
   final String? selectedIcon;
 
+  /// 아이콘 표시 여부의 항목별 재정의.
+  ///
+  /// `null`이면 전체 `layout.hideItemIcons`를 따르고, `false`이면 아이콘 경로를
+  /// 보존한 채 감춘다. `true`이면 테마 기본값이 감춤이어도 이 항목은 표시한다.
+  final bool? showIcon;
+
   /// 버튼에 [title] 텍스트를 표시할지 여부. 기본값은 `true`.
   ///
   /// `false`로 두면 아이콘만 표시한다. 단, 아이콘이 없으면
@@ -66,6 +73,7 @@ class MenuItem {
     this.fontFamily,
     this.icon,
     this.selectedIcon,
+    this.showIcon,
     this.showTitle = true,
     this.keepStateOnTap,
   });
@@ -80,6 +88,7 @@ class MenuItem {
     final url = json['url'];
     final icon = json['icon'];
     final selectedIcon = json['selectedIcon'];
+    final showIcon = json['showIcon'];
     final showTitle = json['showTitle'];
     final keepState = json['keepStateOnTap'];
     final hidden = json['hidden'];
@@ -99,6 +108,9 @@ class MenuItem {
     }
     if (fontFamily != null && fontFamily is! String) {
       throw const FormatException('menu item: "fontFamily"는 문자열이어야 함');
+    }
+    if (showIcon != null && showIcon is! bool) {
+      throw const FormatException('menu item: "showIcon"은 bool 이어야 함');
     }
 
     String? iconPath;
@@ -131,6 +143,7 @@ class MenuItem {
           : null,
       icon: iconPath,
       selectedIcon: selectedIconPath,
+      showIcon: showIcon as bool?,
       showTitle: showTitle is bool ? showTitle : true,
       keepStateOnTap: keepStateOnTap,
     );

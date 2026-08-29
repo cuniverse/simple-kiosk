@@ -4,8 +4,10 @@
   "name": "차분한 네이비",
   "description": "어두운 공간에서 눈부심을 줄인 기본형 테마입니다.",
   "values": {
-    "fontFamily": "Pretendard",
-    "menuFontFamily": "Pretendard",
+    "brightness": "dark",
+    "hideItemIcons": false,
+    "fontFamily": "Catholic",
+    "menuFontFamily": "Catholic",
     "sideWidth": 220,
     "barHeight": 96,
     "buttonHeight": 0,
@@ -16,6 +18,18 @@
     "buttonColor": "#374151",
     "buttonForegroundColor": "#ffffff",
     "selectedButtonColor": "#2563eb",
-    "selectedButtonForegroundColor": "#ffffff"
+    "selectedButtonForegroundColor": "#ffffff",
+    "languageSelection": {
+      "fontFamily": "Catholic",
+      "backgroundColor": "#111827",
+      "foregroundColor": "#f8fafc",
+      "secondaryForegroundColor": "#cbd5e1",
+      "buttonWidth": 400,
+      "buttonHeight": 190,
+      "buttonColor": "#374151",
+      "buttonForegroundColor": "#ffffff",
+      "selectedButtonColor": "#2563eb",
+      "selectedButtonForegroundColor": "#ffffff"
+    }
   }
 }

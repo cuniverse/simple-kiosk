@@ -22,6 +22,11 @@ void main() {
             'barColor': '#111827',
             'buttonGap': 8,
             'navPosition': 'right',
+            'languageSelection': {
+              'backgroundColor': '#030712',
+              'buttonWidth': 420,
+              'skipSingleTopic': false,
+            },
           },
         },
       ],
@@ -36,17 +41,37 @@ void main() {
     expect(themes.single.name, '프리로드 테마');
     expect(themes.single.id, 'preloaded:navy');
     expect(themes.single.values['barColor'], '#111827');
+    expect(themes.single.values['brightness'], 'light');
+    expect(themes.single.values['hideItemIcons'], isFalse);
     expect(themes.single.values.containsKey('navPosition'), isFalse);
+    expect(
+      themes.single.values['languageSelection'],
+      {'backgroundColor': '#030712', 'buttonWidth': 420},
+    );
   });
 
   test('사용자 테마를 별도 파일로 저장하고 삭제한다', () async {
     final saved = await service.saveUserTheme('나의 테마', {
+      'brightness': 'dark',
+      'hideItemIcons': true,
       'barColor': '#222222',
       'buttonGap': 10,
       'windowsKioskLockdown': false,
+      'languageSelection': {
+        'fontFamily': 'Catholic',
+        'selectedButtonColor': '#facc15',
+        'buttonHeight': 190,
+      },
     });
     expect(saved.preloaded, isFalse);
+    expect(saved.values['brightness'], 'dark');
+    expect(saved.values['hideItemIcons'], isTrue);
     expect(saved.values.containsKey('windowsKioskLockdown'), isFalse);
+    expect(saved.values['languageSelection'], {
+      'fontFamily': 'Catholic',
+      'selectedButtonColor': '#facc15',
+      'buttonHeight': 190,
+    });
     expect(
         (await service.list()).map((theme) => theme.name), contains('나의 테마'));
 
@@ -80,6 +105,19 @@ void main() {
     expect(themes.where((theme) => theme.preloaded).length,
         greaterThanOrEqualTo(3));
     expect(themes.every((theme) => theme.name.trim().isNotEmpty), isTrue);
+  });
+
+  test('languageSelection 테마 값의 형식을 검증한다', () async {
+    expect(
+      () => service.saveUserTheme('Invalid language theme', {
+        'languageSelection': {'buttonWidth': 0},
+      }),
+      throwsA(isA<UiThemeException>().having(
+        (error) => error.code,
+        'code',
+        'invalid-theme-language-selection',
+      )),
+    );
   });
 
   test('프리로드 테마와 같은 이름으로 저장할 수 없다', () async {

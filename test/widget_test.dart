@@ -31,6 +31,7 @@ import 'package:simple_kiosk/service/update_service.dart';
 import 'package:simple_kiosk/service/windows_startup_service.dart';
 import 'package:simple_kiosk/widget/idle_gate.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
+import 'package:simple_kiosk/widget/icon_path_candidates.dart';
 import 'package:simple_kiosk/widget/kiosk_shortcuts.dart';
 import 'package:simple_kiosk/widget/kiosk_webview.dart';
 import 'package:simple_kiosk/widget/language_selection.dart';
@@ -140,6 +141,14 @@ void main() {
     expect(page, contains("restoreProperty('fontFamily')"));
     expect(page, contains('선택 아이콘 (선택 사항)'));
     expect(page, contains("restoreProperty('selectedIcon')"));
+    expect(page, contains('layout.brightness'));
+    expect(page, contains('layout.hideItemIcons'));
+    expect(page, contains("item.showIcon===undefined"));
+    expect(page, contains("delete item.showIcon"));
+    expect(page, contains('languageSelection.backgroundColor'));
+    expect(page, contains('languageSelection.buttonWidth'));
+    expect(page, contains('languageSelection.buttonColor'));
+    expect(page, contains('languageSelection.fontFamily'));
     expect(page, contains('Local Storage'));
     expect(page, contains('id="reauthOverlay"'));
     expect(page, contains('현재 화면과 저장하지 않은 설정은 그대로 유지됩니다.'));
@@ -274,6 +283,8 @@ void main() {
     expect(page, contains('/api/themes'));
     expect(page, contains('saveCurrentTheme'));
     expect(page, contains('appearanceChangedFromSaved'));
+    expect(page, contains('languageSelectionThemeKeys'));
+    expect(page, contains('values.languageSelection'));
     expect(page, contains('사용자 테마 삭제'));
   });
 
@@ -303,23 +314,33 @@ void main() {
     expect(loader, contains("value.startsWith('exdata/')"));
     expect(idleOverlay, contains('_MixedMediaKind.fileImage'));
     expect(idleOverlay, contains('PlatformFileImage(key: key'));
-    expect(navigation, contains('if (_isAbsoluteFilePath(path))'));
+    expect(navigation, contains('if (_isAbsoluteFilePath(candidate))'));
     expect(navigation, contains('return PlatformFileImage('));
     expect(language, contains('if (_isAbsoluteFilePath(value))'));
   });
 
-  test('고대비 기본 UI 값은 프리로드 고대비 테마와 정확히 일치한다', () {
+  test('기본 UI 값은 프리로드 고대비 텍스트 테마와 정확히 일치한다', () {
     final defaults = jsonDecode(
       File('assets/config/menu.defaults.json').readAsStringSync(),
     ) as Map<String, dynamic>;
     final theme = jsonDecode(
-      File('assets/themes/high-contrast.json').readAsStringSync(),
+      File('assets/themes/high-contrast-text.json').readAsStringSync(),
     ) as Map<String, dynamic>;
     final layout = defaults['layout'] as Map<String, dynamic>;
     final values = theme['values'] as Map<String, dynamic>;
 
-    for (final entry in values.entries) {
+    for (final entry in values.entries.where(
+      (entry) => entry.key != 'languageSelection',
+    )) {
       expect(layout[entry.key], entry.value, reason: entry.key);
+    }
+    final languageSelection =
+        defaults['languageSelection'] as Map<String, dynamic>;
+    final themedLanguageSelection =
+        values['languageSelection'] as Map<String, dynamic>;
+    for (final entry in themedLanguageSelection.entries) {
+      expect(languageSelection[entry.key], entry.value,
+          reason: 'languageSelection.${entry.key}');
     }
   });
 
@@ -692,6 +713,44 @@ void main() {
     expect(fallback.selectedIcon, isNull);
   });
 
+  test('메뉴 아이콘 표시 재정의를 nullable bool로 파싱한다', () {
+    MenuItem item(Object? showIcon) => MenuItem.fromJson({
+          'id': 'home',
+          'title': '홈',
+          'url': 'https://example.com',
+          if (showIcon != null) 'showIcon': showIcon,
+        });
+
+    expect(item(null).showIcon, isNull);
+    expect(item(true).showIcon, isTrue);
+    expect(item(false).showIcon, isFalse);
+    expect(() => item('true'), throwsFormatException);
+  });
+
+  test('확장자 없는 아이콘은 테마 밝기에 맞는 이미지 후보를 우선한다', () {
+    const base = 'assets/icons/sample';
+    final dark = buildIconPathCandidates(base, Brightness.dark);
+    final light = buildIconPathCandidates(base, Brightness.light);
+
+    expect(dark.take(3), [
+      '$base-white.png',
+      '$base-white.jpg',
+      '$base-white.jpeg',
+    ]);
+    expect(light.first, '$base-black.png');
+    expect(dark, contains('$base-color.png'));
+    expect(dark, contains('$base.png'));
+    expect(dark.last, '$base-black.gif');
+    expect(
+      buildIconPathCandidates('$base.png', Brightness.dark),
+      ['$base.png'],
+    );
+    expect(
+      buildIconPathCandidates('$base.svg', Brightness.light),
+      ['$base.svg'],
+    );
+  });
+
   test('등록되지 않은 defaultMenu는 설정 오류로 거부한다', () {
     expect(
       () => MenuConfigLoader.parse({
@@ -715,6 +774,15 @@ void main() {
       'languageSelection': {
         'skipSingleTopic': false,
         'fontFamily': 'NanumSquare',
+        'backgroundColor': '#102030',
+        'foregroundColor': '#f1f2f3',
+        'secondaryForegroundColor': '#a1a2a3',
+        'buttonWidth': 360,
+        'buttonHeight': 170,
+        'buttonColor': '#334455',
+        'buttonForegroundColor': '#ffffff',
+        'selectedButtonColor': '#ffee00',
+        'selectedButtonForegroundColor': '#000000',
       },
       'languages': [
         {
@@ -757,6 +825,27 @@ void main() {
     expect(language.defaultItem.id, 'map');
     expect(config.skipSingleTopic, isFalse);
     expect(config.languageSelectionFontFamily, 'NanumSquare');
+    expect(config.languageSelectionBackgroundColor, const Color(0xFF102030));
+    expect(config.languageSelectionForegroundColor, const Color(0xFFF1F2F3));
+    expect(
+      config.languageSelectionSecondaryForegroundColor,
+      const Color(0xFFA1A2A3),
+    );
+    expect(config.languageSelectionButtonWidth, 360);
+    expect(config.languageSelectionButtonHeight, 170);
+    expect(config.languageSelectionButtonColor, const Color(0xFF334455));
+    expect(
+      config.languageSelectionButtonForegroundColor,
+      const Color(0xFFFFFFFF),
+    );
+    expect(
+      config.languageSelectionSelectedButtonColor,
+      const Color(0xFFFFEE00),
+    );
+    expect(
+      config.languageSelectionSelectedButtonForegroundColor,
+      const Color(0xFF000000),
+    );
     expect(language.fontFamily, 'Catholic');
     expect(language.defaultItem.fontFamily, 'NanumBrush');
   });
@@ -966,7 +1055,7 @@ void main() {
           )
           .firstWhere((item) => item['id'] == 'vatican-news');
       expect(item['url'], entry.value);
-      expect(item['icon'], 'assets/icons/vatican-news-white.png');
+      expect(item['icon'], 'assets/icons/vatican-news');
       expect(item['selectedIcon'], 'assets/icons/vatican-news.png');
     }
     for (final path in [
@@ -980,10 +1069,10 @@ void main() {
       expect(File(path).existsSync(), isTrue, reason: path);
     }
     expect(File('assets/icons/goodnews-wite.png').existsSync(), isFalse);
-    expect(config.layout.fontFamily, 'Pretendard');
-    expect(config.layout.menuFontFamily, 'Pretendard');
+    expect(config.layout.fontFamily, 'Catholic');
+    expect(config.layout.menuFontFamily, 'Catholic');
     final highContrast = jsonDecode(
-      File('assets/themes/high-contrast.json').readAsStringSync(),
+      File('assets/themes/high-contrast-text.json').readAsStringSync(),
     )['values'] as Map<String, dynamic>;
     expect(config.layout.sideWidth, highContrast['sideWidth']);
     expect(config.layout.barHeight, highContrast['barHeight']);
@@ -993,13 +1082,14 @@ void main() {
     expect(config.layout.selectedButtonColor, const Color(0xFFFACC15));
     expect(
         config.layout.selectedButtonForegroundColor, const Color(0xFF000000));
-    expect(config.languageSelectionFontFamily, 'Pretendard');
-    expect(config.language('ko').fontFamily, 'NanumSquare');
+    expect(config.languageSelectionFontFamily, 'Catholic');
+    expect(config.language('ko').fontFamily, 'Catholic');
     expect(
       config.languages.expand((language) => language.effectiveTopics).expand(
             (topic) => topic.items,
           ),
-      everyElement(predicate<MenuItem>((item) => item.fontFamily != null)),
+      everyElement(
+          predicate<MenuItem>((item) => item.fontFamily == 'Catholic')),
     );
     expect(
       config
@@ -1008,7 +1098,7 @@ void main() {
           .expand((topic) => topic.items)
           .firstWhere((item) => item.title == '주보')
           .fontFamily,
-      'NanumBrush',
+      'Catholic',
     );
     expect(
       config.language('en').items.firstWhere((item) => item.id == 'aos').title,
@@ -1056,6 +1146,15 @@ void main() {
           title: '언어를 선택하세요',
           subtitle: 'Please select your language',
           fontFamily: 'NanumSquare',
+          backgroundColor: const Color(0xFF102030),
+          foregroundColor: const Color(0xFFF1F2F3),
+          secondaryForegroundColor: const Color(0xFFA1A2A3),
+          buttonWidth: 360,
+          buttonHeight: 170,
+          buttonColor: const Color(0xFF334455),
+          buttonForegroundColor: const Color(0xFFFFFFFF),
+          selectedButtonColor: const Color(0xFFFFEE00),
+          selectedButtonForegroundColor: const Color(0xFF000000),
           languages: const [
             MenuLanguage(
               id: 'ko',
@@ -1080,7 +1179,22 @@ void main() {
     final button = find.byKey(const ValueKey('language-ko'));
     expect(button, findsOneWidget);
     expect(find.byType(Image), findsOneWidget);
-    expect(tester.getSize(button), const Size(400, 190));
+    expect(tester.getSize(button), const Size(360, 170));
+    expect(
+      tester
+          .widget<Material>(
+            find.byKey(const ValueKey('language-selection-background')),
+          )
+          .color,
+      const Color(0xFF102030),
+    );
+    final filledButton = tester.widget<FilledButton>(
+      find.descendant(of: button, matching: find.byType(FilledButton)),
+    );
+    expect(
+      filledButton.style?.backgroundColor?.resolve(<WidgetState>{}),
+      const Color(0xFF334455),
+    );
     expect(tester.widget<Text>(find.text('언어를 선택하세요')).style?.fontFamily,
         'NanumSquare');
     expect(tester.widget<Text>(find.text('한국어')).style?.fontFamily, 'Catholic');
@@ -1460,6 +1574,48 @@ void main() {
     expect(find.byIcon(Icons.home_filled), findsOneWidget);
     expect(find.byIcon(Icons.campaign_outlined), findsNothing);
     expect(find.byIcon(Icons.star_outline), findsOneWidget);
+  });
+
+  testWidgets('테마 아이콘 감춤과 item.showIcon 재정의를 적용한다', (tester) async {
+    Future<double> pump({
+      required bool hideItemIcons,
+      bool? showIcon,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NavigationMenu(
+              items: [
+                MenuItem(
+                  id: 'home',
+                  title: '홈',
+                  url: 'https://example.com',
+                  icon: 'icon:home',
+                  showIcon: showIcon,
+                ),
+              ],
+              selectedIndex: 0,
+              onSelected: (_) {},
+              orientation: NavigationOrientation.side,
+              hideItemIcons: hideItemIcons,
+            ),
+          ),
+        ),
+      );
+      return tester.widget<Text>(find.text('홈')).style!.fontSize!;
+    }
+
+    final inheritedHiddenSize = await pump(hideItemIcons: true);
+    expect(find.byIcon(Icons.home_filled), findsNothing);
+    expect(inheritedHiddenSize, greaterThan(18));
+
+    await pump(hideItemIcons: true, showIcon: true);
+    expect(find.byIcon(Icons.home_filled), findsOneWidget);
+
+    final explicitlyHiddenSize =
+        await pump(hideItemIcons: false, showIcon: false);
+    expect(find.byIcon(Icons.home_filled), findsNothing);
+    expect(explicitlyHiddenSize, greaterThan(18));
   });
 
   test('semantic versions and overnight install windows are handled', () {
@@ -2252,6 +2408,8 @@ void main() {
   });
 
   test('툴바는 기본적으로 숨김이며 자동 숨김 시간을 파싱한다', () {
+    expect(LayoutConfig.defaults.brightness, Brightness.light);
+    expect(LayoutConfig.defaults.hideItemIcons, isFalse);
     expect(LayoutConfig.defaults.toolbarInitiallyHidden, isTrue);
     expect(LayoutConfig.defaults.toolbarAutoHideSec, 10);
     expect(LayoutConfig.defaults.keyboardMode, KeyboardMode.windows);
@@ -2260,14 +2418,15 @@ void main() {
       LayoutConfig.defaults.selectedTopicLabelColor,
       const Color(0xFFF8FAFC),
     );
-    expect(LayoutConfig.defaults.windowsKioskLockdown, isTrue);
+    expect(LayoutConfig.defaults.windowsKioskLockdown, isFalse);
     expect(LayoutConfig.defaults.windowsDisableEdgeSwipe, isTrue);
     expect(LayoutConfig.defaults.windowsKioskShortcuts.windowsKey, isTrue);
     expect(LayoutConfig.defaults.windowsKioskShortcuts.altTab, isTrue);
     expect(LayoutConfig.defaults.windowsAlwaysOnTop, isFalse);
     expect(LayoutConfig.defaults.windowsPreventScreenSaver, isTrue);
     expect(LayoutConfig.defaults.windowsPreventDisplaySleep, isTrue);
-    expect(LayoutConfig.defaults.fontFamily, 'Pretendard');
+    expect(LayoutConfig.defaults.fontFamily, 'Catholic');
+    expect(LayoutConfig.defaults.menuFontFamily, 'Catholic');
     expect(LayoutConfig.defaults.sideWidth, 230);
     expect(LayoutConfig.defaults.barHeight, 102);
     expect(LayoutConfig.defaults.buttonGap, 10);
@@ -2276,6 +2435,8 @@ void main() {
     expect(LayoutConfig.defaults.selectedButtonColor, const Color(0xFFFACC15));
 
     final config = LayoutConfig.fromJson({
+      'brightness': 'dark',
+      'hideItemIcons': true,
       'fontFamily': ' Pretendard ',
       'menuFontFamily': ' NanumGothic ',
       'toolbarInitiallyHidden': false,
@@ -2297,6 +2458,8 @@ void main() {
       'windowsPreventDisplaySleep': false,
     });
     expect(config.toolbarInitiallyHidden, isFalse);
+    expect(config.brightness, Brightness.dark);
+    expect(config.hideItemIcons, isTrue);
     expect(config.fontFamily, 'Pretendard');
     expect(config.menuFontFamily, 'NanumGothic');
     expect(config.toolbarAutoHideSec, 25);

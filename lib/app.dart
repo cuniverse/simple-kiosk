@@ -223,20 +223,43 @@ class _MenuBootstrapState extends State<_MenuBootstrap> {
             ),
           );
         }
-        return _KioskHome(
-          languages: snapshot.data!.languages,
-          defaultLanguageId: snapshot.data!.defaultLanguageId,
-          languageSelectionTitle: snapshot.data!.languageSelectionTitle,
-          languageSelectionSubtitle: snapshot.data!.languageSelectionSubtitle,
-          languageSelectionFontFamily:
-              snapshot.data!.languageSelectionFontFamily,
-          topicSelectionTitle: snapshot.data!.topicSelectionTitle,
-          topicSelectionSubtitle: snapshot.data!.topicSelectionSubtitle,
-          skipSingleTopic: snapshot.data!.skipSingleTopic,
-          layout: snapshot.data!.layout,
-          idle: snapshot.data!.idle,
-          webViewDataPolicy: snapshot.data!.webViewDataPolicy,
-          onReloadConfig: _retry,
+        final config = snapshot.data!;
+        return Theme(
+          data: ThemeData(
+            useMaterial3: true,
+            brightness: config.layout.brightness,
+            colorSchemeSeed: Colors.indigo,
+            fontFamily: FontResourceService.current.value.effectiveFamily,
+          ),
+          child: _KioskHome(
+            languages: config.languages,
+            defaultLanguageId: config.defaultLanguageId,
+            languageSelectionTitle: config.languageSelectionTitle,
+            languageSelectionSubtitle: config.languageSelectionSubtitle,
+            languageSelectionFontFamily: config.languageSelectionFontFamily,
+            languageSelectionBackgroundColor:
+                config.languageSelectionBackgroundColor,
+            languageSelectionForegroundColor:
+                config.languageSelectionForegroundColor,
+            languageSelectionSecondaryForegroundColor:
+                config.languageSelectionSecondaryForegroundColor,
+            languageSelectionButtonWidth: config.languageSelectionButtonWidth,
+            languageSelectionButtonHeight: config.languageSelectionButtonHeight,
+            languageSelectionButtonColor: config.languageSelectionButtonColor,
+            languageSelectionButtonForegroundColor:
+                config.languageSelectionButtonForegroundColor,
+            languageSelectionSelectedButtonColor:
+                config.languageSelectionSelectedButtonColor,
+            languageSelectionSelectedButtonForegroundColor:
+                config.languageSelectionSelectedButtonForegroundColor,
+            topicSelectionTitle: config.topicSelectionTitle,
+            topicSelectionSubtitle: config.topicSelectionSubtitle,
+            skipSingleTopic: config.skipSingleTopic,
+            layout: config.layout,
+            idle: config.idle,
+            webViewDataPolicy: config.webViewDataPolicy,
+            onReloadConfig: _retry,
+          ),
         );
       },
     );
@@ -258,6 +281,15 @@ class _KioskHome extends StatefulWidget {
   final String languageSelectionTitle;
   final String languageSelectionSubtitle;
   final String? languageSelectionFontFamily;
+  final Color? languageSelectionBackgroundColor;
+  final Color? languageSelectionForegroundColor;
+  final Color? languageSelectionSecondaryForegroundColor;
+  final double languageSelectionButtonWidth;
+  final double languageSelectionButtonHeight;
+  final Color? languageSelectionButtonColor;
+  final Color? languageSelectionButtonForegroundColor;
+  final Color? languageSelectionSelectedButtonColor;
+  final Color? languageSelectionSelectedButtonForegroundColor;
   final String topicSelectionTitle;
   final String topicSelectionSubtitle;
   final bool skipSingleTopic;
@@ -271,6 +303,15 @@ class _KioskHome extends StatefulWidget {
     required this.languageSelectionTitle,
     required this.languageSelectionSubtitle,
     required this.languageSelectionFontFamily,
+    required this.languageSelectionBackgroundColor,
+    required this.languageSelectionForegroundColor,
+    required this.languageSelectionSecondaryForegroundColor,
+    required this.languageSelectionButtonWidth,
+    required this.languageSelectionButtonHeight,
+    required this.languageSelectionButtonColor,
+    required this.languageSelectionButtonForegroundColor,
+    required this.languageSelectionSelectedButtonColor,
+    required this.languageSelectionSelectedButtonForegroundColor,
     required this.topicSelectionTitle,
     required this.topicSelectionSubtitle,
     required this.skipSingleTopic,
@@ -1563,6 +1604,7 @@ class _KioskHomeState extends State<_KioskHome> {
                         buttonHeight: widget.layout.buttonHeight,
                         buttonWidth: widget.layout.buttonWidth,
                         buttonGap: widget.layout.buttonGap,
+                        hideItemIcons: widget.layout.hideItemIcons,
                         buttonAlignment: widget.layout.buttonAlignment,
                         showHistoryButtons: widget.layout.showHistoryButtons,
                         historyController: _currentController,
@@ -1640,6 +1682,19 @@ class _KioskHomeState extends State<_KioskHome> {
                       fontFamily: FontResourceService.familyFor(
                         widget.languageSelectionFontFamily,
                       ),
+                      backgroundColor: widget.languageSelectionBackgroundColor,
+                      foregroundColor: widget.languageSelectionForegroundColor,
+                      secondaryForegroundColor:
+                          widget.languageSelectionSecondaryForegroundColor,
+                      buttonWidth: widget.languageSelectionButtonWidth,
+                      buttonHeight: widget.languageSelectionButtonHeight,
+                      buttonColor: widget.languageSelectionButtonColor,
+                      buttonForegroundColor:
+                          widget.languageSelectionButtonForegroundColor,
+                      selectedButtonColor:
+                          widget.languageSelectionSelectedButtonColor,
+                      selectedButtonForegroundColor:
+                          widget.languageSelectionSelectedButtonForegroundColor,
                       topicTitle: widget.topicSelectionTitle,
                       topicSubtitle: widget.topicSelectionSubtitle,
                       skipSingleTopic: widget.skipSingleTopic,
