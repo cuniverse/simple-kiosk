@@ -14,8 +14,28 @@ import 'admin_pin_keypad.dart';
 
 class UpdateAdminDialog {
   static final AdminPinStore _pinStore = AdminPinStore();
+  static const String _windowsSettingsFontFamily = 'Segoe UI';
 
   static bool get isConfigured => true;
+
+  static Widget _withWindowsSystemFont(
+    BuildContext context,
+    Widget child,
+  ) {
+    final theme = Theme.of(context);
+    if (theme.platform != TargetPlatform.windows) return child;
+    return Theme(
+      data: theme.copyWith(
+        textTheme: theme.textTheme.apply(
+          fontFamily: _windowsSettingsFontFamily,
+        ),
+        primaryTextTheme: theme.primaryTextTheme.apply(
+          fontFamily: _windowsSettingsFontFamily,
+        ),
+      ),
+      child: child,
+    );
+  }
 
   static Uri? _webAdminUri(AdminApiController? controller) {
     if (controller == null || !controller.running) return null;
@@ -64,22 +84,25 @@ class UpdateAdminDialog {
     final pinController = TextEditingController();
     final authenticated = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('관리자 PIN'),
-        content: AdminPinKeypad(
-          controller: pinController,
-          onSubmitted: () => Navigator.pop(dialogContext, true),
+      builder: (dialogContext) => _withWindowsSystemFont(
+        dialogContext,
+        AlertDialog(
+          title: const Text('관리자 PIN'),
+          content: AdminPinKeypad(
+            controller: pinController,
+            onSubmitted: () => Navigator.pop(dialogContext, true),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('확인'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('확인'),
-          ),
-        ],
       ),
     );
     final validPin = authenticated == true &&
@@ -96,13 +119,16 @@ class UpdateAdminDialog {
 
     await showDialog<void>(
       context: context,
-      builder: (context) => _UpdateAdminPanel(
-        controller: controller,
-        pinStore: _pinStore,
-        adminApiController: adminApiController,
-        onExit: onExit,
-        keyboardMode: keyboardMode,
-        onKeyboardModeChanged: onKeyboardModeChanged,
+      builder: (dialogContext) => _withWindowsSystemFont(
+        dialogContext,
+        _UpdateAdminPanel(
+          controller: controller,
+          pinStore: _pinStore,
+          adminApiController: adminApiController,
+          onExit: onExit,
+          keyboardMode: keyboardMode,
+          onKeyboardModeChanged: onKeyboardModeChanged,
+        ),
       ),
     );
   }

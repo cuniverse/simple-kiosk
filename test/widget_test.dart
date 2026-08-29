@@ -479,6 +479,10 @@ void main() {
     expect(source.substring(0, pinDialogEnd), isNot(contains(link)));
     expect(source.substring(adminPanelStart), contains(link));
     expect(source.substring(adminPanelStart), contains('actions: ['));
+    expect(source, contains("_windowsSettingsFontFamily = 'Segoe UI'"));
+    expect(source, contains('theme.platform != TargetPlatform.windows'));
+    expect(source, contains('textTheme: theme.textTheme.apply('));
+    expect(source, contains('primaryTextTheme: theme.primaryTextTheme.apply('));
   });
 
   test('관리자 PIN은 기본값, 변경 파일, 파일 삭제 순서로 동작한다', () async {
