@@ -100,6 +100,9 @@ class KioskWebView extends StatefulWidget {
   /// 현재 선택되어 가상 키보드 입력을 받아야 하는 WebView 여부.
   final bool active;
 
+  /// 웹 페이지의 `prefers-color-scheme`. 앱 UI 테마와 독립적이다.
+  final Brightness webViewBrightness;
+
   const KioskWebView({
     super.key,
     required this.initialUrl,
@@ -109,6 +112,7 @@ class KioskWebView extends StatefulWidget {
     this.onShowVersion,
     this.onCheckUpdate,
     this.active = true,
+    this.webViewBrightness = Brightness.light,
   });
 
   @override
@@ -896,305 +900,341 @@ class _KioskWebViewState extends State<KioskWebView> {
     useHybridComposition: true,
   );
 
+  Future<void> _applyPreferredColorScheme(
+    InAppWebViewController controller,
+  ) async {
+    if (defaultTargetPlatform != TargetPlatform.windows) return;
+    final value =
+        widget.webViewBrightness == Brightness.dark ? 'dark' : 'light';
+    try {
+      await controller.callDevToolsProtocolMethod(
+        methodName: 'Emulation.setEmulatedMedia',
+        parameters: {
+          'features': [
+            {'name': 'prefers-color-scheme', 'value': value},
+          ],
+        },
+      );
+    } catch (error) {
+      AppLogger.warning(
+        LogCategory.webview,
+        'WebView preferred color scheme 적용 실패 ($value): $error',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: InAppWebView(
-            // 세대 카운터를 키에 포함하면 [_recreateWebView] 호출 시
-            // Flutter 가 InAppWebView 를 폐기하고 새로 빌드한다.
-            key: ValueKey('kiosk-inappwebview-$_webviewGeneration'),
-            initialUrlRequest: URLRequest(
-              url: WebUri(_lastGoodUrl ?? widget.initialUrl),
-            ),
-            initialSettings: _settings,
-            // 문서 로드 완료 전 클릭과 iframe 내부 입력 요소도 감지한다.
-            initialUserScripts: UnmodifiableListView([
-              UserScript(
-                source: _keyboardFocusScript,
-                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                forMainFrameOnly: false,
-              ),
-            ]),
-            onWebViewCreated: (controller) {
-              if (!mounted) return;
-              _webController = controller;
-              final kc = KioskWebViewController._(controller);
-              _kioskController = kc;
-              // 메뉴 클릭(loadUrl) 시 응답 감시 타이머를 건다.
-              kc._onLoadRequested = _startLoadResponseWatchdog;
-              // 초기 URL을 히스토리 첫 항목으로 등록(메뉴 첫 항목과 동일).
-              kc._resetHistory(_lastGoodUrl ?? widget.initialUrl);
-              widget.onReady?.call(kc);
-              _scheduleLoadingFallback();
-              // 페이지에서 보낼 heartbeat 수신용 핸들러 등록.
-              controller.addJavaScriptHandler(
-                handlerName: 'signageZoomChanged',
-                callback: (arguments) {
-                  _handleReportedDevicePixelRatio(arguments);
-                  return null;
-                },
-              );
-              controller.addJavaScriptHandler(
-                handlerName: 'kioskHeartbeat',
-                callback: (_) {
-                  _lastHeartbeat = DateTime.now();
-                  _heartbeatArmed = true;
-                  return null;
-                },
-              );
-              // OS 가상 키보드 표시/숨김 요청 수신.
-              controller.addJavaScriptHandler(
-                handlerName: 'kioskKeyboardShow',
-                callback: (_) {
-                  _requestShowSystemKeyboard();
-                  return null;
-                },
-              );
-              controller.addJavaScriptHandler(
-                handlerName: 'kioskKeyboardHide',
-                callback: (_) {
-                  _requestHideSystemKeyboard();
-                  return null;
-                },
-              );
-              controller.addJavaScriptHandler(
-                handlerName: 'kioskShowManual',
-                callback: (_) {
-                  if (widget.active) widget.onShowManual?.call();
-                  return null;
-                },
-              );
-              controller.addJavaScriptHandler(
-                handlerName: 'kioskShowVersion',
-                callback: (_) {
-                  if (widget.active) widget.onShowVersion?.call();
-                  return null;
-                },
-              );
-              controller.addJavaScriptHandler(
-                handlerName: 'kioskCheckUpdate',
-                callback: (_) {
-                  if (widget.active) widget.onCheckUpdate?.call();
-                  return null;
-                },
-              );
-              // 화면에 보이는 WebView만 watchdog을 가동한다. IndexedStack 뒤의
-              // WebView는 플랫폼이 JS 타이머를 throttle할 수 있다.
-              if (widget.active) _startHealthCheck();
-            },
-            onLoadStart: (controller, url) {
-              if (!mounted) return;
-              // 새 탐색이 시작되면 이전 오류의 예약 재시도가 중간에 끼어들지 않게 한다.
-              _cancelAutoRetry();
-              setState(() {
-                _isLoading = true;
-                _errorMessage = null;
-                _currentUrl = url?.toString();
-              });
-              _scheduleLoadingFallback();
-              // 응답이 도착했으므로 메뉴 클릭 watchdog 해제.
-              _cancelLoadResponseWatchdog();
-              _kioskController?._noteNavigationStart(url?.toString());
-            },
-            // 기본 문서가 WebView에 커밋되어 실제 표시 가능한 순간 바로 전환한다.
-            // 이미지·스크립트 등 나머지 리소스는 표시된 화면에서 계속 로드된다.
-            onPageCommitVisible: (controller, url) {
-              if (!mounted || url?.toString() == 'about:blank') return;
-              _reportInitialLoadReady();
-            },
-            onLoadStop: (controller, url) {
-              if (!mounted) return;
-              // WebView2는 메인 프레임 오류 뒤에도 onLoadStop을 보낼 수 있다.
-              // 이 경우 오류 화면과 자동 재시도 타이머를 그대로 유지해야 한다.
-              final failed = _errorMessage != null;
-              setState(() {
-                _currentUrl = url?.toString();
-              });
-              _finishLoading();
-              if (failed) return;
-              // 정상 로드 완료 → 자동 재시도 카운터/타이머 초기화.
-              _consecutiveErrors = 0;
-              _cancelAutoRetry();
-              if (url != null && url.toString() != 'about:blank') {
-                _lastGoodUrl = url.toString();
-              }
-              // 페이지가 바뀔 때마다 heartbeat 스크립트를 다시 주입.
-              _injectHeartbeatScript();
-              // OS 가상 키보드 트리거용 input 포커스 리스너도 함께 주입.
-              _injectKeyboardFocusScript();
-              _injectFunctionKeyScript();
-              unawaited(_installZoomMonitor());
-              unawaited(_applyCssZoom());
-              // 일부 사이트는 onLoadStart 없이 리다이렉트만 되는 경우도 있으므로 공식
-              // 종료 시점의 url 도 히스토리에 안전하게 포함시킨다(중복은 자체 필터됨).
-              _kioskController?._noteNavigationStart(url?.toString());
-            },
-            onProgressChanged: (controller, progress) {
-              if (!mounted) return;
-              if (progress >= 100) {
-                _finishLoading();
-              }
-            },
-            onZoomScaleChanged: (controller, oldScale, newScale) {
-              _updateZoomScale(newScale);
-            },
-            // 네비게이션 요청 가로채기:
-            // http(s)만 허용하고, 그 외 스킴(tel:, mailto:, intent: 등)은 차단.
-            shouldOverrideUrlLoading: (controller, navAction) async {
-              final uri = navAction.request.url;
-              if (uri == null) return NavigationActionPolicy.CANCEL;
-              final scheme = uri.scheme.toLowerCase();
-              if (scheme == 'http' || scheme == 'https' || scheme == 'about') {
-                return NavigationActionPolicy.ALLOW;
-              }
-              if (kDebugMode) {
-                debugPrint('[KioskWebView] 차단된 스킴: $uri');
-              }
-              return NavigationActionPolicy.CANCEL;
-            },
-            // 새 창/팝업 요청 차단 (true 반환 시 기본 동작 막음).
-            onCreateWindow: (controller, createWindowAction) async {
-              if (kDebugMode) {
-                debugPrint(
-                  '[KioskWebView] 새 창 차단: ${createWindowAction.request.url}',
-                );
-              }
-              return true;
-            },
-            // 다운로드 시작 시 차단.
-            onDownloadStartRequest: (controller, downloadRequest) async {
-              if (kDebugMode) {
-                debugPrint('[KioskWebView] 다운로드 차단: ${downloadRequest.url}');
-              }
-              // 별도 처리 없이 무시 → 다운로드 진행하지 않음.
-            },
-            onReceivedError: (controller, request, error) {
-              AppLogger.warning(
-                LogCategory.webview,
-                'Load error (${error.type}): ${request.url} - ${error.description}',
-              );
-              if (!mounted) return;
-              // 메인 프레임에서 발생한 오류만 사용자에게 표시.
-              if (request.isForMainFrame == true) {
-                setState(() {
-                  _isLoading = false;
-                  _errorMessage = '페이지를 불러올 수 없습니다.\n(${error.description})';
-                });
-                _reportInitialLoadReady();
-                if (widget.active) _scheduleAutoRetry();
-              }
-            },
-            onReceivedHttpError: (controller, request, errorResponse) {
-              AppLogger.warning(
-                LogCategory.webview,
-                'HTTP ${errorResponse.statusCode}: ${request.url}',
-              );
-              if (!mounted) return;
-              if (request.isForMainFrame == true &&
-                  (errorResponse.statusCode ?? 0) >= 400) {
-                setState(() {
-                  _isLoading = false;
-                  _errorMessage = '페이지 오류 (HTTP ${errorResponse.statusCode}): '
-                      '${errorResponse.reasonPhrase ?? ''}';
-                });
-                _reportInitialLoadReady();
-                if (widget.active) _scheduleAutoRetry();
-              }
-            },
-            // Android: 렌더러 프로세스가 죽었을 때(OOM 포함). 컨트롤러는 무효
-            // 상태이므로 위젯을 통째로 새로 만든다.
-            onRenderProcessGone: (controller, detail) {
-              AppLogger.error(
-                LogCategory.webview,
-                'WebView render process gone (didCrash=${detail.didCrash})',
-              );
-              if (kDebugMode) {
-                debugPrint(
-                  '[KioskWebView] onRenderProcessGone '
-                  '(didCrash=${detail.didCrash})',
-                );
-              }
-              _recreateWebView(source: controller);
-            },
-            // Android: 렌더러가 응답하지 않음. TERMINATE 를 돌려주면
-            // onRenderProcessGone 이 이어서 발생해 위 핸들러로 회복된다.
-            onRenderProcessUnresponsive: (controller, url) async {
-              AppLogger.error(
-                LogCategory.webview,
-                'WebView render process unresponsive: $url',
-              );
-              if (kDebugMode) {
-                debugPrint('[KioskWebView] onRenderProcessUnresponsive: $url');
-              }
-              return WebViewRenderProcessAction.TERMINATE;
-            },
-            // iOS / macOS: WebContent 프로세스(즉, 렌더러)가 종료된 경우.
-            onWebContentProcessDidTerminate: (controller) {
-              AppLogger.error(
-                LogCategory.webview,
-                'WebView content process terminated',
-              );
-              if (kDebugMode) {
-                debugPrint('[KioskWebView] onWebContentProcessDidTerminate');
-              }
-              _recreateWebView(source: controller);
-            },
-          ),
-        ),
-
-        // 로딩 인디케이터.
-        // 웹(Chrome) 빌드에서는 iframe 구조 특성상 로드 완료 이벤트를 감지하지
-        // 못하는 경우가 많아 항상 돌아가는 것처럼 보일 수 있다. 이를 피하기 위해
-        // 웹에서는 인디케이터를 표시하지 않고, 네이티브 빌드(Android/Windows/macOS)
-        // 에서만 표시한다.
-        if (!kIsWeb && _isLoading && _errorMessage == null)
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LinearProgressIndicator(minHeight: 4),
-          ),
-
-        if ((_zoomScale - 1).abs() > 0.01)
-          Positioned(
-            top: 12,
-            left: 12,
-            child: SafeArea(
-              child: WebZoomControls(
-                scale: _zoomScale,
-                canZoomOut: _zoomScale > _minZoomScale + 0.01,
-                canZoomIn: _zoomScale < _maxZoomScale - 0.01,
-                onZoomOut: () => _setZoomScale(_zoomScale - _zoomStep),
-                onZoomIn: () => _setZoomScale(_zoomScale + _zoomStep),
-                onReset: () => _setZoomScale(1),
-              ),
-            ),
-          ),
-
-        // 에러 오버레이.
-        if (_errorMessage != null)
+    return ColoredBox(
+      // Windows 플랫폼 뷰가 첫 프레임을 합성하기 전의 바탕색이다.
+      // 웹 문서의 CSS를 덮어쓰지 않고 WebView 전용 설정만 따른다.
+      color: widget.webViewBrightness == Brightness.dark
+          ? const Color(0xFF121212)
+          : Colors.white,
+      child: Stack(
+        children: [
           Positioned.fill(
-            child: _ErrorView(
-              message: _errorMessage!,
-              autoRetrySecondsLeft:
-                  _autoRetryTimer != null ? _autoRetrySecondsLeft : null,
-              onRetry: () {
+            child: InAppWebView(
+              // 세대 카운터를 키에 포함하면 [_recreateWebView] 호출 시
+              // Flutter 가 InAppWebView 를 폐기하고 새로 빌드한다.
+              key: ValueKey('kiosk-inappwebview-$_webviewGeneration'),
+              initialUrlRequest: URLRequest(
+                url: WebUri(_lastGoodUrl ?? widget.initialUrl),
+              ),
+              initialSettings: _settings,
+              // 문서 로드 완료 전 클릭과 iframe 내부 입력 요소도 감지한다.
+              initialUserScripts: UnmodifiableListView([
+                UserScript(
+                  source: _keyboardFocusScript,
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+                  forMainFrameOnly: false,
+                ),
+              ]),
+              onWebViewCreated: (controller) {
+                if (!mounted) return;
+                _webController = controller;
+                unawaited(_applyPreferredColorScheme(controller));
+                final kc = KioskWebViewController._(controller);
+                _kioskController = kc;
+                // 메뉴 클릭(loadUrl) 시 응답 감시 타이머를 건다.
+                kc._onLoadRequested = _startLoadResponseWatchdog;
+                // 초기 URL을 히스토리 첫 항목으로 등록(메뉴 첫 항목과 동일).
+                kc._resetHistory(_lastGoodUrl ?? widget.initialUrl);
+                widget.onReady?.call(kc);
+                _scheduleLoadingFallback();
+                // 페이지에서 보낼 heartbeat 수신용 핸들러 등록.
+                controller.addJavaScriptHandler(
+                  handlerName: 'signageZoomChanged',
+                  callback: (arguments) {
+                    _handleReportedDevicePixelRatio(arguments);
+                    return null;
+                  },
+                );
+                controller.addJavaScriptHandler(
+                  handlerName: 'kioskHeartbeat',
+                  callback: (_) {
+                    _lastHeartbeat = DateTime.now();
+                    _heartbeatArmed = true;
+                    return null;
+                  },
+                );
+                // OS 가상 키보드 표시/숨김 요청 수신.
+                controller.addJavaScriptHandler(
+                  handlerName: 'kioskKeyboardShow',
+                  callback: (_) {
+                    _requestShowSystemKeyboard();
+                    return null;
+                  },
+                );
+                controller.addJavaScriptHandler(
+                  handlerName: 'kioskKeyboardHide',
+                  callback: (_) {
+                    _requestHideSystemKeyboard();
+                    return null;
+                  },
+                );
+                controller.addJavaScriptHandler(
+                  handlerName: 'kioskShowManual',
+                  callback: (_) {
+                    if (widget.active) widget.onShowManual?.call();
+                    return null;
+                  },
+                );
+                controller.addJavaScriptHandler(
+                  handlerName: 'kioskShowVersion',
+                  callback: (_) {
+                    if (widget.active) widget.onShowVersion?.call();
+                    return null;
+                  },
+                );
+                controller.addJavaScriptHandler(
+                  handlerName: 'kioskCheckUpdate',
+                  callback: (_) {
+                    if (widget.active) widget.onCheckUpdate?.call();
+                    return null;
+                  },
+                );
+                // 화면에 보이는 WebView만 watchdog을 가동한다. IndexedStack 뒤의
+                // WebView는 플랫폼이 JS 타이머를 throttle할 수 있다.
+                if (widget.active) _startHealthCheck();
+              },
+              onLoadStart: (controller, url) {
+                if (!mounted) return;
+                // 새 탐색이 시작되면 이전 오류의 예약 재시도가 중간에 끼어들지 않게 한다.
                 _cancelAutoRetry();
-                final target = _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
                 setState(() {
-                  _errorMessage = null;
                   _isLoading = true;
+                  _errorMessage = null;
+                  _currentUrl = url?.toString();
                 });
                 _scheduleLoadingFallback();
-                _webController?.loadUrl(
-                  urlRequest: URLRequest(url: WebUri(target)),
+                // 응답이 도착했으므로 메뉴 클릭 watchdog 해제.
+                _cancelLoadResponseWatchdog();
+                _kioskController?._noteNavigationStart(url?.toString());
+              },
+              // 기본 문서가 WebView에 커밋되어 실제 표시 가능한 순간 바로 전환한다.
+              // 이미지·스크립트 등 나머지 리소스는 표시된 화면에서 계속 로드된다.
+              onPageCommitVisible: (controller, url) {
+                if (!mounted || url?.toString() == 'about:blank') return;
+                _reportInitialLoadReady();
+              },
+              onLoadStop: (controller, url) {
+                if (!mounted) return;
+                // WebView2는 메인 프레임 오류 뒤에도 onLoadStop을 보낼 수 있다.
+                // 이 경우 오류 화면과 자동 재시도 타이머를 그대로 유지해야 한다.
+                final failed = _errorMessage != null;
+                setState(() {
+                  _currentUrl = url?.toString();
+                });
+                _finishLoading();
+                if (failed) return;
+                // 정상 로드 완료 → 자동 재시도 카운터/타이머 초기화.
+                _consecutiveErrors = 0;
+                _cancelAutoRetry();
+                if (url != null && url.toString() != 'about:blank') {
+                  _lastGoodUrl = url.toString();
+                }
+                // 페이지가 바뀔 때마다 heartbeat 스크립트를 다시 주입.
+                _injectHeartbeatScript();
+                // OS 가상 키보드 트리거용 input 포커스 리스너도 함께 주입.
+                _injectKeyboardFocusScript();
+                _injectFunctionKeyScript();
+                unawaited(_installZoomMonitor());
+                unawaited(_applyCssZoom());
+                // 일부 사이트는 onLoadStart 없이 리다이렉트만 되는 경우도 있으므로 공식
+                // 종료 시점의 url 도 히스토리에 안전하게 포함시킨다(중복은 자체 필터됨).
+                _kioskController?._noteNavigationStart(url?.toString());
+              },
+              onProgressChanged: (controller, progress) {
+                if (!mounted) return;
+                if (progress >= 100) {
+                  _finishLoading();
+                }
+              },
+              onZoomScaleChanged: (controller, oldScale, newScale) {
+                _updateZoomScale(newScale);
+              },
+              // 네비게이션 요청 가로채기:
+              // http(s)만 허용하고, 그 외 스킴(tel:, mailto:, intent: 등)은 차단.
+              shouldOverrideUrlLoading: (controller, navAction) async {
+                final uri = navAction.request.url;
+                if (uri == null) return NavigationActionPolicy.CANCEL;
+                final scheme = uri.scheme.toLowerCase();
+                if (scheme == 'http' ||
+                    scheme == 'https' ||
+                    scheme == 'about') {
+                  return NavigationActionPolicy.ALLOW;
+                }
+                if (kDebugMode) {
+                  debugPrint('[KioskWebView] 차단된 스킴: $uri');
+                }
+                return NavigationActionPolicy.CANCEL;
+              },
+              // 새 창/팝업 요청 차단 (true 반환 시 기본 동작 막음).
+              onCreateWindow: (controller, createWindowAction) async {
+                if (kDebugMode) {
+                  debugPrint(
+                    '[KioskWebView] 새 창 차단: ${createWindowAction.request.url}',
+                  );
+                }
+                return true;
+              },
+              // 다운로드 시작 시 차단.
+              onDownloadStartRequest: (controller, downloadRequest) async {
+                if (kDebugMode) {
+                  debugPrint('[KioskWebView] 다운로드 차단: ${downloadRequest.url}');
+                }
+                // 별도 처리 없이 무시 → 다운로드 진행하지 않음.
+              },
+              onReceivedError: (controller, request, error) {
+                AppLogger.warning(
+                  LogCategory.webview,
+                  'Load error (${error.type}): ${request.url} - ${error.description}',
                 );
+                if (!mounted) return;
+                // 메인 프레임에서 발생한 오류만 사용자에게 표시.
+                if (request.isForMainFrame == true) {
+                  setState(() {
+                    _isLoading = false;
+                    _errorMessage = '페이지를 불러올 수 없습니다.\n(${error.description})';
+                  });
+                  _reportInitialLoadReady();
+                  if (widget.active) _scheduleAutoRetry();
+                }
+              },
+              onReceivedHttpError: (controller, request, errorResponse) {
+                AppLogger.warning(
+                  LogCategory.webview,
+                  'HTTP ${errorResponse.statusCode}: ${request.url}',
+                );
+                if (!mounted) return;
+                if (request.isForMainFrame == true &&
+                    (errorResponse.statusCode ?? 0) >= 400) {
+                  setState(() {
+                    _isLoading = false;
+                    _errorMessage =
+                        '페이지 오류 (HTTP ${errorResponse.statusCode}): '
+                        '${errorResponse.reasonPhrase ?? ''}';
+                  });
+                  _reportInitialLoadReady();
+                  if (widget.active) _scheduleAutoRetry();
+                }
+              },
+              // Android: 렌더러 프로세스가 죽었을 때(OOM 포함). 컨트롤러는 무효
+              // 상태이므로 위젯을 통째로 새로 만든다.
+              onRenderProcessGone: (controller, detail) {
+                AppLogger.error(
+                  LogCategory.webview,
+                  'WebView render process gone (didCrash=${detail.didCrash})',
+                );
+                if (kDebugMode) {
+                  debugPrint(
+                    '[KioskWebView] onRenderProcessGone '
+                    '(didCrash=${detail.didCrash})',
+                  );
+                }
+                _recreateWebView(source: controller);
+              },
+              // Android: 렌더러가 응답하지 않음. TERMINATE 를 돌려주면
+              // onRenderProcessGone 이 이어서 발생해 위 핸들러로 회복된다.
+              onRenderProcessUnresponsive: (controller, url) async {
+                AppLogger.error(
+                  LogCategory.webview,
+                  'WebView render process unresponsive: $url',
+                );
+                if (kDebugMode) {
+                  debugPrint(
+                      '[KioskWebView] onRenderProcessUnresponsive: $url');
+                }
+                return WebViewRenderProcessAction.TERMINATE;
+              },
+              // iOS / macOS: WebContent 프로세스(즉, 렌더러)가 종료된 경우.
+              onWebContentProcessDidTerminate: (controller) {
+                AppLogger.error(
+                  LogCategory.webview,
+                  'WebView content process terminated',
+                );
+                if (kDebugMode) {
+                  debugPrint('[KioskWebView] onWebContentProcessDidTerminate');
+                }
+                _recreateWebView(source: controller);
               },
             ),
           ),
-      ],
+
+          // 로딩 인디케이터.
+          // 웹(Chrome) 빌드에서는 iframe 구조 특성상 로드 완료 이벤트를 감지하지
+          // 못하는 경우가 많아 항상 돌아가는 것처럼 보일 수 있다. 이를 피하기 위해
+          // 웹에서는 인디케이터를 표시하지 않고, 네이티브 빌드(Android/Windows/macOS)
+          // 에서만 표시한다.
+          if (!kIsWeb && _isLoading && _errorMessage == null)
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(minHeight: 4),
+            ),
+
+          if ((_zoomScale - 1).abs() > 0.01)
+            Positioned(
+              top: 12,
+              left: 12,
+              child: SafeArea(
+                child: WebZoomControls(
+                  scale: _zoomScale,
+                  canZoomOut: _zoomScale > _minZoomScale + 0.01,
+                  canZoomIn: _zoomScale < _maxZoomScale - 0.01,
+                  onZoomOut: () => _setZoomScale(_zoomScale - _zoomStep),
+                  onZoomIn: () => _setZoomScale(_zoomScale + _zoomStep),
+                  onReset: () => _setZoomScale(1),
+                ),
+              ),
+            ),
+
+          // 에러 오버레이.
+          if (_errorMessage != null)
+            Positioned.fill(
+              child: _ErrorView(
+                message: _errorMessage!,
+                autoRetrySecondsLeft:
+                    _autoRetryTimer != null ? _autoRetrySecondsLeft : null,
+                onRetry: () {
+                  _cancelAutoRetry();
+                  final target =
+                      _currentUrl ?? _lastGoodUrl ?? widget.initialUrl;
+                  setState(() {
+                    _errorMessage = null;
+                    _isLoading = true;
+                  });
+                  _scheduleLoadingFallback();
+                  _webController?.loadUrl(
+                    urlRequest: URLRequest(url: WebUri(target)),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

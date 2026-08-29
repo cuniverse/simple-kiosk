@@ -179,7 +179,8 @@ schemaVersion 1, 최상위 `items`, `languages[].items`와 이전 웹 관리자�
 - `languageSelection.skipSingleTopic`이 `true`이면 주제가 하나뿐인 언어는 주제 화면을
   건너뛰고 바로 진입합니다. 기본값은 `true`입니다.
 - 언어와 주제 선택 버튼은 동일한 큰 터치 규격으로 표시되며 화면 폭이 부족하면 자동으로
-  줄바꿈되거나 스크롤됩니다.
+  줄바꿈되거나 스크롤됩니다. 버튼 문구는 단어 내부를 나누지 않고 공백 위치에서
+  우선 줄바꿈하며, 긴 단어는 버튼 폭에 맞게 글자 크기를 자동 조절합니다.
 - 툴바 시작 위치의 **뒤로가기** 아이콘을 누르면 현재 WebView 상태를 유지한 채 언어 선택
   화면으로 다시 돌아갈 수 있습니다.
 - 언어를 추가하려면 고유한 `id`, 버튼에 표시할 `label`, 한 개 이상의 `topics`를 추가합니다.
@@ -241,6 +242,7 @@ android:usesCleartextTraffic="true"
 ```json
 "layout": {
   "brightness": "dark",
+  "webViewBrightness": "light",
   "hideItemIcons": true,
   "navPosition": "bottom",
   "sideWidth": 230,
@@ -267,6 +269,7 @@ android:usesCleartextTraffic="true"
 | 키 | 타입 | 기본값 | 설명 |
 |----|------|--------|------|
 | `brightness` | `light` / `dark` | `dark` (생략 시 `light`) | 테마의 밝은(White)·어두운(Dark) 계열 지정 |
+| `webViewBrightness` | `light` / `dark` | `light` | WebView 페이지의 `prefers-color-scheme`. 테마 `brightness`와 독립 |
 | `hideItemIcons` | bool | `true` | 개별 `showIcon`이 없는 메뉴의 아이콘을 기본적으로 감춤 |
 | `navPosition` | `auto`\|`left`\|`right`\|`top`\|`bottom` | `right` | 네비 위치. `auto`는 화면 폭에 따라 자동 |
 | `sideWidth` | 숫자 > 0 | `230` | `left`/`right`일 때 사이드 폭(dp) |
@@ -709,7 +712,10 @@ search, help, link, web, music, mic, camera, image, download, qr
 패키지 글꼴, Windows 시스템 글꼴, Flutter 기본 글꼴 순서로 폴백합니다.
 
 포함된 패키지 글꼴 이름은 `Pretendard`, `NanumSquare`, `NanumGothic`,
-`NanumBrush`, `KoPubDotum`, `Catholic`입니다. 빈 값은 Flutter 기본 글꼴입니다.
+`NanumBrush`, `KoPubDotum`, `Catholic`, `MuseumClassic`(박물관체),
+`Seoul`(서울남산체), `SeoulHangang`(서울한강체)입니다. `박물관체`, `서울체`,
+`서울남산체`, `서울한강체`도 설정 이름으로 사용할 수 있습니다. 빈 값은
+Flutter 기본 글꼴입니다.
 가톨릭체는 개인과 가톨릭 교회기관의 비영리·사목 목적에만 사용해야 합니다.
 
 - 전체 UI: `layout.fontFamily`
@@ -819,8 +825,8 @@ Windows에서는 기본적으로 Windows 화상 키보드를 사용합니다. **
   Setup EXE를 다운로드하고 Release 자산 SHA-256을 검증한 뒤 실행합니다. 거절하면
   다운로드하지 않으며, 자동 업데이트에서는 Setup을 실행하지 않습니다.
 - 설정 화면의 업데이트 상태는 마우스로 선택·복사할 수 있습니다. 문제를 신고할 때는
-  **진단 정보로 이슈 등록**을 사용하면 진단 ZIP을 먼저 생성하고 WEB 관리자의 진단·이슈
-  작성 화면을 바로 엽니다.
+  **진단 정보로 이슈 등록**을 사용하면 추가 입력·확인 없이 시스템 정보,
+  최근 로그와 업데이트 상태를 수집해 GitHub 이슈를 바로 등록합니다.
 - GitHub 비인증 API의 공인 IP당 시간당 요청 한도가 소진되어 403/429가 발생하면 API를
   사용하지 않는 공개 Release 경로로 자동 전환합니다. 여러 PC가 같은 인터넷 회선을
   사용해도 API 한도 때문에 업데이트 확인이 중단되지 않습니다.
@@ -905,8 +911,8 @@ Windows에서는 기본적으로 Windows 화상 키보드를 사용합니다. **
 - 메뉴 설정은 저장 전에 기본 설정과 병합 검증되며, 올바른 설정은 저장 직후 사이니지에 적용됩니다.
 - 백업 및 진단 탭에서 메뉴·언어·툴바·관리 API·업데이트 정책을 하나의 JSON으로 내보내거나 가져올 수 있습니다. 저장·가져오기 전 상태는 직전 설정으로 보관되어 복원할 수 있으며 관리자 PIN은 백업하지 않습니다.
 - 같은 화면에서 프로그램·WebView·업데이트·API 로그와 시스템 정보를 포함한 진단 보고서를 다운로드할 수 있습니다.
-- 앱 설정의 **진단 정보로 이슈 등록**은 진단 보고서를 먼저 내보내고 이 탭을 선택한 뒤
-  GitHub 이슈 제목 입력란으로 바로 이동합니다.
+- 앱 설정의 **진단 정보로 이슈 등록**은 WEB 관리자 화면을 열지 않고 진단 정보를
+  중계 서버로 즉시 전송해 자동 이슈를 생성합니다. 등록 후에는 이슈 번호와 **이슈 보기**를 표시합니다.
 - **GitHub 이슈 리포트**에서 분류·제목·문제 설명·재현 방법·기대 결과를 작성하면 프로그램 버전과 Windows 환경을 포함한 이슈가 중계 서버를 통해 바로 등록됩니다. GitHub 로그인은 필요하지 않으며, GW Nginx와 PHP 중계 서버가 구성되어 있어야 합니다.
 - 관리 페이지는 HTTP로 PIN과 화면 미리보기를 전송하므로 신뢰할 수 있는 내부망에서만 사용하고 Windows 방화벽으로 접근 대상을 제한하세요.
 

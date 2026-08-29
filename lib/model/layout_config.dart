@@ -10,10 +10,13 @@ enum NavPosition { auto, left, right, top, bottom }
 /// Windows에서 사용할 화면 키보드 종류.
 enum KeyboardMode { windows, builtIn }
 
-Brightness _parseBrightness(Object? raw) {
+Brightness _parseBrightness(
+  Object? raw, {
+  String key = 'brightness',
+}) {
   if (raw == null) return Brightness.light;
   if (raw is! String) {
-    throw const FormatException('menu.json layout.brightness: 문자열 필요');
+    throw FormatException('menu.json layout.$key: 문자열 필요');
   }
   switch (raw.trim().toLowerCase()) {
     case 'light':
@@ -22,8 +25,8 @@ Brightness _parseBrightness(Object? raw) {
     case 'dark':
       return Brightness.dark;
     default:
-      throw const FormatException(
-        'menu.json layout.brightness: light 또는 dark 필요',
+      throw FormatException(
+        'menu.json layout.$key: light 또는 dark 필요',
       );
   }
 }
@@ -226,6 +229,10 @@ class LayoutConfig {
   /// UI 밝기 계열. 테마에서 생략하면 밝은(light/white) 계열을 사용한다.
   final Brightness brightness;
 
+  /// WebView 페이지에 전달할 `prefers-color-scheme` 값.
+  /// UI 테마의 [brightness]와 독립적으로 동작한다.
+  final Brightness webViewBrightness;
+
   /// 개별 재정의가 없는 메뉴 항목의 아이콘을 기본적으로 감출지 여부.
   final bool hideItemIcons;
 
@@ -337,6 +344,7 @@ class LayoutConfig {
 
   const LayoutConfig({
     this.brightness = Brightness.light,
+    this.webViewBrightness = Brightness.light,
     this.hideItemIcons = false,
     this.fontFamily = 'Catholic',
     this.menuFontFamily = 'Catholic',
@@ -401,6 +409,10 @@ class LayoutConfig {
 
     return LayoutConfig(
       brightness: _parseBrightness(json['brightness']),
+      webViewBrightness: _parseBrightness(
+        json['webViewBrightness'],
+        key: 'webViewBrightness',
+      ),
       hideItemIcons: () {
         final value = json['hideItemIcons'];
         if (value == null) return defaults.hideItemIcons;

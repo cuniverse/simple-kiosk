@@ -9,6 +9,7 @@ import '../service/keyboard_controller.dart';
 import '../service/font_resource_service.dart';
 import '../service/system_keyboard.dart';
 import 'kiosk_webview.dart';
+import 'button_text_wrap.dart';
 import 'icon_path_candidates.dart';
 import 'material_icon_registry.dart';
 import 'platform_file_image.dart';
@@ -1547,6 +1548,7 @@ class _AutoSizeTwoLineText extends StatelessWidget {
     final inherited = DefaultTextStyle.of(context).style;
     return LayoutBuilder(
       builder: (context, constraints) {
+        final displayTitle = keepButtonWordsTogether(title);
         var fontSize = maxFontSize;
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
@@ -1557,17 +1559,34 @@ class _AutoSizeTwoLineText extends StatelessWidget {
         while (fontSize > 12) {
           final painter = TextPainter(
             text: TextSpan(
-              text: title,
+              text: displayTitle,
               style: inherited.copyWith(fontSize: fontSize, height: 1.05),
             ),
             maxLines: 2,
             textDirection: TextDirection.ltr,
           )..layout(maxWidth: maxWidth);
-          if (!painter.didExceedMaxLines && painter.height <= maxHeight) break;
+          final wordsFit = buttonTextWords(title).every((word) {
+            final wordPainter = TextPainter(
+              text: TextSpan(
+                text: keepButtonWordsTogether(word),
+                style: inherited.copyWith(fontSize: fontSize, height: 1.05),
+              ),
+              maxLines: 1,
+              textDirection: TextDirection.ltr,
+            )..layout();
+            return wordPainter.width <= maxWidth;
+          });
+          if (wordsFit &&
+              !painter.didExceedMaxLines &&
+              painter.height <= maxHeight) {
+            break;
+          }
           fontSize -= 1;
         }
         return Text(
-          title,
+          displayTitle,
+          key: ValueKey('navigation-label-$title'),
+          semanticsLabel: title,
           maxLines: 2,
           softWrap: true,
           overflow: TextOverflow.ellipsis,

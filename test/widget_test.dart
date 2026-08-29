@@ -20,6 +20,7 @@ import 'package:simple_kiosk/service/gallery_feed_loader.dart';
 import 'package:simple_kiosk/service/font_resource_service.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
 import 'package:simple_kiosk/widget/admin_pin_keypad.dart';
+import 'package:simple_kiosk/widget/button_text_wrap.dart';
 import 'package:simple_kiosk/service/menu_config_merger.dart';
 import 'package:simple_kiosk/service/menu_config_loader.dart';
 import 'package:simple_kiosk/service/menu_config_migrator.dart';
@@ -40,6 +41,14 @@ import 'package:simple_kiosk/widget/version_overlay.dart';
 import 'package:simple_kiosk/widget/webview_loading_overlay.dart';
 
 void main() {
+  test('버튼 문구는 공백에서만 줄바꿈할 수 있게 단어를 보호한다', () {
+    expect(
+      keepButtonWordsTogether('WYD 서울 2027'),
+      'W\u2060Y\u2060D 서\u2060울 2\u20600\u20602\u20607',
+    );
+    expect(buttonTextWords('  여의도동   성당 ').toList(), ['여의도동', '성당']);
+  });
+
   test('터치 입력 폭주는 합치고 메뉴별 재로드에는 냉각 시간을 둔다', () {
     final guard = TouchInputGuard<String>();
     final startedAt = DateTime.utc(2026, 8, 28);
@@ -142,6 +151,7 @@ void main() {
     expect(page, contains('선택 아이콘 (선택 사항)'));
     expect(page, contains("restoreProperty('selectedIcon')"));
     expect(page, contains('layout.brightness'));
+    expect(page, contains('layout.webViewBrightness'));
     expect(page, contains('layout.hideItemIcons'));
     expect(page, contains("item.showIcon===undefined"));
     expect(page, contains("delete item.showIcon"));
@@ -483,6 +493,9 @@ void main() {
     expect(source, contains('theme.platform != TargetPlatform.windows'));
     expect(source, contains('textTheme: theme.textTheme.apply('));
     expect(source, contains('primaryTextTheme: theme.primaryTextTheme.apply('));
+    expect(source, contains('_diagnosticIssueService.submit('));
+    expect(source, contains("label: '이슈 보기'"));
+    expect(source, isNot(contains('_exportDiagnosticsAndOpenIssue')));
   });
 
   test('관리자 PIN은 기본값, 변경 파일, 파일 삭제 순서로 동작한다', () async {
@@ -1030,12 +1043,14 @@ void main() {
       config.language('en').icon,
       'assets/icons/languages/en-us-gb.png',
     );
-    expect(config.language('ko').items.first.title, 'WYD 서울 2027');
+    expect(config.language('ko').defaultTopicId, 'ycatholic');
+    expect(config.language('ko').items.first.title, '본당 홈페이지');
     final parishItems =
         config.language('ko').topic('ycatholic').items.map((item) => item.id);
     expect(
       parishItems,
-      containsAll(['annual-events', 'sacraments', 'mass-times']),
+      containsAll(
+          ['ycatholic', 'gallery', 'jubo', 'aos', 'notice', 'goodnews']),
     );
     const vaticanUrls = {
       'ko': 'https://www.vaticannews.va/ko.html',
@@ -1075,6 +1090,7 @@ void main() {
     expect(File('assets/icons/goodnews-wite.png').existsSync(), isFalse);
     expect(config.layout.fontFamily, 'Catholic');
     expect(config.layout.menuFontFamily, 'Catholic');
+    expect(config.layout.webViewBrightness, Brightness.light);
     final highContrast = jsonDecode(
       File('assets/themes/high-contrast-text.json').readAsStringSync(),
     )['values'] as Map<String, dynamic>;
@@ -1088,12 +1104,25 @@ void main() {
         config.layout.selectedButtonForegroundColor, const Color(0xFF000000));
     expect(config.languageSelectionFontFamily, 'Catholic');
     expect(config.language('ko').fontFamily, 'Catholic');
+    final configuredItemFonts = config.languages
+        .expand((language) => language.effectiveTopics)
+        .expand((topic) => topic.items)
+        .map((item) => item.fontFamily)
+        .toSet();
     expect(
-      config.languages.expand((language) => language.effectiveTopics).expand(
-            (topic) => topic.items,
-          ),
-      everyElement(
-          predicate<MenuItem>((item) => item.fontFamily == 'Catholic')),
+      configuredItemFonts,
+      containsAll([
+        'Catholic',
+        'Pretendard',
+        'SeoulNamsan',
+        'MuseumClassic',
+      ]),
+    );
+    expect(
+      configuredItemFonts.difference(
+        const {'Catholic', 'Pretendard', 'SeoulNamsan', 'MuseumClassic'},
+      ),
+      isEmpty,
     );
     expect(
       config
@@ -1201,7 +1230,12 @@ void main() {
     );
     expect(tester.widget<Text>(find.text('언어를 선택하세요')).style?.fontFamily,
         'NanumSquare');
-    expect(tester.widget<Text>(find.text('한국어')).style?.fontFamily, 'Catholic');
+    final languageLabel = tester.widget<Text>(
+      find.byKey(const ValueKey('selection-label-한국어')),
+    );
+    expect(languageLabel.data, keepButtonWordsTogether('한국어'));
+    expect(languageLabel.semanticsLabel, '한국어');
+    expect(languageLabel.style?.fontFamily, 'Catholic');
     final version = find.byKey(const ValueKey('version-overlay'));
     expect(version, findsOneWidget);
     expect(find.text('v1.2.32'), findsOneWidget);
@@ -1392,6 +1426,21 @@ void main() {
     expect(source, contains('_reportInitialLoadReady();'));
   });
 
+  test('WebView 테마는 UI brightness와 분리하고 light를 기본으로 사용한다', () {
+    final webView = File('lib/widget/kiosk_webview.dart').readAsStringSync();
+    final app = File('lib/app.dart').readAsStringSync();
+
+    expect(webView, contains('this.webViewBrightness = Brightness.light'));
+    expect(webView, contains("methodName: 'Emulation.setEmulatedMedia'"));
+    expect(webView, contains("'name': 'prefers-color-scheme'"));
+    expect(app, contains('webViewBrightness: widget.layout.webViewBrightness'));
+    expect(
+      app,
+      contains('widget.layout.webViewBrightness == Brightness.dark'),
+    );
+    expect(webView, contains('widget.webViewBrightness == Brightness.dark'));
+  });
+
   test('터치 폭주 시 이전 WebView와 과도한 타이머·확대 갱신을 정리한다', () {
     final appSource = File('lib/app.dart').readAsStringSync();
     final idleSource = File('lib/widget/idle_gate.dart').readAsStringSync();
@@ -1463,7 +1512,11 @@ void main() {
       ),
     );
 
-    final titleWidget = tester.widget<Text>(find.text(title));
+    final titleWidget = tester.widget<Text>(
+      find.byKey(const ValueKey('navigation-label-$title')),
+    );
+    expect(titleWidget.data, keepButtonWordsTogether(title));
+    expect(titleWidget.semanticsLabel, title);
     expect(titleWidget.maxLines, 2);
     expect(titleWidget.softWrap, isTrue);
     expect(titleWidget.overflow, TextOverflow.ellipsis);
@@ -1509,14 +1562,8 @@ void main() {
       ),
     );
 
-    final selectedButton = find.ancestor(
-      of: find.text('홈'),
-      matching: find.byType(ElevatedButton),
-    );
-    final unselectedButton = find.ancestor(
-      of: find.text('소식'),
-      matching: find.byType(ElevatedButton),
-    );
+    final selectedButton = find.byType(ElevatedButton).at(0);
+    final unselectedButton = find.byType(ElevatedButton).at(1);
     final selectedShape = tester
         .widget<ElevatedButton>(selectedButton)
         .style
@@ -2413,6 +2460,7 @@ void main() {
 
   test('툴바는 기본적으로 숨김이며 자동 숨김 시간을 파싱한다', () {
     expect(LayoutConfig.defaults.brightness, Brightness.light);
+    expect(LayoutConfig.defaults.webViewBrightness, Brightness.light);
     expect(LayoutConfig.defaults.hideItemIcons, isFalse);
     expect(LayoutConfig.defaults.toolbarInitiallyHidden, isTrue);
     expect(LayoutConfig.defaults.toolbarAutoHideSec, 10);
@@ -2440,6 +2488,7 @@ void main() {
 
     final config = LayoutConfig.fromJson({
       'brightness': 'dark',
+      'webViewBrightness': 'dark',
       'hideItemIcons': true,
       'fontFamily': ' Pretendard ',
       'menuFontFamily': ' NanumGothic ',
@@ -2463,6 +2512,7 @@ void main() {
     });
     expect(config.toolbarInitiallyHidden, isFalse);
     expect(config.brightness, Brightness.dark);
+    expect(config.webViewBrightness, Brightness.dark);
     expect(config.hideItemIcons, isTrue);
     expect(config.fontFamily, 'Pretendard');
     expect(config.menuFontFamily, 'NanumGothic');
@@ -2497,6 +2547,9 @@ void main() {
           'NanumBrush',
           'KoPubDotum',
           'Catholic',
+          'MuseumClassic',
+          'Seoul',
+          'SeoulHangang',
         ]));
     for (final path in const [
       'assets/fonts/pretendard/Pretendard-Regular.otf',
@@ -2505,13 +2558,22 @@ void main() {
       'assets/fonts/nanum-brush/NanumBrush.otf',
       'assets/fonts/kopub-dotum/KoPub Dotum Medium.ttf',
       'assets/fonts/catholic/Catholic.ttf',
+      'assets/fonts/museum-classic/MuseumClassicM.otf',
+      'assets/fonts/seoul/SeoulNamsanM.ttf',
+      'assets/fonts/seoul/SeoulHangangM.ttf',
       'assets/fonts/licenses/Pretendard-OFL-1.1.txt',
       'assets/fonts/licenses/Nanum-OFL-1.1.txt',
       'assets/fonts/licenses/KoPub-Dotum-LICENSE.txt',
       'assets/fonts/licenses/Catholic-LICENSE.txt',
+      'assets/fonts/licenses/MuseumClassic-LICENSE.txt',
+      'assets/fonts/licenses/Seoul-Font-LICENSE.txt',
     ]) {
       expect(File(path).existsSync(), isTrue, reason: path);
     }
+    expect(FontResourceService.familyFor('박물관체'), 'MuseumClassic');
+    expect(FontResourceService.familyFor('서울체'), 'Seoul');
+    expect(FontResourceService.familyFor('SeoulNamsan'), 'Seoul');
+    expect(FontResourceService.familyFor('서울한강체'), 'SeoulHangang');
   });
 
   test('Windows 키오스크 잠금은 앱 전환과 셸 단축키를 차단한다', () {

@@ -8,6 +8,7 @@ import '../model/layout_config.dart';
 import '../model/update_policy.dart';
 import '../service/admin_api_controller.dart';
 import '../service/admin_pin_store.dart';
+import '../service/diagnostic_issue_service.dart';
 import '../service/update_controller.dart';
 import '../service/windows_startup_service.dart';
 import 'admin_pin_keypad.dart';
@@ -63,15 +64,8 @@ class UpdateAdminDialog {
     }
   }
 
-  static Uri? _issueReportUri(AdminApiController? controller) {
-    final remoteUri = controller?.webAdminSshRemoteUri;
-    if (remoteUri == null) return null;
-    return remoteUri.replace(queryParameters: {
-      ...remoteUri.queryParameters,
-      'tab': 'diagnostics',
-      'issue': '1',
-    });
-  }
+  static Uri? _diagnosticIssueRemoteUri(AdminApiController? controller) =>
+      controller?.webAdminSshRemoteUri;
 
   static Future<void> show(
     BuildContext context,
@@ -165,9 +159,12 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
   late bool _mdnsEnabled;
   late KeyboardMode _keyboardMode;
   final WindowsStartupService _startupService = WindowsStartupService();
+  final DiagnosticIssueService _diagnosticIssueService =
+      const DiagnosticIssueService();
   WindowsStartupStatus? _startupStatus;
   StartupLaunchMode _startupMode = StartupLaunchMode.signage;
   bool _startupBusy = false;
+  bool _diagnosticIssueSubmitting = false;
   late final TextEditingController _startController;
   late final TextEditingController _endController;
   late final TextEditingController _adminApiPortController;
@@ -483,18 +480,40 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     await widget.onExit!();
   }
 
-  Future<void> _exportDiagnosticsAndOpenIssue(Uri issueReportUri) async {
+  Future<void> _submitDiagnosticIssue(Uri remoteAdminUri) async {
+    if (_diagnosticIssueSubmitting) return;
+    setState(() => _diagnosticIssueSubmitting = true);
     try {
-      await widget.controller.exportDiagnostics();
+      final result = await _diagnosticIssueService.submit(
+        remoteAdminUri,
+        updateStatus: widget.controller.status,
+      );
+      if (!mounted) return;
+      final number = result.number == null ? '' : ' #${result.number}';
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('진단 정보로 GitHub 이슈$number를 등록했습니다.'),
+            duration: const Duration(seconds: 8),
+            action: result.url == null
+                ? null
+                : SnackBarAction(
+                    label: '이슈 보기',
+                    onPressed: () => unawaited(
+                      UpdateAdminDialog._openWebAdmin(context, result.url!),
+                    ),
+                  ),
+          ),
+        );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('진단 자료를 내보내지 못했습니다: $error')),
+        SnackBar(content: Text('진단 이슈를 등록하지 못했습니다: $error')),
       );
-      return;
+    } finally {
+      if (mounted) setState(() => _diagnosticIssueSubmitting = false);
     }
-    if (!mounted) return;
-    await UpdateAdminDialog._openWebAdmin(context, issueReportUri);
   }
 
   Future<bool> _confirmSetupFallback(Object error) async {
@@ -533,8 +552,10 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
           final controller = widget.controller;
           final webAdminUri =
               UpdateAdminDialog._webAdminUri(widget.adminApiController);
-          final issueReportUri =
-              UpdateAdminDialog._issueReportUri(widget.adminApiController);
+          final diagnosticIssueRemoteUri =
+              UpdateAdminDialog._diagnosticIssueRemoteUri(
+            widget.adminApiController,
+          );
           return AlertDialog(
             title: const Text('설정'),
             content: SizedBox(
@@ -895,15 +916,21 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                           child: const Text('진단 자료 내보내기'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: controller.busy || issueReportUri == null
+                          onPressed: controller.busy ||
+                                  _diagnosticIssueSubmitting ||
+                                  diagnosticIssueRemoteUri == null
                               ? null
                               : () => unawaited(
-                                    _exportDiagnosticsAndOpenIssue(
-                                      issueReportUri,
+                                    _submitDiagnosticIssue(
+                                      diagnosticIssueRemoteUri,
                                     ),
                                   ),
                           icon: const Icon(Icons.bug_report_outlined),
-                          label: const Text('진단 정보로 이슈 등록'),
+                          label: Text(
+                            _diagnosticIssueSubmitting
+                                ? '이슈 등록 중…'
+                                : '진단 정보로 이슈 등록',
+                          ),
                         ),
                       ],
                     ),

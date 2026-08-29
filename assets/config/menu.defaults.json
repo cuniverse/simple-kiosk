@@ -2,6 +2,7 @@
   "schemaVersion": 2,
   "layout": {
     "brightness": "dark",
+    "webViewBrightness": "light",
     "hideItemIcons": true,
     "fontFamily": "Catholic",
     "menuFontFamily": "Catholic",
@@ -126,34 +127,8 @@
       "icon": "assets/icons/languages/kr.png",
       "label": "한국어",
       "subtitle": "",
-      "defaultTopic": "wyd",
+      "defaultTopic": "ycatholic",
       "topics": [
-        {
-          "id": "wyd",
-          "label": "WYD 서울 2027",
-          "subtitle": "",
-          "icon": "assets/icons/wyd-seoul-2027-toolbar.png",
-          "defaultMenu": "home",
-          "items": [
-            {
-              "id": "home",
-              "title": "WYD 서울 2027",
-              "fontFamily": "Catholic",
-              "url": "https://wydseoul.org/",
-              "icon": "assets/icons/wyd-seoul-2027-toolbar",
-              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
-              "showTitle": false
-            },
-            {
-              "id": "aos",
-              "title": "서울대교구",
-              "fontFamily": "Catholic",
-              "url": "https://aos.catholic.or.kr/index",
-              "icon": "assets/icons/aos-toolbar",
-              "selectedIcon": "assets/icons/aos-toolbar.png"
-            }
-          ]
-        },
         {
           "id": "ycatholic",
           "label": "여의도동 성당",
@@ -162,19 +137,12 @@
           "items": [
             {
               "id": "ycatholic",
-              "title": "홈페이지",
+              "title": "본당 홈페이지",
               "fontFamily": "Catholic",
               "url": "http://ycatholic.or.kr/",
               "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
-            },
-            {
-              "id": "notice",
-              "title": "공지",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=notice",
-              "icon": "icon:notice"
             },
             {
               "id": "gallery",
@@ -191,42 +159,20 @@
               "icon": "icon:book"
             },
             {
-              "id": "annual-events",
-              "title": "연중행사",
+              "id": "aos",
+              "title": "서울대교구",
               "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=schedule",
-              "icon": "icon:event"
+              "url": "https://aos.catholic.or.kr/index",
+              "icon": "assets/icons/aos-toolbar",
+              "selectedIcon": "assets/icons/aos-toolbar.png"
             },
             {
-              "id": "sacraments",
-              "title": "성사안내",
+              "id": "notice",
+              "title": "서울 순례길",
               "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/pages/sub32.php",
-              "icon": "icon:favorite"
-            },
-            {
-              "id": "mass-times",
-              "title": "미사안내",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/pages/sub31.php",
-              "icon": "icon:church"
-            }
-          ]
-        },
-        {
-          "id": "etc",
-          "label": "기타 사이트",
-          "subtitle": "",
-          "icon": "icon:category",
-          "defaultMenu": "ycatholic",
-          "items": [
-            {
-              "id": "ycatholic",
-              "title": "홈페이지",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic.png",
-              "keepStateOnTap": true
+              "url": "https://martyrs.or.kr/_web/main/main.html",
+              "icon": "assets/icons/aos-toolbar",
+              "selectedIcon": "assets/icons/aos-toolbar.png"
             },
             {
               "id": "goodnews",
@@ -234,8 +180,24 @@
               "fontFamily": "Catholic",
               "url": "https://www.catholic.or.kr/",
               "icon": "assets/icons/goodnews",
-              "selectedIcon": "assets/icons/goodnews.png",
-              "showTitle": true
+              "selectedIcon": "assets/icons/goodnews.png"
+            }
+          ]
+        },
+        {
+          "id": "wyd",
+          "label": "WYD 서울 2027",
+          "subtitle": "",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar.png",
+          "defaultMenu": "wyd-seoul-2027",
+          "items": [
+            {
+              "id": "wyd-seoul-2027",
+              "title": "WYD 서울 2027",
+              "fontFamily": "Catholic",
+              "url": "https://wydseoul.org/",
+              "icon": "assets/icons/wyd-seoul-2027-toolbar",
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png"
             },
             {
               "id": "aos",
@@ -243,8 +205,7 @@
               "fontFamily": "Catholic",
               "url": "https://aos.catholic.or.kr/index",
               "icon": "assets/icons/aos-toolbar",
-              "selectedIcon": "assets/icons/aos-toolbar.png",
-              "showTitle": true
+              "selectedIcon": "assets/icons/aos-toolbar.png"
             },
             {
               "id": "vatican-news",
@@ -252,17 +213,58 @@
               "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/ko.html",
               "icon": "assets/icons/vatican-news",
-              "selectedIcon": "assets/icons/vatican-news.png",
-              "showTitle": true
+              "selectedIcon": "assets/icons/vatican-news.png"
             },
             {
-              "id": "notice",
-              "title": "순교자 현양위원회",
+              "id": "carlo-acutis",
+              "title": "카를로 아쿠티스",
               "fontFamily": "Catholic",
-              "url": "https://martyrs.or.kr/_web/main/main.html",
-              "icon": "assets/icons/aos-toolbar",
-              "selectedIcon": "assets/icons/aos-toolbar.png",
-              "showTitle": true
+              "url": "https://sanacutis.cpbc.co.kr"
+            },
+            {
+              "id": "miracoli-eucaristici",
+              "title": "MIRACOLI EUCARISTICI",
+              "fontFamily": "Catholic",
+              "url": "https://www.miracolieucaristici.org/en/Liste/list.html"
+            }
+          ]
+        },
+        {
+          "id": "etc",
+          "label": "기타 정보",
+          "subtitle": "",
+          "icon": "icon:category",
+          "defaultMenu": "seoul",
+          "items": [
+            {
+              "id": "seoul",
+              "title": "서울특별시",
+              "fontFamily": "SeoulNamsan",
+              "url": "https://www.seoul.go.kr"
+            },
+            {
+              "id": "korean-visitkorea",
+              "title": "대한민국 구석구석",
+              "fontFamily": "SeoulNamsan",
+              "url": "https://korean.visitkorea.or.kr"
+            },
+            {
+              "id": "museum",
+              "title": "국립 중앙박물관",
+              "fontFamily": "MuseumClassic",
+              "url": "https://www.museum.go.kr"
+            },
+            {
+              "id": "sto",
+              "title": "서울관광재단",
+              "fontFamily": "SeoulNamsan",
+              "url": "https://www.sto.or.kr"
+            },
+            {
+              "id": "seoul-transportation",
+              "title": "서울대중교통",
+              "fontFamily": "SeoulNamsan",
+              "url": "https://bus.go.kr"
             }
           ]
         }
@@ -277,20 +279,60 @@
       "defaultTopic": "wyd",
       "topics": [
         {
-          "id": "wyd",
-          "label": "WYD Seoul 2027",
-          "subtitle": "",
-          "icon": "assets/icons/wyd-seoul-2027-toolbar.png",
-          "defaultMenu": "home",
+          "id": "ycatholic",
+          "label": "여의도동 성당",
+          "icon": "assets/icons/ycatholic.png",
+          "defaultMenu": "ycatholic",
           "items": [
             {
-              "id": "home",
+              "id": "ycatholic",
+              "title": "본당 홈페이지",
+              "fontFamily": "Catholic",
+              "url": "http://ycatholic.or.kr/",
+              "icon": "assets/icons/ycatholic",
+              "selectedIcon": "assets/icons/ycatholic.png",
+              "keepStateOnTap": true
+            },
+            {
+              "id": "aos",
+              "title": "서울대교구",
+              "fontFamily": "Catholic",
+              "url": "https://aos.catholic.or.kr/en/index",
+              "icon": "assets/icons/aos-toolbar",
+              "selectedIcon": "assets/icons/aos-toolbar.png"
+            },
+            {
+              "id": "notice",
+              "title": "서울 순례길",
+              "fontFamily": "Catholic",
+              "url": "https://martyrs.or.kr/en/main/main.html",
+              "icon": "assets/icons/aos-toolbar",
+              "selectedIcon": "assets/icons/aos-toolbar.png"
+            },
+            {
+              "id": "goodnews",
+              "title": "굿뉴스",
+              "fontFamily": "Catholic",
+              "url": "https://www.catholic.or.kr/",
+              "icon": "assets/icons/goodnews",
+              "selectedIcon": "assets/icons/goodnews.png"
+            }
+          ]
+        },
+        {
+          "id": "wyd",
+          "label": "WYD 서울 2027",
+          "subtitle": "",
+          "icon": "assets/icons/wyd-seoul-2027-toolbar.png",
+          "defaultMenu": "wyd-seoul-2027",
+          "items": [
+            {
+              "id": "wyd-seoul-2027",
               "title": "WYD Seoul 2027",
               "fontFamily": "Catholic",
               "url": "https://wydseoul.org/en",
               "icon": "assets/icons/wyd-seoul-2027-toolbar",
-              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png",
-              "showTitle": false
+              "selectedIcon": "assets/icons/wyd-seoul-2027-toolbar.png"
             },
             {
               "id": "aos",
@@ -299,81 +341,6 @@
               "url": "https://aos.catholic.or.kr/en/index",
               "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
-            }
-          ]
-        },
-        {
-          "id": "ycatholic",
-          "label": "Yeouido-dong Catholic Church",
-          "subtitle": "",
-          "icon": "assets/icons/ycatholic.png",
-          "defaultMenu": "ycatholic",
-          "items": [
-            {
-              "id": "ycatholic",
-              "title": "Homepage",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic",
-              "selectedIcon": "assets/icons/ycatholic.png",
-              "keepStateOnTap": true
-            },
-            {
-              "id": "notice",
-              "title": "Notice",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=notice",
-              "icon": "icon:notice"
-            },
-            {
-              "id": "gallery",
-              "title": "Photo Gallery",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=gallery",
-              "icon": "icon:gallery"
-            },
-            {
-              "id": "jubo",
-              "title": "Bulletin",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/bbs/board.php?bo_table=jubo&wr_id=2",
-              "icon": "icon:book"
-            }
-          ]
-        },
-        {
-          "id": "etc",
-          "label": "Other Sites",
-          "subtitle": "",
-          "icon": "icon:category",
-          "defaultMenu": "ycatholic",
-          "items": [
-            {
-              "id": "ycatholic",
-              "title": "Yeouido-dong Catholic Church",
-              "fontFamily": "Catholic",
-              "url": "http://ycatholic.or.kr/",
-              "icon": "assets/icons/ycatholic",
-              "selectedIcon": "assets/icons/ycatholic.png",
-              "keepStateOnTap": true
-            },
-            {
-              "id": "goodnews",
-              "title": "Good News",
-              "fontFamily": "Catholic",
-              "url": "https://www.catholic.or.kr/",
-              "icon": "assets/icons/goodnews",
-              "selectedIcon": "assets/icons/goodnews.png",
-              "showTitle": true
-            },
-            {
-              "id": "aos",
-              "title": "Archdiocese of Seoul",
-              "fontFamily": "Catholic",
-              "url": "https://aos.catholic.or.kr/en/index",
-              "icon": "assets/icons/aos-toolbar",
-              "selectedIcon": "assets/icons/aos-toolbar.png",
-              "showTitle": true
             },
             {
               "id": "vatican-news",
@@ -381,17 +348,58 @@
               "fontFamily": "Catholic",
               "url": "https://www.vaticannews.va/en.html",
               "icon": "assets/icons/vatican-news",
-              "selectedIcon": "assets/icons/vatican-news.png",
-              "showTitle": true
+              "selectedIcon": "assets/icons/vatican-news.png"
             },
             {
-              "id": "notice",
-              "title": "Korean Martyrs Foundation",
+              "id": "carlo-acutis",
+              "title": "Carlo Acutis",
               "fontFamily": "Catholic",
-              "url": "https://martyrs.or.kr/en/main/main.html",
-              "icon": "assets/icons/aos-toolbar",
-              "selectedIcon": "assets/icons/aos-toolbar.png",
-              "showTitle": true
+              "url": "https://www.carloacutis.com/en/association"
+            },
+            {
+              "id": "miracoli-eucaristici",
+              "title": "MIRACOLI EUCARISTICI",
+              "fontFamily": "Catholic",
+              "url": "https://www.miracolieucaristici.org/en/Liste/list.html"
+            }
+          ]
+        },
+        {
+          "id": "etc",
+          "label": "Other Information",
+          "subtitle": "",
+          "icon": "icon:category",
+          "defaultMenu": "seoul",
+          "items": [
+            {
+              "id": "seoul",
+              "title": "Seoul",
+              "fontFamily": "Pretendard",
+              "url": "https://english.seoul.go.kr"
+            },
+            {
+              "id": "korean-visitkorea",
+              "title": "Visit Korea",
+              "fontFamily": "Pretendard",
+              "url": "https://english.visitkorea.or.kr"
+            },
+            {
+              "id": "museum",
+              "title": "National Museum of Korea",
+              "fontFamily": "Pretendard",
+              "url": "https://www.museum.go.kr/ENG"
+            },
+            {
+              "id": "sto",
+              "title": "Seoul Tourism Organization",
+              "fontFamily": "Pretendard",
+              "url": "https://www.sto.or.kr/english/index"
+            },
+            {
+              "id": "seoul-transportation",
+              "title": "Seoul Public Transportation",
+              "fontFamily": "Pretendard",
+              "url": "https://bus.go.kr"
             }
           ]
         }

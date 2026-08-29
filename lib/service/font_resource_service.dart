@@ -45,6 +45,19 @@ class FontResourceService {
     'kopub돋움체': 'KoPubDotum',
     '가톨릭체': 'Catholic',
     'catholic': 'Catholic',
+    'museumclassic': 'MuseumClassic',
+    '박물관체': 'MuseumClassic',
+    '국립박물관문화재단클래식': 'MuseumClassic',
+    '국립박물관문화재단클래식체': 'MuseumClassic',
+    'seoul': 'Seoul',
+    '서울': 'Seoul',
+    '서울체': 'Seoul',
+    'seoulnamsan': 'Seoul',
+    '서울남산': 'Seoul',
+    '서울남산체': 'Seoul',
+    'seoulhangang': 'SeoulHangang',
+    '서울한강': 'SeoulHangang',
+    '서울한강체': 'SeoulHangang',
   };
 
   static final Map<String, String> _loadedExternalFamilies = {};
@@ -57,6 +70,9 @@ class FontResourceService {
         'NanumBrush',
         'KoPubDotum',
         'Catholic',
+        'MuseumClassic',
+        'Seoul',
+        'SeoulHangang',
       ];
 
   static Future<ResolvedFontResource> apply(

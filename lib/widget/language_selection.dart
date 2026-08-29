@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../model/menu_language.dart';
 import '../model/menu_topic.dart';
 import '../service/font_resource_service.dart';
+import 'button_text_wrap.dart';
 import 'material_icon_registry.dart';
 import 'platform_file_image.dart';
 import 'version_overlay.dart';
@@ -338,7 +339,8 @@ class _LanguageSelectionState extends State<LanguageSelection> {
               onPressed: _showLanguages,
               icon: const Icon(Icons.arrow_back),
               label: Text(
-                '다른 언어 선택',
+                keepButtonWordsTogether('다른 언어 선택'),
+                semanticsLabel: '다른 언어 선택',
                 style: TextStyle(fontSize: 20, fontFamily: widget.fontFamily),
               ),
             ),
@@ -459,7 +461,9 @@ class _SelectionButton extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  label,
+                  keepButtonWordsTogether(label),
+                  key: ValueKey('selection-label-$label'),
+                  semanticsLabel: label,
                   maxLines: 2,
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -473,7 +477,8 @@ class _SelectionButton extends StatelessWidget {
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
-                subtitle!,
+                keepButtonWordsTogether(subtitle!),
+                semanticsLabel: subtitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,

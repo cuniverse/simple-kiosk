@@ -164,8 +164,9 @@ function setting(def){const row=node('div','setting-row');row.dataset.search=`${
 function panelHeader(title,desc,onRestore,restoreLabel='이 섹션 기본값 복원'){const f=document.createDocumentFragment(),head=node('div','category-head');head.append(node('h2','category-title',title));if(onRestore)head.append(restoreButton(onRestore,restoreLabel));f.append(head,node('p','category-desc',desc));return f}
 const allLayoutFields=[
  {path:'layout.brightness',label:'테마 밝기 계열',desc:'밝은(White) 또는 어두운(Dark) 계열을 지정합니다. 생략 시 밝은 계열입니다.',default:'light',options:[['light','White · 밝은 계열'],['dark','Dark · 어두운 계열']]},
+ {path:'layout.webViewBrightness',label:'WebView 테마',desc:'웹 페이지의 prefers-color-scheme을 UI 테마와 독립적으로 지정합니다. 기본값은 Light입니다.',default:'light',options:[['light','Light · 밝은 웹 페이지'],['dark','Dark · 어두운 웹 페이지']]},
  {path:'layout.hideItemIcons',label:'메뉴 아이콘 기본 감춤',desc:'켜면 메뉴별 showIcon이 없는 항목의 아이콘을 감춥니다. 항목에서 showIcon을 표시로 지정하면 예외적으로 보입니다.',type:'bool',onLabel:'감춤'},
- {path:'layout.fontFamily',label:'UI 글꼴',desc:'외부 fonts 폴더, 내장 패키지 글꼴, Windows 시스템 글꼴 순서로 찾습니다. 비우면 Flutter 기본 글꼴을 사용합니다. 내장 이름: Pretendard, NanumSquare, NanumGothic, NanumBrush, KoPubDotum, Catholic'},
+ {path:'layout.fontFamily',label:'UI 글꼴',desc:'외부 fonts 폴더, 내장 패키지 글꼴, Windows 시스템 글꼴 순서로 찾습니다. 비우면 Flutter 기본 글꼴을 사용합니다. 내장 이름: Pretendard, NanumSquare, NanumGothic, NanumBrush, KoPubDotum, Catholic, MuseumClassic(박물관체), Seoul(서울남산체), SeoulHangang(서울한강체)'},
  {path:'layout.menuFontFamily',label:'툴바 메뉴 전체 글꼴',desc:'모든 툴바 메뉴 버튼에 적용합니다. 비우면 UI 글꼴을 따르며, 메뉴 항목별 글꼴이 있으면 개별 설정이 우선합니다.'},
  {path:'layout.navPosition',label:'툴바 위치',desc:'화면에서 메뉴 툴바가 표시될 위치입니다.',options:[['auto','자동'],['left','왼쪽'],['right','오른쪽'],['top','위'],['bottom','아래']]},
  {path:'layout.sideWidth',label:'세로 툴바 너비',desc:'왼쪽 또는 오른쪽 툴바의 너비입니다.',type:'number',min:80},

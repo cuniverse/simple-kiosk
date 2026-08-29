@@ -15,6 +15,7 @@ dependencies:
   html: ^0.15.6
   markdown: ^7.3.1
   crypto: ^3.0.6
+  characters: ^1.4.0
   # PowerShell 없이 동작하는 Windows 업데이트 실행기의 ZIP 해제.
   archive: ^4.1.0
   # 네이티브 업데이트 실행기에서 앱 프로세스 종료를 안전하게 대기.
@@ -123,3 +124,31 @@ flutter:
     - family: Catholic
       fonts:
         - asset: assets/fonts/catholic/Catholic.ttf
+    - family: MuseumClassic
+      fonts:
+        - asset: assets/fonts/museum-classic/MuseumClassicL.otf
+          weight: 300
+        - asset: assets/fonts/museum-classic/MuseumClassicM.otf
+          weight: 500
+        - asset: assets/fonts/museum-classic/MuseumClassicB.otf
+          weight: 700
+    - family: Seoul
+      fonts:
+        - asset: assets/fonts/seoul/SeoulNamsanL.ttf
+          weight: 300
+        - asset: assets/fonts/seoul/SeoulNamsanM.ttf
+          weight: 500
+        - asset: assets/fonts/seoul/SeoulNamsanB.ttf
+          weight: 700
+        - asset: assets/fonts/seoul/SeoulNamsanEB.ttf
+          weight: 800
+    - family: SeoulHangang
+      fonts:
+        - asset: assets/fonts/seoul/SeoulHangangL.ttf
+          weight: 300
+        - asset: assets/fonts/seoul/SeoulHangangM.ttf
+          weight: 500
+        - asset: assets/fonts/seoul/SeoulHangangB.ttf
+          weight: 700
+        - asset: assets/fonts/seoul/SeoulHangangEB.ttf
+          weight: 800

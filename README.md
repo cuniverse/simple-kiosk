@@ -128,8 +128,8 @@ WEB 관리자는 다음 운영 기능을 제공합니다.
 - 설정 백업·복원 및 프로그램·WebView·Updater·관리 API 로그가 포함된 진단 자료 내보내기
 - 분류, 제목, 문제 설명, 재현 방법과 기대 결과를 작성하는 GitHub 이슈 등록
 
-앱 설정의 **진단 정보로 이슈 등록**을 누르면 먼저 진단 자료를 내보낸 뒤 WEB 관리자의
-진단·이슈 작성 화면을 바로 엽니다. GitHub 로그인이 없는 환경에서 실제 이슈를 등록하려면
+앱 설정의 **진단 정보로 이슈 등록**을 누르면 추가 입력·확인 없이 시스템 정보와 최근 로그,
+업데이트 상태를 수집해 GitHub 이슈를 바로 등록합니다. GitHub 로그인 없이 등록하려면
 GW 서버에 [`deploy/github-issue-relay`](deploy/github-issue-relay/README.md)의 중계기를
 구성해야 합니다. 화면 미리보기는 해당 탭을 열어 둔 동안 사이니지가 놓인 모니터의 실제
 데스크톱을 캡처합니다. 사이니지를 숨기면 그 아래 데스크톱을 계속 갱신하며 상태를 텍스트로
@@ -280,6 +280,7 @@ flutter pub get
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
 | `brightness` | `light`/`dark` | `dark` (생략 시 `light`) | 테마의 밝은(White)·어두운(Dark) 계열 지정 |
+| `webViewBrightness` | `light`/`dark` | `light` | 웹 페이지의 `prefers-color-scheme`. UI 테마 `brightness`와 독립 |
 | `hideItemIcons` | bool | `true` | `showIcon`을 생략한 메뉴 아이콘을 기본적으로 감춤. 개별 `showIcon: true`는 표시 |
 | `navPosition` | `auto`/`left`/`right`/`top`/`bottom` | `right` | 네비게이션 위치. `auto` 는 폭 `breakpoint` 기준 자동 전환 |
 | `breakpoint` | number(dp) | `720` | `auto` 모드에서 사이드/하단을 가르는 폭 |
@@ -317,7 +318,8 @@ flutter pub get
 이름으로 시작하게 구성합니다.
 
 패키지에는 `Pretendard`, `NanumSquare`, `NanumGothic`, `NanumBrush`,
-`KoPubDotum`, `Catholic`이 포함됩니다. 라이선스는
+`KoPubDotum`, `Catholic`, `MuseumClassic`(박물관체), `Seoul`(서울남산체),
+`SeoulHangang`(서울한강체)이 포함됩니다. 라이선스는
 `assets/fonts/licenses`에서 확인할 수 있으며, 가톨릭체는 개인과 가톨릭
 교회기관의 비영리·사목 목적에만 사용할 수 있습니다.
 

@@ -1545,46 +1545,56 @@ class _KioskHomeState extends State<_KioskHome> {
 
                     // 메뉴별 WebView 를 IndexedStack 에 lazy 배치.
                     // 한 번이라도 방문한 항목만 실제 KioskWebView 로 mount 된다.
-                    final webViewStack = IndexedStack(
-                      index: _selectedIndex,
-                      children: List<Widget>.generate(_items.length, (i) {
-                        final item = _items[i];
-                        final slot = WebViewSlotId(
-                          languageId: languageId,
-                          topicId: topicId,
-                          menuId: item.id,
-                        );
-                        if (!_mountedSlots.contains(slot)) {
-                          return SizedBox.shrink(
-                            key: ValueKey(
-                              'empty-${slot.languageId}-${slot.menuId}-$generation',
-                            ),
+                    final webViewStack = ColoredBox(
+                      // WebView가 아직 생성되지 않았거나 메뉴 전환 중 빈 슬롯이
+                      // 보이는 순간에도 앱 UI 테마의 surface 색을 노출하지 않는다.
+                      // 이 캔버스는 웹 페이지 내용에는 영향을 주지 않으며,
+                      // WebView 전용 밝기 설정만 따른다.
+                      color: widget.layout.webViewBrightness == Brightness.dark
+                          ? const Color(0xFF121212)
+                          : Colors.white,
+                      child: IndexedStack(
+                        index: _selectedIndex,
+                        children: List<Widget>.generate(_items.length, (i) {
+                          final item = _items[i];
+                          final slot = WebViewSlotId(
+                            languageId: languageId,
+                            topicId: topicId,
+                            menuId: item.id,
                           );
-                        }
-                        return KioskWebView(
-                          key: ValueKey(
-                            'kiosk-webview-${slot.languageId}-${slot.menuId}-$generation',
-                          ),
-                          initialUrl: item.url,
-                          active: slot == _selectedSlot,
-                          onShowManual: _showUserManual,
-                          onShowVersion: _showVersionInfo,
-                          onCheckUpdate: _checkUpdateFromShortcut,
-                          onReady: (c) {
-                            if (!mounted ||
-                                !_webViewGeneration.isCurrent(generation) ||
-                                !_mountedSlots.contains(slot)) {
-                              return;
-                            }
-                            _controllers[slot] = c;
-                            // 현재 화면의 history 컨트롤만 새 컨트롤러를 받도록 리빌드.
-                            // 백그라운드 준비 메뉴는 완료 콜백에서 함께 갱신된다.
-                            if (slot == _selectedSlot) setState(() {});
-                          },
-                          onInitialLoadReady: () =>
-                              _onInitialLoadReady(slot, generation),
-                        );
-                      }),
+                          if (!_mountedSlots.contains(slot)) {
+                            return SizedBox.shrink(
+                              key: ValueKey(
+                                'empty-${slot.languageId}-${slot.menuId}-$generation',
+                              ),
+                            );
+                          }
+                          return KioskWebView(
+                            key: ValueKey(
+                              'kiosk-webview-${slot.languageId}-${slot.menuId}-$generation',
+                            ),
+                            initialUrl: item.url,
+                            active: slot == _selectedSlot,
+                            webViewBrightness: widget.layout.webViewBrightness,
+                            onShowManual: _showUserManual,
+                            onShowVersion: _showVersionInfo,
+                            onCheckUpdate: _checkUpdateFromShortcut,
+                            onReady: (c) {
+                              if (!mounted ||
+                                  !_webViewGeneration.isCurrent(generation) ||
+                                  !_mountedSlots.contains(slot)) {
+                                return;
+                              }
+                              _controllers[slot] = c;
+                              // 현재 화면의 history 컨트롤만 새 컨트롤러를 받도록 리빌드.
+                              // 백그라운드 준비 메뉴는 완료 콜백에서 함께 갱신된다.
+                              if (slot == _selectedSlot) setState(() {});
+                            },
+                            onInitialLoadReady: () =>
+                                _onInitialLoadReady(slot, generation),
+                          );
+                        }),
+                      ),
                     );
 
                     final isSide = position == NavPosition.left ||
