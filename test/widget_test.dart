@@ -476,6 +476,9 @@ void main() {
     expect(source, contains('WebResourceErrorType.CONNECTION_ABORTED'));
     expect(source, contains('_connectionAbortGrace'));
     expect(source, contains('_hasCommittedVisibleDocument'));
+    expect(source, contains('_isSupersededNavigationError'));
+    expect(source, contains('_deferredConnectionAbortUrl'));
+    expect(source, contains('_sameWebNavigationTarget'));
     expect(source, contains("evaluateJavascript(source: 'void 0')"));
     expect(source, contains('_maxHealthProbeFailures'));
   });

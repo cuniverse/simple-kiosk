@@ -480,6 +480,7 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// WebView2의 CONNECTION_ABORTED는 리다이렉트로 이전 탐색이 교체될 때도
   /// 발생한다. 새 문서 커밋 여부를 기다린 뒤 실제 실패인 경우에만 표시한다.
   Timer? _deferredConnectionAbort;
+  String? _deferredConnectionAbortUrl;
   static const Duration _connectionAbortGrace = Duration(seconds: 2);
   bool _hasCommittedVisibleDocument = false;
 
@@ -726,6 +727,13 @@ class _KioskWebViewState extends State<KioskWebView> {
   void _cancelDeferredConnectionAbort() {
     _deferredConnectionAbort?.cancel();
     _deferredConnectionAbort = null;
+    _deferredConnectionAbortUrl = null;
+  }
+
+  bool _isSupersededNavigationError(String failedUrl) {
+    final currentUrl = _currentUrl;
+    if (currentUrl == null || currentUrl == 'about:blank') return false;
+    return !_sameWebNavigationTarget(failedUrl, currentUrl);
   }
 
   void _showMainFrameLoadError(String description) {
@@ -740,9 +748,20 @@ class _KioskWebViewState extends State<KioskWebView> {
 
   void _deferConnectionAbort(String url, String description) {
     _cancelDeferredConnectionAbort();
+    _deferredConnectionAbortUrl = url;
     _deferredConnectionAbort = Timer(_connectionAbortGrace, () {
       _deferredConnectionAbort = null;
       if (!mounted) return;
+      if (_isSupersededNavigationError(url)) {
+        AppLogger.info(
+          LogCategory.webview,
+          'Ignored aborted superseded navigation after URL changed: '
+          '$url -> $_currentUrl',
+        );
+        _deferredConnectionAbortUrl = null;
+        return;
+      }
+      _deferredConnectionAbortUrl = null;
       AppLogger.warning(
         LogCategory.webview,
         'Connection remained aborted after redirect grace: $url - '
@@ -1149,8 +1168,23 @@ class _KioskWebViewState extends State<KioskWebView> {
                 // WebView2는 메인 프레임 오류 뒤에도 onLoadStop을 보낼 수 있다.
                 // 이 경우 오류 화면과 자동 재시도 타이머를 그대로 유지해야 한다.
                 final failed = _errorMessage != null;
+                final stoppedUrl = url?.toString();
+                final deferredUrl = _deferredConnectionAbortUrl;
+                if (!failed &&
+                    stoppedUrl != null &&
+                    stoppedUrl != 'about:blank' &&
+                    deferredUrl != null &&
+                    !_sameWebNavigationTarget(deferredUrl, stoppedUrl)) {
+                  AppLogger.info(
+                    LogCategory.webview,
+                    'Redirect destination loaded after aborted navigation: '
+                    '$deferredUrl -> $stoppedUrl',
+                  );
+                  _hasCommittedVisibleDocument = true;
+                  _cancelDeferredConnectionAbort();
+                }
                 setState(() {
-                  _currentUrl = url?.toString();
+                  _currentUrl = stoppedUrl;
                 });
                 _finishLoading();
                 if (failed) return;
@@ -1226,6 +1260,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                 }
                 if (isMainFrame &&
                     error.type == WebResourceErrorType.CONNECTION_ABORTED) {
+                  final failedUrl = request.url.toString();
                   if (_hasCommittedVisibleDocument) {
                     AppLogger.info(
                       LogCategory.webview,
@@ -1234,12 +1269,20 @@ class _KioskWebViewState extends State<KioskWebView> {
                     );
                     return;
                   }
+                  if (_isSupersededNavigationError(failedUrl)) {
+                    AppLogger.info(
+                      LogCategory.webview,
+                      'Ignored aborted superseded navigation: '
+                      '$failedUrl -> $_currentUrl',
+                    );
+                    return;
+                  }
                   AppLogger.info(
                     LogCategory.webview,
-                    'Deferring possibly superseded navigation: ${request.url}',
+                    'Deferring possibly superseded navigation: $failedUrl',
                   );
                   _deferConnectionAbort(
-                    request.url.toString(),
+                    failedUrl,
                     error.description,
                   );
                   return;
@@ -1499,4 +1542,18 @@ class _ErrorView extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _sameWebNavigationTarget(String left, String right) {
+  final leftUri = Uri.tryParse(left);
+  final rightUri = Uri.tryParse(right);
+  if (leftUri == null || rightUri == null) return left == right;
+  if (leftUri.scheme.toLowerCase() != rightUri.scheme.toLowerCase() ||
+      leftUri.host.toLowerCase() != rightUri.host.toLowerCase() ||
+      leftUri.port != rightUri.port) {
+    return false;
+  }
+  final leftPath = leftUri.path.isEmpty ? '/' : leftUri.path;
+  final rightPath = rightUri.path.isEmpty ? '/' : rightUri.path;
+  return leftPath == rightPath && leftUri.query == rightUri.query;
 }
