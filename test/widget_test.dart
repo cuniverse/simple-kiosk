@@ -439,7 +439,7 @@ void main() {
     expect(app, contains('LaunchMode.externalApplication'));
     expect(
       tray,
-      contains('popUpContextMenu(bringAppToFront: true)'),
+      contains('popUpContextMenu(bringAppToFront: visible)'),
     );
   });
 
@@ -2811,7 +2811,7 @@ void main() {
     expect(traySource, contains('recoverRenderingSurface'));
   });
 
-  test('사이니지 숨김 뒤 Windows foreground를 바탕화면에 반환한다', () {
+  test('사이니지 숨김 상태에서는 다른 창의 입력과 foreground를 제어하지 않는다', () {
     final tray = File(
       'lib/service/kiosk_tray_controller.dart',
     ).readAsStringSync();
@@ -2823,13 +2823,51 @@ void main() {
       'windows/runner/flutter_window.cpp',
     ).readAsStringSync();
 
-    expect(tray, contains('await WindowsKioskMode.releaseForeground();'));
-    expect(main, contains('await WindowsKioskMode.releaseForeground();'));
-    expect(kioskMode, contains("invokeMethod<bool>('releaseForeground')"));
-    expect(runner, contains('call.method_name() == "releaseForeground"'));
-    expect(runner, contains('::GetForegroundWindow()'));
-    expect(runner, contains('::GetShellWindow()'));
-    expect(runner, contains('::SetForegroundWindow(shell)'));
+    expect(tray, contains('bringAppToFront: visible'));
+    expect(tray, contains('await windowManager.isVisible()'));
+    expect(tray, isNot(contains('bringAppToFront: true')));
+    expect(main, isNot(contains('releaseForeground')));
+    expect(kioskMode, isNot(contains('releaseForeground')));
+    expect(runner, isNot(contains('releaseForeground')));
+    expect(runner, isNot(contains('::AttachThreadInput')));
+    expect(runner, contains('if (active && keyboard_hook_ == nullptr)'));
+    expect(runner, contains('::UnhookWindowsHookEx(keyboard_hook_)'));
+    expect(tray, contains('setWebViewsVisible(false)'));
+    expect(tray, contains('setWebViewsVisible(true)'));
+    expect(
+      kioskMode,
+      contains(
+          "MethodChannel('com.pichillilorenzo/flutter_inappwebview_manager')"),
+    );
+    expect(kioskMode, contains("'setAllWebViewsVisible'"));
+    expect(kioskMode, contains("invokeMethod<bool>('hideProcessWindows')"));
+    expect(
+      runner,
+      isNot(contains('Chrome_RenderWidgetHostHWND')),
+    );
+    expect(runner, contains('ApplicationProcessTree()'));
+    expect(runner, contains('::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS'));
+    expect(runner, contains('HideApplicationProcessWindows()'));
+    expect(runner, contains('::ShowWindow(window, SW_HIDE)'));
+    expect(runner, contains('call.method_name() == "hideProcessWindows"'));
+  });
+
+  test('Windows WebView2는 숨김 상태를 기존 및 지연 생성 컨트롤에 적용한다', () {
+    final manager = File(
+      'packages/flutter_inappwebview_windows-0.6.0/windows/'
+      'in_app_webview/in_app_webview_manager.cpp',
+    ).readAsStringSync();
+    final webView = File(
+      'packages/flutter_inappwebview_windows-0.6.0/windows/'
+      'in_app_webview/in_app_webview.cpp',
+    ).readAsStringSync();
+
+    expect(manager, contains('setAllWebViewsVisible'));
+    expect(manager, contains('web_views_visible_ = visible'));
+    expect(manager, contains('inAppWebView->setVisible(web_views_visible_)'));
+    expect(manager, contains('entry.second->view->setVisible(visible)'));
+    expect(webView, contains('webViewController->put_IsVisible(visible)'));
+    expect(webView, contains('surface_->put_IsVisible(visible)'));
   });
 
   test('관리 API는 네트워크 종료를 마친 뒤 컨트롤러를 폐기한다', () {

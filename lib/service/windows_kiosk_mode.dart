@@ -11,6 +11,8 @@ class WindowsKioskMode {
 
   static const MethodChannel _channel =
       MethodChannel('simple_kiosk/windows_kiosk_mode');
+  static const MethodChannel _webViewManagerChannel =
+      MethodChannel('com.pichillilorenzo/flutter_inappwebview_manager');
 
   static bool _shortcutLockdownEnabled = true;
   static WindowsKioskShortcutSettings _shortcutSettings =
@@ -56,17 +58,28 @@ class WindowsKioskMode {
     await windowManager.setAlwaysOnTop(false);
   }
 
-  /// 숨긴 사이니지 창에 남은 foreground 소유권을 Windows 셸에 돌려준다.
-  ///
-  /// 전체 화면 창을 `SW_HIDE`로 감춘 뒤에도 Windows가 해당 프로세스의 자식
-  /// 창을 foreground로 유지하는 경우가 있다. 이 상태에서는 바탕화면의 첫
-  /// 클릭이 아이콘 실행 대신 foreground 전환에 소비된다.
-  static Future<void> releaseForeground() async {
+  /// WebView2 composition controller는 부모 Flutter 창과 별도 가시성 상태를
+  /// 가지므로, 앱 창을 감출 때 명시적으로 함께 숨겨야 입력 HWND가 남지 않는다.
+  static Future<void> setWebViewsVisible(bool visible) async {
     if (!Platform.isWindows) return;
     try {
-      await _channel.invokeMethod<bool>('releaseForeground');
+      await _webViewManagerChannel.invokeMethod<void>(
+        'setAllWebViewsVisible',
+        {'visible': visible},
+      );
     } on MissingPluginException {
-      // Windows 이외 테스트 환경이나 이전 네이티브 실행기에서는 무시한다.
+      // 이전 Windows 플러그인 실행기와의 호환성을 유지한다.
+    }
+  }
+
+  /// 메인 Flutter HWND뿐 아니라 WebView2 등 자식 프로세스가 만든 모든
+  /// 최상위 창까지 Windows의 SW_HIDE로 숨긴다.
+  static Future<void> hideProcessWindows() async {
+    if (!Platform.isWindows) return;
+    try {
+      await _channel.invokeMethod<bool>('hideProcessWindows');
+    } on MissingPluginException {
+      // 이전 Windows 실행기에서는 메인 창 숨김 경로를 계속 사용한다.
     }
   }
 

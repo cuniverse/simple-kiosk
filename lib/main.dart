@@ -85,10 +85,11 @@ Future<void> _applyInitialWindowState({
 }) async {
   try {
     if (startupMode == 'hidden') {
+      await WindowsKioskMode.setWebViewsVisible(false);
       if (!windowed) await windowManager.setFullScreen(true);
       await windowManager.setSkipTaskbar(true);
+      await WindowsKioskMode.hideProcessWindows();
       await windowManager.hide();
-      await WindowsKioskMode.releaseForeground();
       return;
     }
 
@@ -102,6 +103,7 @@ Future<void> _applyInitialWindowState({
     if (!windowed) await windowManager.setFullScreen(true);
     await Future<void>.delayed(const Duration(milliseconds: 80));
     await WindowsKioskMode.recoverRenderingSurface();
+    await WindowsKioskMode.setWebViewsVisible(true);
     await WindowsKioskMode.activate();
     await windowManager.focus();
     AppLogger.info(LogCategory.app, 'Initial window surface ready');

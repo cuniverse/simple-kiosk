@@ -82,6 +82,12 @@ namespace flutter_inappwebview_plugin
       disposeKeepAlive(keepAliveId);
       result->Success();
     }
+    else if (string_equals(methodName, "setAllWebViewsVisible")) {
+      const bool visible =
+        get_fl_map_value<bool>(*arguments, "visible", true);
+      setAllWebViewsVisible(visible);
+      result->Success();
+    }
     else {
       result->NotImplemented();
     }
@@ -151,6 +157,11 @@ namespace flutter_inappwebview_plugin
 
           auto inAppWebView = std::make_unique<InAppWebView>(plugin, params, hwnd, std::move(webViewEnv), std::move(webViewController), std::move(webViewCompositionController));
 
+          // The Flutter host can be hidden while WebView2 is still being
+          // created. In that case the composition controller must inherit the
+          // manager visibility instead of creating a visible input window.
+          inAppWebView->setVisible(web_views_visible_);
+
           std::optional<std::shared_ptr<URLRequest>> urlRequest = urlRequestMap.has_value() ? std::make_shared<URLRequest>(urlRequestMap.value()) : std::optional<std::shared_ptr<URLRequest>>{};
           if (urlRequest.has_value()) {
             inAppWebView->loadUrl(urlRequest.value());
@@ -203,6 +214,21 @@ namespace flutter_inappwebview_plugin
         platformView->UnregisterMethodCallHandler();
       }
       keepAliveWebViews.erase(keepAliveId);
+    }
+  }
+
+  void InAppWebViewManager::setAllWebViewsVisible(bool visible)
+  {
+    web_views_visible_ = visible;
+    for (const auto& entry : webViews) {
+      if (entry.second && entry.second->view) {
+        entry.second->view->setVisible(visible);
+      }
+    }
+    for (const auto& entry : keepAliveWebViews) {
+      if (entry.second && entry.second->view) {
+        entry.second->view->setVisible(visible);
+      }
     }
   }
 

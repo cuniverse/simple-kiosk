@@ -102,15 +102,17 @@ class KioskTrayController with TrayListener, WindowListener {
     await windowManager.setSkipTaskbar(false);
     await windowManager.show();
     await WindowsKioskMode.recoverRenderingSurface();
+    await WindowsKioskMode.setWebViewsVisible(true);
     await windowManager.focus();
   }
 
   Future<void> hideWindow() async {
     if (!supported) return;
+    await WindowsKioskMode.setWebViewsVisible(false);
     await WindowsKioskMode.deactivate();
     await windowManager.setSkipTaskbar(true);
+    await WindowsKioskMode.hideProcessWindows();
     await windowManager.hide();
-    await WindowsKioskMode.releaseForeground();
   }
 
   Future<void> toggleWindow() async {
@@ -232,11 +234,12 @@ class KioskTrayController with TrayListener, WindowListener {
     unawaited(_showContextMenu());
   }
 
-  Future<void> _showContextMenu() {
-    // Windows requires the menu owner to be the foreground window so an
-    // outside click dismisses the native TrackPopupMenu.
+  Future<void> _showContextMenu() async {
+    // 숨긴 메인 창을 foreground로 만들면 메뉴가 닫힌 뒤에도 바탕화면의
+    // 첫 입력이 앱 활성 해제에 소비된다. 창이 보일 때만 앞으로 가져온다.
+    final visible = await windowManager.isVisible();
     // ignore: deprecated_member_use
-    return trayManager.popUpContextMenu(bringAppToFront: true);
+    await trayManager.popUpContextMenu(bringAppToFront: visible);
   }
 
   @override

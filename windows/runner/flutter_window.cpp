@@ -6,7 +6,9 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <tlhelp32.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <shlobj.h>
@@ -410,6 +412,56 @@ bool HideWindowsKeyboard() {
   return requested;
 }
 
+std::unordered_set<DWORD> ApplicationProcessTree() {
+  const DWORD root_process_id = ::GetCurrentProcessId();
+  std::unordered_set<DWORD> process_ids{root_process_id};
+  std::vector<std::pair<DWORD, DWORD>> relationships;
+  const HANDLE snapshot =
+      ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snapshot == INVALID_HANDLE_VALUE) return process_ids;
+
+  PROCESSENTRY32W entry{};
+  entry.dwSize = sizeof(entry);
+  if (::Process32FirstW(snapshot, &entry)) {
+    do {
+      relationships.emplace_back(entry.th32ProcessID,
+                                 entry.th32ParentProcessID);
+    } while (::Process32NextW(snapshot, &entry));
+  }
+  ::CloseHandle(snapshot);
+
+  bool added = true;
+  while (added) {
+    added = false;
+    for (const auto& relationship : relationships) {
+      if (process_ids.find(relationship.second) != process_ids.end() &&
+          process_ids.find(relationship.first) == process_ids.end()) {
+        process_ids.insert(relationship.first);
+        added = true;
+      }
+    }
+  }
+  return process_ids;
+}
+
+BOOL CALLBACK HideApplicationWindow(HWND window, LPARAM parameter) {
+  const auto* process_ids =
+      reinterpret_cast<const std::unordered_set<DWORD>*>(parameter);
+  DWORD process_id = 0;
+  ::GetWindowThreadProcessId(window, &process_id);
+  if (process_ids->find(process_id) != process_ids->end() &&
+      ::IsWindowVisible(window)) {
+    ::ShowWindow(window, SW_HIDE);
+  }
+  return TRUE;
+}
+
+void HideApplicationProcessWindows() {
+  const auto process_ids = ApplicationProcessTree();
+  ::EnumWindows(HideApplicationWindow,
+                reinterpret_cast<LPARAM>(&process_ids));
+}
+
 LRESULT CALLBACK KioskKeyboardHook(int code, WPARAM wparam, LPARAM lparam) {
   if (code == HC_ACTION && g_kiosk_window != nullptr) {
     const auto* event = reinterpret_cast<KBDLLHOOKSTRUCT*>(lparam);
@@ -579,6 +631,14 @@ bool FlutterWindow::OnCreate() {
           // 시스템 전역 정책이 아니라 이 전체화면 창에만 적용된다.
           SetFullscreenEdgeGesturesDisabled(active && disable_edge_swipe);
           ApplyDisplayPowerPolicy();
+          if (active && keyboard_hook_ == nullptr) {
+            keyboard_hook_ = ::SetWindowsHookEx(
+                WH_KEYBOARD_LL, KioskKeyboardHook,
+                ::GetModuleHandle(nullptr), 0);
+          } else if (!active && keyboard_hook_ != nullptr) {
+            ::UnhookWindowsHookEx(keyboard_hook_);
+            keyboard_hook_ = nullptr;
+          }
           if (!active) {
             g_active_touch_points.clear();
             g_keyboard_emergency_exit_token.store(0);
@@ -588,24 +648,9 @@ bool FlutterWindow::OnCreate() {
         } else if (call.method_name() == "recoverSurface") {
           RecoverRenderingSurface(true);
           result->Success(flutter::EncodableValue(true));
-        } else if (call.method_name() == "releaseForeground") {
-          // ShowWindow(SW_HIDE) normally activates another window, but a
-          // fullscreen Flutter/WebView window can leave one of this process's
-          // windows as the foreground owner. In that case the first desktop
-          // click is consumed only to reactivate Explorer. Explicitly return
-          // foreground ownership to the shell after the signage is hidden.
-          const HWND foreground = ::GetForegroundWindow();
-          DWORD foreground_process_id = 0;
-          if (foreground != nullptr) {
-            ::GetWindowThreadProcessId(foreground, &foreground_process_id);
-          }
-          bool released = foreground_process_id != ::GetCurrentProcessId();
-          if (!released) {
-            const HWND shell = ::GetShellWindow();
-            released = shell != nullptr && ::IsWindow(shell) &&
-                       ::SetForegroundWindow(shell) != FALSE;
-          }
-          result->Success(flutter::EncodableValue(released));
+        } else if (call.method_name() == "hideProcessWindows") {
+          HideApplicationProcessWindows();
+          result->Success(flutter::EncodableValue(true));
         } else {
           result->NotImplemented();
         }
@@ -650,9 +695,6 @@ bool FlutterWindow::OnCreate() {
       reinterpret_cast<LONG_PTR>(FlutterViewTouchProc)));
   ::SetTimer(g_kiosk_window, kSurfaceWatchdogTimerId,
              kSurfaceWatchdogIntervalMs, nullptr);
-  keyboard_hook_ = ::SetWindowsHookEx(WH_KEYBOARD_LL, KioskKeyboardHook,
-                                      ::GetModuleHandle(nullptr), 0);
-
   // 창 표시와 전체화면 전환은 첫 Flutter 프레임 뒤 Dart에서 한 경로로만
   // 수행한다. 네이티브에서도 창을 표시하면 첫 프레임/전체화면 resize가
   // 경쟁해 렌더 표면이 검게 멈출 수 있다.

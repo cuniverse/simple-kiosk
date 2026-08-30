@@ -51,6 +51,7 @@ namespace flutter_inappwebview_plugin
 
     void createInAppWebView(const flutter::EncodableMap* arguments, std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
     void disposeKeepAlive(const std::string& keepAliveId);
+    void setAllWebViewsVisible(bool visible);
   private:
     inline static std::shared_ptr<rx::RoHelper> rohelper_ = nullptr;
     inline static winrt::com_ptr<ABI::Windows::System::IDispatcherQueueController>
@@ -59,6 +60,7 @@ namespace flutter_inappwebview_plugin
     inline static winrt::com_ptr<ABI::Windows::UI::Composition::ICompositor> compositor_ = nullptr;
     WNDCLASS windowClass_ = {};
     inline static bool valid_ = false;
+    bool web_views_visible_ = true;
   };
 }
 #endif //FLUTTER_INAPPWEBVIEW_PLUGIN_IN_APP_WEBVIEW_MANAGER_H_

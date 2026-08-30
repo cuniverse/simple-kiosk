@@ -1542,7 +1542,8 @@ namespace flutter_inappwebview_plugin
   void InAppWebView::pause() const
   {
     wil::com_ptr<ICoreWebView2_3> webView3;
-    if (SUCCEEDED(webView->QueryInterface(IID_PPV_ARGS(&webView3))) && succeededOrLog(webViewController->put_IsVisible(false))) {
+    setVisible(false);
+    if (SUCCEEDED(webView->QueryInterface(IID_PPV_ARGS(&webView3)))) {
       failedLog(webView3->TrySuspend(Callback<ICoreWebView2TrySuspendCompletedHandler>(
         [this](HRESULT errorCode, BOOL isSuccessful) -> HRESULT
         {
@@ -1556,8 +1557,19 @@ namespace flutter_inappwebview_plugin
   void InAppWebView::resume() const
   {
     wil::com_ptr<ICoreWebView2_3> webView3;
-    if (SUCCEEDED(webView->QueryInterface(IID_PPV_ARGS(&webView3))) && succeededOrLog(webViewController->put_IsVisible(true))) {
+    if (SUCCEEDED(webView->QueryInterface(IID_PPV_ARGS(&webView3)))) {
       failedLog(webView3->Resume());
+    }
+    setVisible(true);
+  }
+
+  void InAppWebView::setVisible(bool visible) const
+  {
+    if (webViewController) {
+      failedLog(webViewController->put_IsVisible(visible));
+    }
+    if (surface_) {
+      failedLog(surface_->put_IsVisible(visible));
     }
   }
 
