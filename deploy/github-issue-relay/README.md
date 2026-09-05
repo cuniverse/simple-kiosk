@@ -57,9 +57,10 @@ sudo editor /etc/simple-kiosk-issue-relay/config.php
 
 중요한 점은 정확히 일치하는 PHP location을 기존 `location /`과 나란히 두는
 것입니다. 그러면 이슈 요청만 PHP로 가고, 나머지 WEB 관리자 요청은 기존
-`/run/signage/ysignage숫자.sock`으로 계속 전달됩니다. 고정 ID 중복 시 사용하는
-`ysignage7-1` 형식도 호스트 이름 추출 규칙에서 허용하고, 접미사를 포함한 ID 전체를
-소켓 경로에 사용해야 합니다. `nginx.conf.example`의 `server_name` 예시를 참고하세요.
+`/run/signage/<ID>.sock`으로 계속 전달됩니다. 자동 배정 ID는 `ysignage숫자`,
+수동 ID는 `church-lobby` 같은 이름이며 중복 시 `church-lobby-1`처럼 번호를 붙입니다.
+호스트에서 추출한 ID 전체를 소켓 경로에 사용합니다. `nginx.conf.example`의
+`server_name`은 예시이며, 운영 서버가 이미 사용자 지정 ID를 허용한다면 변경할 필요가 없습니다.
 
 ```bash
 sudo nginx -t

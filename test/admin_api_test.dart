@@ -73,27 +73,27 @@ void main() {
     addTearDown(() => directory.delete(recursive: true));
     final file = File('${directory.path}/admin-api.json');
     final settings = AdminApiSettings.fromJson({
-      'webAdminSshForwardingId': ' YSIGNAGE42 ',
+      'webAdminSshForwardingId': ' CHURCH-LOBBY ',
       'webAdminSshForwardingIdFixed': true,
     });
     await AdminApiSettingsStore(file: file).save(settings);
     final reloaded = await AdminApiSettingsStore(file: file).load();
     await AdminApiSettingsStore(file: file).save(reloaded.copyWith(port: 8080));
     final restored = await AdminApiSettingsStore(file: file).load();
-    expect(restored.webAdminSshForwardingId, 'ysignage42');
+    expect(restored.webAdminSshForwardingId, 'church-lobby');
     expect(restored.webAdminSshForwardingIdFixed, isTrue);
     final imported = ConfigurationBackupService.preserveDeviceIdentity(
       const AdminApiSettings(port: 9000, webAdminSshForwardingId: 'ysignage99'),
       restored,
     );
-    expect(imported.webAdminSshForwardingId, 'ysignage42');
+    expect(imported.webAdminSshForwardingId, 'church-lobby');
     expect(imported.webAdminSshForwardingIdFixed, isTrue);
     expect(imported.port, 9000);
     expect(
-        WebAdminSshTunnelController.candidateIds('ysignage42', fixed: true)
+        WebAdminSshTunnelController.candidateIds('church-lobby', fixed: true)
             .take(4)
             .toList(),
-        ['ysignage42', 'ysignage42-1', 'ysignage42-2', 'ysignage42-3']);
+        ['church-lobby', 'church-lobby-1', 'church-lobby-2', 'church-lobby-3']);
     expect(
         WebAdminSshTunnelController.candidateIds(null, fixed: true), isEmpty);
     expect(
@@ -114,13 +114,58 @@ void main() {
             .take(4),
         ['ysignage42-2', 'ysignage42-3', 'ysignage42-4', 'ysignage42-5']);
     for (final invalid in [
-      'ysignage7-0',
-      'ysignage7-1-1',
+      '',
+      '-church',
+      'church_lobby',
+      'church.lobby',
+      'church lobby',
       'ysignage7-',
       'ysignage7/1'
     ]) {
       expect(AdminApiSettings.isValidWebAdminSshForwardingId(invalid), isFalse);
     }
+  });
+
+  test(
+      'custom fixed IDs preserve hyphens and continue collision suffixes within 63 characters',
+      () {
+    for (final id in [
+      'yeouido',
+      'church-lobby',
+      'a',
+      '7',
+      'ysignage7-0',
+      'building-7-1'
+    ]) {
+      expect(AdminApiSettings.isValidWebAdminSshForwardingId(id), isTrue);
+    }
+    final custom = AdminApiSettings.fromJson({
+      'webAdminSshForwardingId': ' CHURCH-LOBBY ',
+      'webAdminSshForwardingIdFixed': true,
+    });
+    expect(custom.webAdminSshForwardingId, 'church-lobby');
+    expect(
+        WebAdminSshTunnelController.candidateIds(custom.webAdminSshForwardingId,
+                fixed: true)
+            .take(3),
+        ['church-lobby', 'church-lobby-1', 'church-lobby-2']);
+    expect(
+        WebAdminSshTunnelController.candidateIds('church-lobby-9', fixed: true)
+            .take(3),
+        ['church-lobby-9', 'church-lobby-10', 'church-lobby-11']);
+    final longId = List.filled(63, 'a').join();
+    expect(AdminApiSettings.isValidWebAdminSshForwardingId(longId), isTrue);
+    expect(
+        AdminApiSettings.isValidWebAdminSshForwardingId('${longId}a'), isFalse);
+    final candidates =
+        WebAdminSshTunnelController.candidateIds(longId, fixed: true)
+            .take(12)
+            .toList();
+    expect(candidates.toSet().length, 12);
+    expect(candidates.every(AdminApiSettings.isValidWebAdminSshForwardingId),
+        isTrue);
+    expect(candidates[1], '${longId.substring(0, 61)}-1');
+    expect(candidates[10], '${longId.substring(0, 60)}-10');
   });
 
   test(
@@ -217,7 +262,7 @@ void main() {
     );
     expect(
       () => AdminApiSettings.fromJson(
-        const {'webAdminSshForwardingId': 'invalid'},
+        const {'webAdminSshForwardingId': 'invalid/id'},
       ),
       throwsFormatException,
     );
@@ -251,6 +296,8 @@ void main() {
     };
     String? action;
     String? installedUploadVersion;
+    final previewClicks = <(int, int)>[];
+    final previewPointerEvents = <String>[];
     final mdnsPublisher = _FakeMdnsPublisher();
     var networkSyncCalls = 0;
     var synchronizedBeforeInitialBind = false;
@@ -277,11 +324,16 @@ void main() {
       ),
       mdnsPublisher: mdnsPublisher,
       screenPreviewService: ScreenPreviewService(
+        clock: () => DateTime.utc(2026, 8, 29, 12),
+        clicker: (_, x, y) async => previewClicks.add((x, y)),
+        pointerSender: (_, x, y, phase) => previewPointerEvents.add(phase),
         frameCapturer: (_) async => ScreenPreviewFrame(
           jpegBytes: Uint8List.fromList([0xff, 0xd8, 0xff, 0xd9]),
           width: 1280,
           height: 720,
           capturedAt: DateTime.utc(2026, 8, 29, 12),
+          target: const ScreenPreviewTarget(
+              window: 1, left: -1920, top: 0, width: 1920, height: 1080),
         ),
       ),
       pageLoader: () async => '<html>admin</html>',
@@ -449,6 +501,62 @@ void main() {
       expect(preview.headers['x-screen-height'], '720');
       expect(preview.headers['x-signage-state'], 'visible');
       expect(preview.bodyBytes, [0xff, 0xd8, 0xff, 0xd9]);
+      expect(preview.headers['x-screen-clickable'], 'true');
+      final clickUri =
+          Uri.parse('http://127.0.0.1:$port/api/screen-preview/click');
+      final clickBody = json.encode({
+        'frameId': preview.headers['x-frame-id'],
+        'x': 0.5,
+        'y': 0.25,
+      });
+      final unauthorizedClick = await client.post(clickUri, body: clickBody);
+      expect(unauthorizedClick.statusCode, 401);
+      expect(previewClicks, isEmpty);
+      final click =
+          await client.post(clickUri, headers: headers, body: clickBody);
+      expect(click.statusCode, 200);
+      expect(previewClicks, [(-960, 270)]);
+      final invalidClick = await client.post(clickUri,
+          headers: headers,
+          body: json.encode(
+              {'frameId': preview.headers['x-frame-id'], 'x': 2, 'y': 0}));
+      expect(invalidClick.statusCode, 400);
+      final staleClick = await client.post(clickUri,
+          headers: headers,
+          body: json.encode({'frameId': 'unknown', 'x': 0, 'y': 0}));
+      expect(staleClick.statusCode, 409);
+      expect(previewClicks.length, 1);
+      final pointerUri =
+          Uri.parse('http://127.0.0.1:$port/api/screen-preview/pointer');
+      final pointerBody = {
+        'gestureId': 'test-drag',
+        'sequence': 1,
+        'phase': 'down',
+        'frameId': preview.headers['x-frame-id'],
+        'x': 0.5,
+        'y': 0.5
+      };
+      expect(
+          (await client.post(pointerUri, body: json.encode(pointerBody)))
+              .statusCode,
+          401);
+      expect(previewPointerEvents, isEmpty);
+      for (final phase in ['down', 'move', 'up']) {
+        pointerBody['phase'] = phase;
+        expect(
+            (await client.post(pointerUri,
+                    headers: headers, body: json.encode(pointerBody)))
+                .statusCode,
+            200);
+        pointerBody['sequence'] = (pointerBody['sequence'] as int) + 1;
+      }
+      expect(previewPointerEvents, ['down', 'move', 'up']);
+      pointerBody['phase'] = 'invalid';
+      expect(
+          (await client.post(pointerUri,
+                  headers: headers, body: json.encode(pointerBody)))
+              .statusCode,
+          400);
 
       final savePreviewFps = await client.put(
         Uri.parse('http://127.0.0.1:$port/api/screen-preview/settings'),

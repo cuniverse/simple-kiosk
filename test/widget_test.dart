@@ -1410,6 +1410,69 @@ void main() {
     expect(returnCount, 1);
   });
 
+  for (final topicCount in [1, 2]) {
+    testWidgets('현재 언어의 주제 선택으로 직접 돌아오면 $topicCount개 주제를 표시한다', (tester) async {
+      var selectedLanguage = -1;
+      var selectedTopic = -1;
+      const items = [
+        MenuItem(id: 'home', title: 'Home', url: 'https://example.com'),
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LanguageSelection(
+            title: '언어를 선택하세요',
+            subtitle: '',
+            initialLanguageIndex: 1,
+            buttonHeight: 80,
+            languages: [
+              const MenuLanguage(id: 'ko', label: '한국어', items: items),
+              MenuLanguage(
+                id: 'en',
+                label: 'English',
+                items: items,
+                topics: List.generate(
+                  topicCount,
+                  (index) => MenuTopic(
+                    id: 'en-$index',
+                    label: 'Topic $index',
+                    items: items,
+                  ),
+                ),
+              ),
+            ],
+            onSelected: (language, topic) {
+              selectedLanguage = language;
+              selectedTopic = topic;
+            },
+            onReturnToIdle: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('topic-step-en')), findsOneWidget);
+      expect(find.byKey(const ValueKey('language-step')), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(selectedLanguage, -1);
+
+      final topic = find.byKey(ValueKey('topic-en-${topicCount - 1}'));
+      await tester.ensureVisible(topic);
+      await tester.tap(topic);
+      expect(selectedLanguage, 1);
+      expect(selectedTopic, topicCount - 1);
+
+      final changeLanguage = find.byKey(const ValueKey('change-language'));
+      await tester.ensureVisible(changeLanguage);
+      await tester.tap(changeLanguage);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('language-step')), findsOneWidget);
+      // 일반 언어 선택 경로에서는 기존 단일 주제 자동 진입을 유지한다.
+      await tester.tap(find.byKey(const ValueKey('language-ko')));
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(selectedLanguage, 0);
+      expect(selectedTopic, 0);
+    });
+  }
+
   testWidgets('언어를 선택하면 버튼이 상단으로 이동하고 주제 버튼을 표시한다', (tester) async {
     var selectedLanguage = -1;
     var selectedTopic = -1;
@@ -3204,8 +3267,9 @@ void main() {
     expect(enterCount, 1);
   });
 
-  testWidgets('툴바 시작 위치의 뒤로가기는 언어 선택으로 이동하고 주제 라벨은 읽기 전용이다', (tester) async {
+  testWidgets('툴바 뒤로가기는 언어 선택으로, 주제 제목은 주제 선택으로 이동한다', (tester) async {
     var languageSelectionCount = 0;
+    var topicSelectionCount = 0;
     const items = [
       MenuItem(id: 'home', title: '홈', url: 'https://example.com'),
     ];
@@ -3228,6 +3292,7 @@ void main() {
                 selectedTopicLabel: '여의도동 성당',
                 selectedTopicLabelColor: const Color(0xFFABCDEF),
                 onSelectLanguage: () => languageSelectionCount += 1,
+                onSelectTopic: () => topicSelectionCount += 1,
               ),
             ),
           ),
@@ -3269,6 +3334,7 @@ void main() {
     await tester.tap(sideLabel);
     await tester.pump();
     expect(languageSelectionCount, 0);
+    expect(topicSelectionCount, 1);
     await tester.tap(sideBackButton);
     await tester.pump();
     expect(languageSelectionCount, 1);
@@ -3287,6 +3353,7 @@ void main() {
               showKeyboardToggle: true,
               selectedTopicLabel: '여의도동 성당',
               onSelectLanguage: () => languageSelectionCount += 1,
+              onSelectTopic: () => topicSelectionCount += 1,
             ),
           ),
         ),
@@ -3317,6 +3384,7 @@ void main() {
     await tester.tap(horizontalLabel);
     await tester.pump();
     expect(languageSelectionCount, 1);
+    expect(topicSelectionCount, 2);
     await tester.tap(horizontalBackButton);
     await tester.pump();
     expect(languageSelectionCount, 2);

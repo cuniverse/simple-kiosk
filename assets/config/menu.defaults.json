@@ -98,7 +98,12 @@
     },
     "url": "https://example.com",
     "showHint": true,
-    "hintText": "화면을 터치해 주세요"
+    "hintText": "화면을 터치해 주세요",
+    "hintFontSize": 40,
+    "hintPaddingHorizontal": 40,
+    "hintPaddingVertical": 24,
+    "hintBackgroundColor": "#FACC15",
+    "hintTextColor": "#171717"
   },
   "defaultLanguage": "ko",
   "languageSelection": {

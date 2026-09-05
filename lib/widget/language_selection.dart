@@ -19,6 +19,9 @@ class LanguageSelection extends StatefulWidget {
   final String topicSubtitle;
   final bool skipSingleTopic;
   final bool hideTopicIcons;
+
+  /// 지정하면 해당 언어의 주제 선택부터 표시하며 단일 주제도 생략하지 않는다.
+  final int? initialLanguageIndex;
   final String? fontFamily;
   final Color? backgroundColor;
   final Color? foregroundColor;
@@ -42,6 +45,7 @@ class LanguageSelection extends StatefulWidget {
     this.topicSubtitle = 'Please select a topic',
     this.skipSingleTopic = true,
     this.hideTopicIcons = false,
+    this.initialLanguageIndex,
     this.fontFamily,
     this.backgroundColor,
     this.foregroundColor,
@@ -64,6 +68,16 @@ class LanguageSelection extends StatefulWidget {
 class _LanguageSelectionState extends State<LanguageSelection> {
   int? _selectedLanguageIndex;
   Timer? _singleTopicTimer;
+  bool _skippingSingleTopic = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final index = widget.initialLanguageIndex;
+    if (index != null && index >= 0 && index < widget.languages.length) {
+      _selectedLanguageIndex = index;
+    }
+  }
 
   @override
   void dispose() {
@@ -74,9 +88,12 @@ class _LanguageSelectionState extends State<LanguageSelection> {
   void _selectLanguage(int index) {
     if (index < 0 || index >= widget.languages.length) return;
     _singleTopicTimer?.cancel();
-    setState(() => _selectedLanguageIndex = index);
     final topics = widget.languages[index].effectiveTopics;
-    if (widget.skipSingleTopic && topics.length == 1) {
+    setState(() {
+      _selectedLanguageIndex = index;
+      _skippingSingleTopic = widget.skipSingleTopic && topics.length == 1;
+    });
+    if (_skippingSingleTopic) {
       // 선택한 언어 버튼이 상단으로 이동하는 애니메이션을 보여준 뒤 바로 진입한다.
       _singleTopicTimer = Timer(const Duration(milliseconds: 420), () {
         if (mounted && _selectedLanguageIndex == index) {
@@ -248,7 +265,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
   ) {
     final language = widget.languages[languageIndex];
     final topics = language.effectiveTopics;
-    final skipping = widget.skipSingleTopic && topics.length == 1;
+    final skipping = _skippingSingleTopic;
     final topicTitle = language.topicSelectionTitle(widget.topicTitle);
     final topicSubtitle = language.topicSelectionSubtitle(widget.topicSubtitle);
     final changeLanguageLabel = language.changeLanguageLabel;

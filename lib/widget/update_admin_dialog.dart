@@ -854,8 +854,8 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                             _sshIdFixed && !widget.adminApiController!.busy,
                         decoration: const InputDecoration(
                           labelText: '고정할 원격 접속 ID',
-                          hintText: 'ysignage7',
-                          helperText: '예: ysignage7, ysignage7-1',
+                          hintText: 'yeouido',
+                          helperText: '영문·숫자·하이픈 1~63자 (예: church-lobby)',
                         ),
                       ),
                       const SizedBox(height: 12),

@@ -95,7 +95,13 @@ class IdleOverlay extends StatelessWidget {
               bottom: config.modes.contains(IdleMode.gallery) ? 150 : 48,
               child: IgnorePointer(
                 child: Center(
-                  child: _HintBadge(text: config.hintText),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _HintBadge(config: config),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -122,8 +128,8 @@ class IdleOverlay extends StatelessWidget {
 
 /// 안내 배지.
 class _HintBadge extends StatefulWidget {
-  final String text;
-  const _HintBadge({required this.text});
+  final IdleConfig config;
+  const _HintBadge({required this.config});
 
   @override
   State<_HintBadge> createState() => _HintBadgeState();
@@ -151,20 +157,27 @@ class _HintBadgeState extends State<_HintBadge>
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: Tween(begin: 0.55, end: 1.0).animate(_ctrl),
+      opacity: Tween(begin: 0.8, end: 1.0).animate(_ctrl),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.config.hintPaddingHorizontal,
+          vertical: widget.config.hintPaddingVertical,
+        ),
         decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: Colors.white24),
+          color: widget.config.hintBackgroundColor,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: const [
+            BoxShadow(
+                color: Colors.black26, blurRadius: 16, offset: Offset(0, 4))
+          ],
         ),
         child: Text(
-          widget.text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
+          widget.config.hintText,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: widget.config.hintTextColor,
+            fontSize: widget.config.hintFontSize,
+            fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
           ),
         ),

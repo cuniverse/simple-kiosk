@@ -359,8 +359,8 @@ search, help, link, web, music, mic, camera, image, download, qr
 | `buttonAlignment` | 문자열 | `stretch` | `start`, `center`, `end`, `spaceBetween`, `spaceAround`, `spaceEvenly`, `stretch` |
 | `showHistoryButtons` | bool | `true` | 하단 기능 버튼 묶음의 가장 앞에 WebView 뒤로·앞으로 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 가상 키보드 켜기·끄기 버튼 표시 |
-| `showSelectedTopic` | bool | `true` | 현재 주제만 작은 읽기 전용 상태 라벨로 표시 |
-| `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
+| `showSelectedTopic` | bool | `true` | 현재 주제 제목을 표시하며 클릭하면 현재 언어의 주제 선택 화면으로 이동 |
+| `selectedTopicLabelColor` | color | `#f8fafc` | 클릭 가능한 현재 주제 제목의 글자색 |
 | `windowsKioskLockdown` | bool | `true` | Windows 사이니지 표시 중 앱 전환·셸 단축키 차단 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsAlwaysOnTop` | bool | `false` | 사이니지 창을 다른 일반 창보다 항상 위에 유지 |
@@ -437,6 +437,11 @@ WebView 앞·뒤, 키보드·설정·화면 보호기·툴바 감추기 기능 �
 | `mode` | 문자열 | `none` | 기존 단일 모드 호환 설정. `modes`가 있으면 무시 |
 | `showHint` | bool | `true` | 터치 안내 문구 표시 여부 |
 | `hintText` | 문자열 | `화면을 터치해 주세요` | 안내 문구 |
+| `hintFontSize` | 숫자 | `40` | 안내 글자 크기(px), 12~96 |
+| `hintPaddingHorizontal` | 숫자 | `40` | 버튼 좌우 여백(px), 0~120 |
+| `hintPaddingVertical` | 숫자 | `24` | 버튼 위아래 여백(px), 0~120 |
+| `hintBackgroundColor` | 문자열 | `#FACC15` | 안내 배경색 (`#RRGGBB` / `#AARRGGBB`) |
+| `hintTextColor` | 문자열 | `#171717` | 안내 글자색 (`#RRGGBB` / `#AARRGGBB`) |
 
 `enabled`가 `true`여도 선택한 모드에 필요한 이미지, URL 또는 폴더가 비어 있으면
 대기화면이 동작하지 않습니다.

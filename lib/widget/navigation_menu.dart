@@ -107,6 +107,9 @@ class NavigationMenu extends StatelessWidget {
   /// 언어 선택 화면으로 돌아가는 콜백.
   final VoidCallback? onSelectLanguage;
 
+  /// 현재 언어의 주제 선택 화면으로 돌아가는 콜백.
+  final VoidCallback? onSelectTopic;
+
   /// 언어 선택 화면으로 돌아가기 버튼의 현재 언어 문구.
   final String languageSelectionBackLabel;
 
@@ -150,6 +153,7 @@ class NavigationMenu extends StatelessWidget {
     this.onEnterIdle,
     this.onOpenAdmin,
     this.onSelectLanguage,
+    this.onSelectTopic,
     this.languageSelectionBackLabel = '언어 선택으로 돌아가기',
     this.languageSelectionLabel = '언어 선택',
     this.onPrepareHideKiosk,
@@ -207,6 +211,7 @@ class NavigationMenu extends StatelessWidget {
                       label: selectedTopicLabel!,
                       orientation: NavigationOrientation.side,
                       color: selectedTopicLabelColor,
+                      onPressed: onSelectTopic,
                       fontFamily: fontFamily,
                     ),
                   Expanded(
@@ -466,6 +471,7 @@ class NavigationMenu extends StatelessWidget {
                     label: selectedTopicLabel!,
                     orientation: NavigationOrientation.bottom,
                     color: selectedTopicLabelColor,
+                    onPressed: onSelectTopic,
                     fontFamily: fontFamily,
                   ),
                   SizedBox(width: buttonGap),
@@ -558,18 +564,20 @@ class NavigationMenu extends StatelessWidget {
   }
 }
 
-/// 메뉴 버튼과 혼동되지 않는 읽기 전용 현재 주제 라벨.
+/// 현재 언어의 주제 선택 화면으로 돌아가는 현재 주제 라벨.
 class _SelectedTopicLabel extends StatelessWidget {
   final String label;
   final NavigationOrientation orientation;
   final Color color;
   final String? fontFamily;
+  final VoidCallback? onPressed;
 
   const _SelectedTopicLabel({
     required this.label,
     required this.orientation,
     required this.color,
     this.fontFamily,
+    this.onPressed,
   });
 
   @override
@@ -606,20 +614,28 @@ class _SelectedTopicLabel extends StatelessWidget {
     );
     return Semantics(
       label: '현재 주제: $label',
+      button: onPressed != null,
       child: Tooltip(
-        message: '현재 주제: $label',
-        child: side
-            ? Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-                child: SizedBox(height: 36, child: content),
-              )
-            : ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 150),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: content,
+        message: onPressed == null ? '현재 주제: $label' : '주제 선택으로 돌아가기',
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: side
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                  child: SizedBox(height: 36, child: content),
+                )
+              : ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: SizedBox(
+                    height: 48,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: content,
+                    ),
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }

@@ -307,6 +307,9 @@ class AdminApiController extends ChangeNotifier {
   }
 
   Future<void> _stop() async {
+    try {
+      _screenPreviewService.cancelPointer();
+    } catch (_) {/* 서버 종료 계속 */}
     await _webAdminSshTunnelController.stop();
     await _mdnsPublisher.stop();
     mdnsError = null;
@@ -367,6 +370,7 @@ class AdminApiController extends ChangeNotifier {
       if (sessionToken == null) return;
 
       if (request.method == 'POST' && path == '/api/logout') {
+        _screenPreviewService.cancelPointer(owner: sessionToken);
         _sessions.remove(sessionToken);
         return await _sendJson(request.response, 200, {'ok': true});
       }
@@ -416,6 +420,11 @@ class AdminApiController extends ChangeNotifier {
             jpegQuality: settings.screenPreviewJpegQuality,
           );
           request.response.headers
+            ..set('X-Frame-Id', frame.id)
+            ..set(
+                'X-Screen-Clickable',
+                frame.target != null &&
+                    frame.windowState == ScreenPreviewWindowState.visible)
             ..set('X-Screen-Width', frame.width)
             ..set('X-Screen-Height', frame.height)
             ..set('X-Signage-State', frame.windowState.name)
@@ -434,6 +443,86 @@ class AdminApiController extends ChangeNotifier {
             );
           }
           return await _sendJson(request.response, statusCode, {
+            'error': error.code,
+            'message': error.message,
+          });
+        }
+      }
+      if (request.method == 'POST' && path == '/api/screen-preview/click') {
+        final body = await _readJsonObject(request, maxBytes: 4096);
+        final frameId = body['frameId'];
+        final x = body['x'];
+        final y = body['y'];
+        if (frameId is! String ||
+            x is! num ||
+            y is! num ||
+            !x.isFinite ||
+            !y.isFinite ||
+            x < 0 ||
+            x > 1 ||
+            y < 0 ||
+            y > 1) {
+          return await _sendJson(request.response, 400, {
+            'error': 'invalid-coordinates',
+            'message': '미리보기 프레임과 0~1 범위의 클릭 좌표가 필요합니다.',
+          });
+        }
+        try {
+          await _screenPreviewService.click(
+            frameId: frameId,
+            x: x.toDouble(),
+            y: y.toDouble(),
+          );
+          return await _sendJson(request.response, 200, {'ok': true});
+        } on ScreenPreviewException catch (error) {
+          return await _sendJson(
+              request.response, error.code == 'unsupported' ? 501 : 409, {
+            'error': error.code,
+            'message': error.message,
+          });
+        }
+      }
+      if (request.method == 'POST' && path == '/api/screen-preview/pointer') {
+        final body = await _readJsonObject(request, maxBytes: 4096);
+        final id = body['gestureId'];
+        final sequence = body['sequence'];
+        final phase = body['phase'];
+        final frameId = body['frameId'];
+        final x = body['x'];
+        final y = body['y'];
+        if (id is! String ||
+            id.isEmpty ||
+            id.length > 80 ||
+            sequence is! int ||
+            sequence < 0 ||
+            !['down', 'move', 'up', 'cancel'].contains(phase) ||
+            frameId is! String ||
+            x is! num ||
+            y is! num ||
+            !x.isFinite ||
+            !y.isFinite ||
+            x < 0 ||
+            x > 1 ||
+            y < 0 ||
+            y > 1) {
+          return await _sendJson(request.response, 400, {
+            'error': 'invalid-pointer',
+            'message': '드래그 입력이 올바르지 않습니다.',
+          });
+        }
+        try {
+          _screenPreviewService.pointer(
+              owner: sessionToken,
+              gestureId: id,
+              sequence: sequence,
+              phase: phase as String,
+              frameId: frameId,
+              x: x.toDouble(),
+              y: y.toDouble());
+          return await _sendJson(request.response, 200, {'ok': true});
+        } on ScreenPreviewException catch (error) {
+          return await _sendJson(
+              request.response, error.code == 'unsupported' ? 501 : 409, {
             'error': error.code,
             'message': error.message,
           });
@@ -1054,6 +1143,9 @@ class AdminApiController extends ChangeNotifier {
 
   @override
   void dispose() {
+    try {
+      _screenPreviewService.cancelPointer();
+    } catch (_) {/* 종료 계속 */}
     _webAdminSshTunnelController.removeListener(_handleSshTunnelChanged);
     _webAdminSshTunnelController.dispose();
     super.dispose();

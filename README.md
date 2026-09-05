@@ -120,11 +120,14 @@ Setup의 **사설 네트워크에서 WEB 관리 자동 허용**은 기본으로 
 PC에서는 로컬 관리자 주소를, 같은 네트워크에서는 기본적으로
 `http://ysignage.local`을 사용합니다. 원격 WEB 관리자 연결이 구성된 장비에는
 `http://ysignage<번호>.signage.cuniverse.net/` 형식의 주소가 배정됩니다.
+수동 고정에서는 `yeouido`, `church-lobby` 등 영문·숫자·하이픈으로 ID를 지정할 수 있습니다.
+ID는 1~63자이며 처음과 끝은 영문 또는 숫자여야 합니다. 중복 시 `-1`, `-2`를 붙여 배정하고 저장합니다.
 
 WEB 관리자는 다음 운영 기능을 제공합니다.
 
 - 실행 상태와 버전 확인, 사이니지 표시·감추기, 재시작과 완전 종료
 - 사이니지 모니터의 실제 데스크톱을 확인하는 저부하 미리보기(기본 2fps·1280px·JPEG 45, FPS·해상도·화질 설정 및 숨김 상태 표시)
+- 미리보기의 사이니지 영역을 클릭하여 실제 화면 조작(화면 보호기 해제, 언어·주제 선택, 웹페이지 클릭)
 - 언어·주제·메뉴, 레이아웃, 화면보호기, UI 테마와 업데이트 정책 편집
 - 업데이트 후에도 유지되는 `exdata/` 전용 파일 탐색기와 다중·드래그 업로드
 - 설정 백업·복원 및 프로그램·WebView·Updater·관리 API 로그가 포함된 진단 자료 내보내기
@@ -317,8 +320,8 @@ WebView와 같은 확대 컨트롤이 나타나며 `25%` 단위 버튼 조절과
 | `buttonAlignment` | `start`/`center`/`end`/`spaceBetween`/`spaceAround`/`spaceEvenly`/`stretch` | `stretch` | 정렬 방식 |
 | `showHistoryButtons` | bool | `true` | 하단 기능 버튼 묶음의 가장 앞에 WebView ←/→ 버튼 표시 |
 | `showKeyboardToggle` | bool | `true` | 네비 끝 위치에 OS 가상 키보드 토글 버튼 표시 |
-| `showSelectedTopic` | bool | `true` | 현재 주제만 작은 읽기 전용 상태 라벨로 표시 |
-| `selectedTopicLabelColor` | color | `#f8fafc` | 읽기 전용 현재 주제 라벨의 글자색 |
+| `showSelectedTopic` | bool | `true` | 현재 주제 제목을 표시하며 클릭하면 현재 언어의 주제 선택 화면으로 이동 |
+| `selectedTopicLabelColor` | color | `#f8fafc` | 클릭 가능한 현재 주제 제목의 글자색 |
 | `windowsKioskLockdown` | bool | `false` | Windows에서 사이니지 표시 중 앱 전환·셸 단축키 차단. 기본적으로 사용하지 않음 |
 | `windowsKioskShortcuts` | object | 모두 `true` | 잠금 중 차단할 키와 키 조합을 개별 선택 |
 | `windowsDisableEdgeSwipe` | bool | `true` | 전체화면 가장자리 스와이프로 Windows 시스템 UI가 열리는 동작 차단 |

@@ -332,6 +332,7 @@ class _KioskHomeState extends State<_KioskHome> {
   late String _selectedTopicId;
   late String _selectedMenuId;
   bool _showLanguageSelection = false;
+  int? _topicSelectionLanguageIndex;
   int _languageSelectionGeneration = 0;
   bool _languageSelectionTransitioning = false;
   final IdleGateController _idleGateController = IdleGateController();
@@ -833,11 +834,13 @@ class _KioskHomeState extends State<_KioskHome> {
     });
   }
 
-  void _showLanguageSelectionScreen() {
+  void _showLanguageSelectionScreen({bool selectTopic = false}) {
     if (_showLanguageSelection || _languageSelectionTransitioning) return;
     setState(() {
       _pendingSlot = null;
       _clearPendingFeedback();
+      _topicSelectionLanguageIndex =
+          selectTopic ? _selectedLanguageIndex : null;
       _showLanguageSelection = true;
     });
   }
@@ -1096,6 +1099,7 @@ class _KioskHomeState extends State<_KioskHome> {
       // 화면보호기에서 다시 깨어날 때 이전 주제 선택 상태가 남지 않도록
       // 언어 선택 화면의 State를 새로 만든다.
       _languageSelectionGeneration += 1;
+      _topicSelectionLanguageIndex = null;
       _webViewGeneration.next();
       _selectedMenuId = _defaultMenu.id;
       _pendingSlot = null;
@@ -1150,6 +1154,7 @@ class _KioskHomeState extends State<_KioskHome> {
     if (_items.isEmpty) return;
     setState(() {
       _selectedMenuId = _defaultMenu.id;
+      _topicSelectionLanguageIndex = null;
       _showLanguageSelection = true;
     });
   }
@@ -1704,6 +1709,8 @@ class _KioskHomeState extends State<_KioskHome> {
                             ? _showAdminSettings
                             : null,
                         onSelectLanguage: _showLanguageSelectionScreen,
+                        onSelectTopic: () =>
+                            _showLanguageSelectionScreen(selectTopic: true),
                         languageSelectionBackLabel:
                             _selectedLanguage.languageSelectionBackLabel,
                         languageSelectionLabel:
@@ -1753,6 +1760,7 @@ class _KioskHomeState extends State<_KioskHome> {
                         'language-selection-$_languageSelectionGeneration',
                       ),
                       languages: widget.languages,
+                      initialLanguageIndex: _topicSelectionLanguageIndex,
                       title: widget.languageSelectionTitle,
                       subtitle: widget.languageSelectionSubtitle,
                       fontFamily: FontResourceService.familyFor(

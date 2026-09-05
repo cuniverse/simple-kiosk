@@ -77,7 +77,7 @@ class AdminApiSettings {
     if (sshId != null &&
         (sshId is! String || !isValidWebAdminSshForwardingId(sshId))) {
       throw const FormatException(
-        '원격 접속 ID는 ysignage7 또는 ysignage7-1 형식이어야 합니다.',
+        '원격 접속 ID는 영문·숫자·하이픈으로 1~63자까지 입력할 수 있으며, 처음과 끝은 영문 또는 숫자여야 합니다.',
       );
     }
     if (screenPreviewFps != null &&
@@ -172,6 +172,6 @@ class AdminApiSettings {
 
   static bool isValidWebAdminSshForwardingId(String value) =>
       value.trim().length <= 63 &&
-      RegExp(r'^ysignage[1-9][0-9]*(?:-[1-9][0-9]*)?$')
+      RegExp(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
           .hasMatch(value.trim().toLowerCase());
 }

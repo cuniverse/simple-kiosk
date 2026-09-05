@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 /// 대기화면(attract / idle screen)에서 표시할 콘텐츠 종류.
 enum IdleMode { none, image, slideshow, url, folder, gallery }
 
@@ -489,6 +491,12 @@ class IdleConfig {
   /// 안내 텍스트.
   final String hintText;
 
+  final double hintFontSize;
+  final double hintPaddingHorizontal;
+  final double hintPaddingVertical;
+  final Color hintBackgroundColor;
+  final Color hintTextColor;
+
   const IdleConfig({
     this.enabled = false,
     this.timeoutSec = 60,
@@ -501,6 +509,11 @@ class IdleConfig {
     this.gallery = GalleryConfig.defaults,
     this.showHint = true,
     this.hintText = '화면을 터치해 주세요',
+    this.hintFontSize = 40,
+    this.hintPaddingHorizontal = 40,
+    this.hintPaddingVertical = 24,
+    this.hintBackgroundColor = const Color(0xFFFACC15),
+    this.hintTextColor = const Color(0xFF171717),
   });
 
   static const IdleConfig defaults = IdleConfig();
@@ -607,6 +620,40 @@ class IdleConfig {
     }
     final hintText = parseString('hintText') ?? defaults.hintText;
 
+    double hintSize(
+        String key, double fallback, double minimum, double maximum) {
+      final value = json[key];
+      if (value == null) return fallback;
+      if (value is! num ||
+          !value.isFinite ||
+          value < minimum ||
+          value > maximum) {
+        throw FormatException(
+            'menu.json idle.$key: $minimum~$maximum 사이의 숫자 필요');
+      }
+      return value.toDouble();
+    }
+
+    Color hintColor(String key, Color fallback) {
+      final value = json[key];
+      if (value == null) return fallback;
+      if (value is! String) {
+        throw FormatException('menu.json idle.$key: 색상 문자열 필요');
+      }
+      var hex = value.trim().toLowerCase();
+      if (hex.isEmpty) return fallback;
+      if (hex == 'transparent') return const Color(0x00000000);
+      if (hex.startsWith('#')) hex = hex.substring(1);
+      if (!RegExp(r'^(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$').hasMatch(hex)) {
+        throw FormatException(
+            'menu.json idle.$key: #RGB, #RRGGBB, #AARRGGBB 또는 transparent 필요');
+      }
+      if (hex.length == 3) {
+        hex = hex.split('').map((value) => '$value$value').join();
+      }
+      return Color(int.parse(hex.length == 6 ? 'ff$hex' : hex, radix: 16));
+    }
+
     return IdleConfig(
       enabled: parseBool('enabled', defaults.enabled),
       timeoutSec: parseInt('timeoutSec', defaults.timeoutSec),
@@ -619,6 +666,14 @@ class IdleConfig {
       gallery: gallery,
       showHint: parseBool('showHint', defaults.showHint),
       hintText: hintText,
+      hintFontSize: hintSize('hintFontSize', defaults.hintFontSize, 12, 96),
+      hintPaddingHorizontal: hintSize(
+          'hintPaddingHorizontal', defaults.hintPaddingHorizontal, 0, 120),
+      hintPaddingVertical:
+          hintSize('hintPaddingVertical', defaults.hintPaddingVertical, 0, 120),
+      hintBackgroundColor:
+          hintColor('hintBackgroundColor', defaults.hintBackgroundColor),
+      hintTextColor: hintColor('hintTextColor', defaults.hintTextColor),
     );
   }
 }

@@ -90,12 +90,17 @@ class WebAdminSshTunnelController extends ChangeNotifier {
     }
     if (fixed) {
       if (!valid) return;
-      final parts = normalized.split('-');
-      final base = parts.first;
+      final suffix = RegExp(r'^(.*)-([0-9]+)$').firstMatch(normalized);
+      final base = suffix?.group(1) ?? normalized;
       final previousSuffix =
-          parts.length == 2 ? BigInt.parse(parts.last) : BigInt.zero;
+          suffix == null ? BigInt.zero : BigInt.parse(suffix.group(2)!);
       for (var offset = 1; offset <= _maximumId; offset++) {
-        final candidate = '$base-${previousSuffix + BigInt.from(offset)}';
+        final ending = '-${previousSuffix + BigInt.from(offset)}';
+        final available = 63 - ending.length;
+        if (available < 1) return;
+        final fittedBase =
+            base.length > available ? base.substring(0, available) : base;
+        final candidate = '$fittedBase$ending';
         if (!AdminApiSettings.isValidWebAdminSshForwardingId(candidate)) return;
         yield candidate;
       }

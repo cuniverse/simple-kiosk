@@ -14,6 +14,9 @@ class ScreenPreviewFrame {
   final int height;
   final DateTime capturedAt;
   final ScreenPreviewWindowState windowState;
+  final ScreenPreviewTarget? target;
+
+  String get id => capturedAt.microsecondsSinceEpoch.toString();
 
   const ScreenPreviewFrame({
     required this.jpegBytes,
@@ -21,7 +24,50 @@ class ScreenPreviewFrame {
     required this.height,
     required this.capturedAt,
     this.windowState = ScreenPreviewWindowState.visible,
+    this.target,
   });
+}
+
+/// 캡처 당시의 모니터 물리 좌표. 클라이언트가 임의로 지정할 수 없다.
+class ScreenPreviewTarget {
+  final int window;
+  final int left;
+  final int top;
+  final int width;
+  final int height;
+
+  const ScreenPreviewTarget({
+    required this.window,
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+  });
+}
+
+typedef ScreenPreviewClicker = Future<void> Function(
+  ScreenPreviewTarget target,
+  int x,
+  int y,
+);
+
+typedef ScreenPreviewPointerSender = void Function(
+  ScreenPreviewTarget target,
+  int x,
+  int y,
+  String phase,
+);
+
+class _PreviewDrag {
+  final String owner;
+  final String id;
+  final ScreenPreviewTarget target;
+  final DateTime startedAt;
+  int sequence;
+  int x;
+  int y;
+  _PreviewDrag(this.owner, this.id, this.target, this.startedAt, this.sequence,
+      this.x, this.y);
 }
 
 enum ScreenPreviewWindowState { visible, hidden, minimized }
@@ -59,11 +105,22 @@ class ScreenPreviewService {
   ScreenPreviewService({
     ScreenFrameCapturer? frameCapturer,
     ScreenPreviewClock? clock,
+    ScreenPreviewClicker? clicker,
+    ScreenPreviewPointerSender? pointerSender,
   })  : _frameCapturer = frameCapturer ?? _captureWindowsFrame,
+        _clicker = clicker ?? _clickWindowsScreen,
+        _pointerSender = pointerSender ?? _pointerWindowsScreen,
         _clock = clock ?? DateTime.now;
 
   final ScreenFrameCapturer _frameCapturer;
   final ScreenPreviewClock _clock;
+  final ScreenPreviewClicker _clicker;
+  final ScreenPreviewPointerSender _pointerSender;
+  _PreviewDrag? _drag;
+  Timer? _dragTimeout;
+  final Map<String, ({ScreenPreviewTarget target, DateTime capturedAt})>
+      _clickTargets = {};
+  bool _clickBusy = false;
   ScreenPreviewFrame? _cachedFrame;
   Future<ScreenPreviewFrame>? _inFlight;
 
@@ -105,6 +162,16 @@ class ScreenPreviewService {
       ),
     ).then((frame) {
       _cachedFrame = frame;
+      if (frame.target != null &&
+          frame.windowState == ScreenPreviewWindowState.visible) {
+        _clickTargets[frame.id] = (
+          target: frame.target!,
+          capturedAt: frame.capturedAt,
+        );
+        while (_clickTargets.length > 32) {
+          _clickTargets.remove(_clickTargets.keys.first);
+        }
+      }
       return frame;
     }).onError((error, stackTrace) {
       final cached = _cachedFrame;
@@ -128,6 +195,123 @@ class ScreenPreviewService {
     });
     _inFlight = operation;
     return operation;
+  }
+
+  Future<void> click(
+      {required String frameId, required double x, required double y}) async {
+    if (!x.isFinite || !y.isFinite || x < 0 || x > 1 || y < 0 || y > 1) {
+      throw const ScreenPreviewException(
+          'invalid-coordinates', '클릭 좌표가 올바르지 않습니다.');
+    }
+    final frame = _clickTargets[frameId];
+    if (frame == null ||
+        _clock().difference(frame.capturedAt) > const Duration(seconds: 5)) {
+      throw const ScreenPreviewException(
+          'stale-frame', '미리보기를 갱신한 뒤 다시 클릭해 주세요.');
+    }
+    if (_clickBusy || _drag != null) {
+      throw const ScreenPreviewException('click-busy', '이전 클릭을 처리 중입니다.');
+    }
+    _clickBusy = true;
+    try {
+      final target = frame.target;
+      await _clicker(
+          target,
+          target.left + (x * target.width).floor().clamp(0, target.width - 1),
+          target.top + (y * target.height).floor().clamp(0, target.height - 1));
+      _cachedFrame = null;
+    } finally {
+      _clickBusy = false;
+    }
+  }
+
+  void pointer(
+      {required String owner,
+      required String gestureId,
+      required int sequence,
+      required String phase,
+      required String frameId,
+      required double x,
+      required double y}) {
+    if (!['down', 'move', 'up', 'cancel'].contains(phase) ||
+        gestureId.isEmpty ||
+        gestureId.length > 80 ||
+        sequence < 0 ||
+        !x.isFinite ||
+        !y.isFinite ||
+        x < 0 ||
+        x > 1 ||
+        y < 0 ||
+        y > 1) {
+      throw const ScreenPreviewException(
+          'invalid-pointer', '드래그 입력이 올바르지 않습니다.');
+    }
+    if (phase == 'down') {
+      if (_clickBusy || _drag != null) {
+        throw const ScreenPreviewException('click-busy', '다른 입력을 처리 중입니다.');
+      }
+      final frame = _clickTargets[frameId];
+      if (frame == null ||
+          _clock().difference(frame.capturedAt) > const Duration(seconds: 5)) {
+        throw const ScreenPreviewException(
+            'stale-frame', '미리보기를 갱신한 뒤 다시 시도해 주세요.');
+      }
+      final target = frame.target;
+      _drag = _PreviewDrag(
+          owner,
+          gestureId,
+          target,
+          _clock(),
+          sequence,
+          target.left + (x * target.width).floor().clamp(0, target.width - 1),
+          target.top + (y * target.height).floor().clamp(0, target.height - 1));
+    } else {
+      final drag = _drag;
+      if (drag == null || drag.owner != owner || drag.id != gestureId) {
+        if (phase == 'cancel') return;
+        throw const ScreenPreviewException(
+            'drag-ended', '드래그가 종료되었습니다. 다시 눌러 주세요.');
+      }
+      if (sequence <= drag.sequence) {
+        throw const ScreenPreviewException('out-of-order', '이전 드래그 입력입니다.');
+      }
+      drag.sequence = sequence;
+      drag.x = drag.target.left +
+          (x * drag.target.width).floor().clamp(0, drag.target.width - 1);
+      drag.y = drag.target.top +
+          (y * drag.target.height).floor().clamp(0, drag.target.height - 1);
+    }
+    final drag = _drag!;
+    try {
+      if (_clock().difference(drag.startedAt) > const Duration(seconds: 60)) {
+        throw const ScreenPreviewException('drag-ended', '드래그 제한 시간이 지났습니다.');
+      }
+      _pointerSender(drag.target, drag.x, drag.y, phase);
+      _cachedFrame = null;
+      _dragTimeout?.cancel();
+      if (phase == 'up' || phase == 'cancel') {
+        _drag = null;
+      } else {
+        _dragTimeout = Timer(const Duration(seconds: 3), () {
+          try {
+            cancelPointer();
+          } catch (_) {/* 다음 입력 요청에 영향을 주지 않는다. */}
+        });
+      }
+    } catch (_) {
+      try {
+        cancelPointer();
+      } catch (_) {/* 원래 입력 오류를 반환한다. */}
+      rethrow;
+    }
+  }
+
+  void cancelPointer({String? owner}) {
+    final drag = _drag;
+    if (drag == null || (owner != null && drag.owner != owner)) return;
+    _dragTimeout?.cancel();
+    _drag = null;
+    _pointerSender(drag.target, drag.x, drag.y, 'cancel');
   }
 
   static Future<ScreenPreviewFrame> _captureWindowsFrame(
@@ -285,6 +469,13 @@ ScreenPreviewFrame _captureWindowsFrameSync(int maximumWidth, int jpegQuality) {
         height: preview.height,
         capturedAt: DateTime.now(),
         windowState: windowState,
+        target: ScreenPreviewTarget(
+          window: window,
+          left: sourceLeft,
+          top: sourceTop,
+          width: sourceWidth,
+          height: sourceHeight,
+        ),
       );
     } finally {
       calloc.free(pixels);
@@ -299,6 +490,103 @@ ScreenPreviewFrame _captureWindowsFrameSync(int maximumWidth, int jpegQuality) {
     calloc.free(bitmapInfo);
     calloc.free(monitorInfo);
     calloc.free(rect);
+  }
+}
+
+Future<void> _clickWindowsScreen(
+    ScreenPreviewTarget target, int x, int y) async {
+  _pointerWindowsScreen(target, x, y, 'click');
+}
+
+void _pointerWindowsScreen(
+    ScreenPreviewTarget target, int x, int y, String phase) {
+  if (!Platform.isWindows) {
+    throw const ScreenPreviewException(
+        'unsupported', '원격 클릭은 Windows에서만 지원합니다.');
+  }
+  final monitorInfo = calloc<MONITORINFO>();
+  final point = calloc<POINT>();
+  final processId = calloc<Uint32>();
+  final inputs = calloc<INPUT>(3);
+  try {
+    if (phase == 'cancel') {
+      inputs[0].type = INPUT_MOUSE;
+      inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+      if (SendInput(1, inputs, sizeOf<INPUT>()) != 1) {
+        throw const ScreenPreviewException(
+            'input-failed', '마우스 누름을 해제하지 못했습니다.');
+      }
+      return;
+    }
+    GetWindowThreadProcessId(target.window, processId);
+    if (processId.value != GetCurrentProcessId() ||
+        IsWindowVisible(target.window) == 0 ||
+        IsIconic(target.window) != 0) {
+      throw const ScreenPreviewException(
+          'signage-not-visible', '사이니지가 표시 중일 때만 클릭할 수 있습니다.');
+    }
+    monitorInfo.ref.cbSize = sizeOf<MONITORINFO>();
+    final monitor = MonitorFromWindow(target.window, MONITOR_DEFAULTTONEAREST);
+    if (monitor == 0 ||
+        GetMonitorInfo(monitor, monitorInfo) == 0 ||
+        monitorInfo.ref.rcMonitor.left != target.left ||
+        monitorInfo.ref.rcMonitor.top != target.top ||
+        monitorInfo.ref.rcMonitor.right != target.left + target.width ||
+        monitorInfo.ref.rcMonitor.bottom != target.top + target.height) {
+      throw const ScreenPreviewException(
+          'stale-frame', '모니터 배치가 바뀌었습니다. 미리보기를 갱신해 주세요.');
+    }
+    point.ref
+      ..x = x
+      ..y = y;
+    final hit = WindowFromPoint(point.ref);
+    if (hit == 0 || GetAncestor(hit, GA_ROOT) != target.window) {
+      throw const ScreenPreviewException(
+          'outside-signage', '사이니지가 표시된 영역만 클릭할 수 있습니다.');
+    }
+    final desktopWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    final desktopHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    if (desktopWidth <= 0 || desktopHeight <= 0) {
+      throw const ScreenPreviewException('input-failed', '화면 좌표를 확인하지 못했습니다.');
+    }
+    // 픽셀 중앙을 가리켜 다중 모니터의 음수 좌표와 배율에도 맞춘다.
+    final dx = (((x - GetSystemMetrics(SM_XVIRTUALSCREEN)) + 0.5) *
+            65536 /
+            desktopWidth)
+        .floor()
+        .clamp(0, 65535);
+    final dy = (((y - GetSystemMetrics(SM_YVIRTUALSCREEN)) + 0.5) *
+            65536 /
+            desktopHeight)
+        .floor()
+        .clamp(0, 65535);
+    final count = phase == 'click' ? 3 : 1;
+    for (var i = 0; i < count; i++) {
+      inputs[i].type = INPUT_MOUSE;
+      inputs[i].mi
+        ..dx = dx
+        ..dy = dy
+        ..dwFlags = MOUSEEVENTF_ABSOLUTE |
+            MOUSEEVENTF_VIRTUALDESK |
+            MOUSEEVENTF_MOVE |
+            (phase == 'down' || (phase == 'click' && i == 1)
+                ? MOUSEEVENTF_LEFTDOWN
+                : phase == 'up' || (phase == 'click' && i == 2)
+                    ? MOUSEEVENTF_LEFTUP
+                    : 0);
+    }
+    if (SendInput(count, inputs, sizeOf<INPUT>()) != count) {
+      // 부분 전송으로 마우스 버튼이 눌린 채 남지 않게 해제한다.
+      inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+      SendInput(1, inputs, sizeOf<INPUT>());
+      throw const ScreenPreviewException(
+          'input-failed', 'Windows에 클릭을 전달하지 못했습니다.');
+    }
+  } finally {
+    calloc.free(inputs);
+    calloc.free(processId);
+    calloc.free(point);
+    calloc.free(monitorInfo);
   }
 }
 
