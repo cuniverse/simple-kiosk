@@ -31,7 +31,7 @@ namespace flutter_inappwebview_plugin
 
   // custom_platform_view
   enum class InAppWebViewPointerButton { None, Primary, Secondary, Tertiary };
-  enum class InAppWebViewPointerEventKind { Activate, Down, Enter, Leave, Up, Update };
+  enum class InAppWebViewPointerEventKind { Activate, Down, Enter, Leave, Up, Update, Cancel };
   typedef std::function<void(size_t width, size_t height)>
     SurfaceSizeChangedCallback;
   typedef std::function<void(const HCURSOR)> CursorChangedCallback;

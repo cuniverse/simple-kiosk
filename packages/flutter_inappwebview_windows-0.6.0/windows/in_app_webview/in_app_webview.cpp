@@ -1726,6 +1726,10 @@ namespace flutter_inappwebview_plugin
       event = COREWEBVIEW2_POINTER_EVENT_KIND_UP;
       pointerFlags = POINTER_FLAG_UP;
       break;
+    case InAppWebViewPointerEventKind::Cancel:
+      event = COREWEBVIEW2_POINTER_EVENT_KIND_UP;
+      pointerFlags = POINTER_FLAG_UP | POINTER_FLAG_CANCELED;
+      break;
     case InAppWebViewPointerEventKind::Update:
       event = COREWEBVIEW2_POINTER_EVENT_KIND_UPDATE;
       pointerFlags =

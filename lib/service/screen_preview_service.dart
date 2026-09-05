@@ -8,6 +8,8 @@ import 'package:ffi/ffi.dart';
 import 'package:image/image.dart' as image;
 import 'package:win32/win32.dart';
 
+import 'windows_touch_input.dart';
+
 class ScreenPreviewFrame {
   final Uint8List jpegBytes;
   final int width;
@@ -498,6 +500,8 @@ Future<void> _clickWindowsScreen(
   _pointerWindowsScreen(target, x, y, 'click');
 }
 
+final _previewTouchInput = WindowsTouchInput();
+
 void _pointerWindowsScreen(
     ScreenPreviewTarget target, int x, int y, String phase) {
   if (!Platform.isWindows) {
@@ -507,15 +511,9 @@ void _pointerWindowsScreen(
   final monitorInfo = calloc<MONITORINFO>();
   final point = calloc<POINT>();
   final processId = calloc<Uint32>();
-  final inputs = calloc<INPUT>(3);
   try {
     if (phase == 'cancel') {
-      inputs[0].type = INPUT_MOUSE;
-      inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-      if (SendInput(1, inputs, sizeOf<INPUT>()) != 1) {
-        throw const ScreenPreviewException(
-            'input-failed', '마우스 누름을 해제하지 못했습니다.');
-      }
+      _previewTouchInput.send(x, y, 'cancel');
       return;
     }
     GetWindowThreadProcessId(target.window, processId);
@@ -544,46 +542,19 @@ void _pointerWindowsScreen(
       throw const ScreenPreviewException(
           'outside-signage', '사이니지가 표시된 영역만 클릭할 수 있습니다.');
     }
-    final desktopWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    final desktopHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-    if (desktopWidth <= 0 || desktopHeight <= 0) {
-      throw const ScreenPreviewException('input-failed', '화면 좌표를 확인하지 못했습니다.');
+    if (phase == 'click') {
+      try {
+        _previewTouchInput.send(x, y, 'down');
+        _previewTouchInput.send(x, y, 'up');
+      } finally {
+        _previewTouchInput.send(x, y, 'cancel');
+      }
+    } else {
+      _previewTouchInput.send(x, y, phase);
     }
-    // 픽셀 중앙을 가리켜 다중 모니터의 음수 좌표와 배율에도 맞춘다.
-    final dx = (((x - GetSystemMetrics(SM_XVIRTUALSCREEN)) + 0.5) *
-            65536 /
-            desktopWidth)
-        .floor()
-        .clamp(0, 65535);
-    final dy = (((y - GetSystemMetrics(SM_YVIRTUALSCREEN)) + 0.5) *
-            65536 /
-            desktopHeight)
-        .floor()
-        .clamp(0, 65535);
-    final count = phase == 'click' ? 3 : 1;
-    for (var i = 0; i < count; i++) {
-      inputs[i].type = INPUT_MOUSE;
-      inputs[i].mi
-        ..dx = dx
-        ..dy = dy
-        ..dwFlags = MOUSEEVENTF_ABSOLUTE |
-            MOUSEEVENTF_VIRTUALDESK |
-            MOUSEEVENTF_MOVE |
-            (phase == 'down' || (phase == 'click' && i == 1)
-                ? MOUSEEVENTF_LEFTDOWN
-                : phase == 'up' || (phase == 'click' && i == 2)
-                    ? MOUSEEVENTF_LEFTUP
-                    : 0);
-    }
-    if (SendInput(count, inputs, sizeOf<INPUT>()) != count) {
-      // 부분 전송으로 마우스 버튼이 눌린 채 남지 않게 해제한다.
-      inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-      SendInput(1, inputs, sizeOf<INPUT>());
-      throw const ScreenPreviewException(
-          'input-failed', 'Windows에 클릭을 전달하지 못했습니다.');
-    }
+  } on WindowsTouchInputException catch (error) {
+    throw ScreenPreviewException('input-failed', error.message);
   } finally {
-    calloc.free(inputs);
     calloc.free(processId);
     calloc.free(point);
     calloc.free(monitorInfo);

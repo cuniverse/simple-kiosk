@@ -144,7 +144,8 @@ class _HintBadgeState extends State<_HintBadge>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      // 왕복 한 주기 3초: 밝아지기 1.5초 + 어두워지기 1.5초.
+      duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
   }
 
@@ -157,7 +158,7 @@ class _HintBadgeState extends State<_HintBadge>
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: Tween(begin: 0.55, end: 1.0).animate(_ctrl),
+      opacity: Tween(begin: 0.2, end: 0.9).animate(_ctrl),
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: widget.config.hintPaddingHorizontal,

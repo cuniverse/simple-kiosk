@@ -55,7 +55,7 @@ enum PointerButton { none, primary, secondary, tertiary }
 
 /// Pointer Event kind
 // Order must match InAppWebViewPointerEventKind (see in_app_webview.h)
-enum InAppWebViewPointerEventKind { activate, down, enter, leave, up, update }
+enum InAppWebViewPointerEventKind { activate, down, enter, leave, up, update, cancel }
 
 /// Attempts to translate a button constant such as [kPrimaryMouseButton]
 /// to a [PointerButton]
@@ -372,6 +372,15 @@ class _CustomPlatformViewState extends State<CustomPlatformView> {
                     },
                     onPointerCancel: (ev) {
                       _pointerKind = ev.kind;
+                      if (ev.kind == PointerDeviceKind.touch) {
+                        _controller._setPointerUpdate(
+                            InAppWebViewPointerEventKind.cancel,
+                            ev.pointer,
+                            ev.localPosition,
+                            ev.size,
+                            ev.pressure);
+                        return;
+                      }
                       final button = _downButtons.remove(ev.pointer);
                       if (button != null) {
                         _controller._setPointerButtonState(button, false);
