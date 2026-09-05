@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:win32/win32.dart';
+import 'package:simple_kiosk/service/manual_update_service.dart'
+    show validateUploadedArchive;
 
 const nativeUpdaterVersion = '2.0.0';
 const updateFailureResetInterval = Duration(days: 1);
@@ -141,6 +143,18 @@ bool isSafeArchiveEntry(String name) {
   return true;
 }
 
+/// Keep an existing version intact, including same-version manual reinstalls.
+String availableVersionSlot(Directory versionsRoot, String version) {
+  var slot = version;
+  var sequence = DateTime.now().microsecondsSinceEpoch;
+  while (FileSystemEntity.typeSync(_join(versionsRoot.path, slot),
+          followLinks: false) !=
+      FileSystemEntityType.notFound) {
+    slot = '$version-reinstall-${sequence++}';
+  }
+  return slot;
+}
+
 class NativeUpdateInstaller {
   final NativeUpdateOptions options;
 
@@ -192,13 +206,14 @@ class NativeUpdateInstaller {
 
       final versionsRoot = await Directory(_join(_root.path, 'versions'))
           .create(recursive: true);
-      final versionRoot = Directory(_join(versionsRoot.path, options.version));
-      if (versionRoot.existsSync()) versionRoot.deleteSync(recursive: true);
+      final installedVersion =
+          availableVersionSlot(versionsRoot, options.version);
+      final versionRoot = Directory(_join(versionsRoot.path, installedVersion));
       await packageRoot.rename(versionRoot.path);
 
       final previous = await _currentVersion();
       await _synchronizeRuntimeFiles(versionRoot);
-      await _writePointer(options.version, previous);
+      await _writePointer(installedVersion, previous);
       final appState = File(_join(_root.path, 'state', 'app-state.json'));
       if (appState.existsSync()) appState.deleteSync();
       await _launchCurrent();
@@ -210,7 +225,7 @@ class NativeUpdateInstaller {
         if (previous == null || previous.isEmpty) {
           throw StateError('정상 실행 확인에 실패했고 복구할 이전 버전이 없습니다.');
         }
-        await _writePointer(previous, options.version);
+        await _writePointer(previous, installedVersion);
         await _launchCurrent();
         throw StateError('새 버전 정상 실행 확인 실패로 이전 버전을 복구했습니다.');
       }
@@ -218,7 +233,7 @@ class NativeUpdateInstaller {
       await _removeLegacyLaunchers();
       await _writeState('installed');
       await _log('Version ${options.version} installed successfully');
-      await _maintenance(options.version, previous);
+      await _maintenance(installedVersion, previous);
     } catch (error) {
       await _writeState('failed', error: '$error');
       await _log('FAILED: $error');
@@ -257,6 +272,8 @@ class NativeUpdateInstaller {
   }
 
   Future<Directory> _extractPackage(Directory temporary) async {
+    validateUploadedArchive(options.packagePath,
+        'simple-kiosk-windows-${options.version.replaceAll('+', '-')}.zip');
     final input = InputFileStream(options.packagePath);
     try {
       final archive = ZipDecoder().decodeStream(input);
@@ -266,6 +283,20 @@ class NativeUpdateInstaller {
         }
       }
       await extractArchiveToDisk(archive, temporary.path);
+      // archive's ZIP decoder does not currently implement its verify flag.
+      // Validate the extracted bytes before the running app is asked to exit.
+      for (final entry in archive.where((entry) => entry.isFile)) {
+        final file = File(_join(temporary.path, entry.name));
+        var crc = 0;
+        var size = 0;
+        await for (final bytes in file.openRead()) {
+          size += bytes.length;
+          crc = getCrc32(bytes, crc);
+        }
+        if (size != entry.size || crc != entry.crc32) {
+          throw FormatException('ZIP 파일이 손상되었습니다: ${entry.name}');
+        }
+      }
     } finally {
       input.closeSync();
     }

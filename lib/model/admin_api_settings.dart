@@ -19,6 +19,7 @@ class AdminApiSettings {
   final String mdnsHostname;
   final bool webAdminSshForwardingEnabled;
   final String? webAdminSshForwardingId;
+  final bool webAdminSshForwardingIdFixed;
   final int screenPreviewFps;
   final int screenPreviewWidth;
   final int screenPreviewJpegQuality;
@@ -30,6 +31,7 @@ class AdminApiSettings {
     this.mdnsHostname = defaultMdnsHostname,
     this.webAdminSshForwardingEnabled = true,
     this.webAdminSshForwardingId,
+    this.webAdminSshForwardingIdFixed = false,
     this.screenPreviewFps = defaultScreenPreviewFps,
     this.screenPreviewWidth = defaultScreenPreviewWidth,
     this.screenPreviewJpegQuality = defaultScreenPreviewJpegQuality,
@@ -42,6 +44,13 @@ class AdminApiSettings {
     final mdnsHostname = json['mdnsHostname'];
     final sshEnabled = json['webAdminSshForwardingEnabled'];
     final sshId = json['webAdminSshForwardingId'];
+    final sshIdFixed = json['webAdminSshForwardingIdFixed'];
+    if (sshIdFixed != null && sshIdFixed is! bool) {
+      throw const FormatException('원격 접속 ID 고정 여부는 bool이어야 합니다.');
+    }
+    if (sshIdFixed == true && sshId == null) {
+      throw const FormatException('고정할 원격 접속 ID를 입력하세요.');
+    }
     final screenPreviewFps = json['screenPreviewFps'];
     final screenPreviewWidth = json['screenPreviewWidth'];
     final screenPreviewJpegQuality = json['screenPreviewJpegQuality'];
@@ -68,7 +77,7 @@ class AdminApiSettings {
     if (sshId != null &&
         (sshId is! String || !isValidWebAdminSshForwardingId(sshId))) {
       throw const FormatException(
-        'admin-api.json webAdminSshForwardingId: ysignage{숫자} 형식 필요',
+        '원격 접속 ID는 ysignage7 또는 ysignage7-1 형식이어야 합니다.',
       );
     }
     if (screenPreviewFps != null &&
@@ -97,6 +106,7 @@ class AdminApiSettings {
           (mdnsHostname as String? ?? defaultMdnsHostname).trim().toLowerCase(),
       webAdminSshForwardingEnabled: sshEnabled as bool? ?? true,
       webAdminSshForwardingId: (sshId as String?)?.trim().toLowerCase(),
+      webAdminSshForwardingIdFixed: sshIdFixed as bool? ?? false,
       screenPreviewFps: screenPreviewFps as int? ?? defaultScreenPreviewFps,
       screenPreviewWidth:
           screenPreviewWidth as int? ?? defaultScreenPreviewWidth,
@@ -112,6 +122,7 @@ class AdminApiSettings {
         'mdnsEnabled': mdnsEnabled,
         'mdnsHostname': mdnsHostname,
         'webAdminSshForwardingEnabled': webAdminSshForwardingEnabled,
+        'webAdminSshForwardingIdFixed': webAdminSshForwardingIdFixed,
         if (webAdminSshForwardingId != null)
           'webAdminSshForwardingId': webAdminSshForwardingId,
         'screenPreviewFps': screenPreviewFps,
@@ -126,6 +137,7 @@ class AdminApiSettings {
     String? mdnsHostname,
     bool? webAdminSshForwardingEnabled,
     Object? webAdminSshForwardingId = _notProvided,
+    bool? webAdminSshForwardingIdFixed,
     int? screenPreviewFps,
     int? screenPreviewWidth,
     int? screenPreviewJpegQuality,
@@ -137,6 +149,8 @@ class AdminApiSettings {
         mdnsHostname: mdnsHostname ?? this.mdnsHostname,
         webAdminSshForwardingEnabled:
             webAdminSshForwardingEnabled ?? this.webAdminSshForwardingEnabled,
+        webAdminSshForwardingIdFixed:
+            webAdminSshForwardingIdFixed ?? this.webAdminSshForwardingIdFixed,
         webAdminSshForwardingId:
             identical(webAdminSshForwardingId, _notProvided)
                 ? this.webAdminSshForwardingId
@@ -157,5 +171,7 @@ class AdminApiSettings {
   }
 
   static bool isValidWebAdminSshForwardingId(String value) =>
-      RegExp(r'^ysignage[1-9][0-9]*$').hasMatch(value.trim().toLowerCase());
+      value.trim().length <= 63 &&
+      RegExp(r'^ysignage[1-9][0-9]*(?:-[1-9][0-9]*)?$')
+          .hasMatch(value.trim().toLowerCase());
 }

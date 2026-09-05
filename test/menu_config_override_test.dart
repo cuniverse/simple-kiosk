@@ -73,11 +73,12 @@ void main() {
     ) as Map<String, dynamic>;
     final loader = MenuConfigLoader(
       overridePath: overrideFile.path,
-      defaultsReader: () async => defaults,
+      defaultsReader: () async => {...defaults}..remove('uiTheme'),
     );
     addTearDown(() => directory.delete(recursive: true));
 
     final effective = clone(defaults);
+    effective.remove('uiTheme');
     (effective['layout'] as Map<String, dynamic>)['barHeight'] = 111;
     await loader.saveOverride(effective);
 
@@ -88,7 +89,7 @@ void main() {
     });
     expect((await loader.readEffective())['layout']['barHeight'], 111);
 
-    await loader.saveOverride(defaults);
+    await loader.saveOverride({...defaults}..remove('uiTheme'));
     expect(await overrideFile.exists(), isFalse);
     expect(await loader.readOverride(), isEmpty);
   });
@@ -104,7 +105,7 @@ void main() {
     ) as Map<String, dynamic>;
     final loader = MenuConfigLoader(
       overridePath: overrideFile.path,
-      defaultsReader: () async => defaults,
+      defaultsReader: () async => {...defaults}..remove('uiTheme'),
     );
     addTearDown(() => directory.delete(recursive: true));
 

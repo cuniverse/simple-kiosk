@@ -169,6 +169,8 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
   late final TextEditingController _endController;
   late final TextEditingController _adminApiPortController;
   late final TextEditingController _mdnsHostnameController;
+  late final TextEditingController _sshIdController;
+  late bool _sshIdFixed;
 
   @override
   void initState() {
@@ -182,6 +184,12 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     _adminApiEnabled = widget.adminApiController?.settings.enabled ?? true;
     _mdnsEnabled = widget.adminApiController?.settings.mdnsEnabled ?? true;
     _keyboardMode = widget.keyboardMode;
+    _sshIdFixed =
+        widget.adminApiController?.settings.webAdminSshForwardingIdFixed ??
+            false;
+    _sshIdController = TextEditingController(
+      text: widget.adminApiController?.settings.webAdminSshForwardingId ?? '',
+    );
     _startController = TextEditingController(text: policy.installWindow.start);
     _endController = TextEditingController(text: policy.installWindow.end);
     _adminApiPortController = TextEditingController(
@@ -201,6 +209,7 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     _endController.dispose();
     _adminApiPortController.dispose();
     _mdnsHostnameController.dispose();
+    _sshIdController.dispose();
     super.dispose();
   }
 
@@ -414,14 +423,17 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     }
     try {
       await controller.updateSettings(
-        AdminApiSettings(
+        controller.settings.copyWith(
           enabled: _adminApiEnabled,
           port: port,
           mdnsEnabled: _mdnsEnabled,
           mdnsHostname: mdnsHostname,
           webAdminSshForwardingEnabled:
               controller.settings.webAdminSshForwardingEnabled,
-          webAdminSshForwardingId: controller.settings.webAdminSshForwardingId,
+          webAdminSshForwardingId: _sshIdFixed
+              ? _sshIdController.text.trim().toLowerCase()
+              : controller.settings.webAdminSshForwardingId,
+          webAdminSshForwardingIdFixed: _sshIdFixed,
         ),
       );
       if (mounted) {
@@ -824,6 +836,26 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
                         decoration: const InputDecoration(
                           labelText: 'mDNS 호스트 이름',
                           helperText: '기본값 ysignage.local · 같은 네트워크에서 접속할 주소',
+                        ),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('원격 접속 ID 고정'),
+                        subtitle: const Text(
+                            '중복이면 -1, -2를 붙이고, 배정된 ID는 재시작·업데이트 후에도 유지합니다.'),
+                        value: _sshIdFixed,
+                        onChanged: widget.adminApiController!.busy
+                            ? null
+                            : (value) => setState(() => _sshIdFixed = value),
+                      ),
+                      TextField(
+                        controller: _sshIdController,
+                        enabled:
+                            _sshIdFixed && !widget.adminApiController!.busy,
+                        decoration: const InputDecoration(
+                          labelText: '고정할 원격 접속 ID',
+                          hintText: 'ysignage7',
+                          helperText: '예: ysignage7, ysignage7-1',
                         ),
                       ),
                       const SizedBox(height: 12),

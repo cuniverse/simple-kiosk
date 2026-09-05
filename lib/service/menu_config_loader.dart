@@ -14,6 +14,7 @@ import 'high_contrast_default_migration.dart';
 import 'menu_config_migrator.dart';
 import 'menu_config_merger.dart';
 import 'runtime_paths.dart';
+import 'ui_theme_service.dart';
 
 typedef MenuDefaultsReader = Future<Map<String, dynamic>> Function();
 
@@ -30,17 +31,21 @@ class MenuConfigLoader {
   final String assetPath;
   final String? overridePath;
   final MenuDefaultsReader? defaultsReader;
+  final UiThemeService? themeService;
 
   const MenuConfigLoader({
     this.assetPath = defaultAssetPath,
     this.overridePath,
     this.defaultsReader,
+    this.themeService,
   });
 
   String? get _overridePath => overridePath ?? RuntimePaths.menuOverride;
 
-  /// 앱에 포함된 기본 설정 원본을 반환한다.
-  Future<Map<String, dynamic>> readDefaults() async {
+  /// 앱에 포함된 기본 설정 원본을 반환한다. 테마는 유효 설정을 읽을 때 적용한다.
+  Future<Map<String, dynamic>> readDefaults() async => _readRawDefaults();
+
+  Future<Map<String, dynamic>> _readRawDefaults() async {
     final reader = defaultsReader;
     final decoded = reader == null
         ? json.decode(await rootBundle.loadString(assetPath))
@@ -49,6 +54,49 @@ class MenuConfigLoader {
       throw const FormatException('menu.defaults.json: 최상위 객체 필요');
     }
     return decoded;
+  }
+
+  Future<Map<String, dynamic>> _themeDefaults(
+    Map<String, dynamic> defaults,
+    Map<String, dynamic> override,
+  ) async {
+    final result = jsonDecode(jsonEncode(defaults)) as Map<String, dynamic>;
+    final id = override.containsKey('uiTheme')
+        ? override['uiTheme']
+        : defaults['uiTheme'];
+    if (id == null) return result; // 테마 연결이 없는 기존 설정도 지원한다.
+    if (id is! String) {
+      throw const FormatException('menu.json uiTheme: 테마 ID 문자열 필요');
+    }
+    result['uiTheme'] = id;
+    result.remove('uiThemeFallback');
+    if (id.isEmpty) return result;
+    final theme = await (themeService ?? UiThemeService()).find(id);
+    final fallback = override['uiThemeFallback'] ?? defaults['uiThemeFallback'];
+    if (theme == null && fallback is! Map<String, dynamic>) {
+      throw FormatException('menu.json uiTheme: 테마를 찾을 수 없습니다 ($id)');
+    }
+    UiThemeService.applyValues(
+      result,
+      theme?.values ?? fallback as Map<String, dynamic>,
+    );
+    result['uiThemeFallback'] = UiThemeService.appearanceValues(result);
+    return result;
+  }
+
+  Future<Map<String, dynamic>> _mergeWithTheme(
+    Map<String, dynamic> defaults,
+    Map<String, dynamic>? override,
+  ) async {
+    final base = await _themeDefaults(defaults, override ?? const {});
+    final result = MenuConfigMerger.merge(base, override).json;
+    // 저장 시점의 예비 값 대신 현재 테마 값을 다음 저장의 기준으로 제공한다.
+    if (base.containsKey('uiThemeFallback')) {
+      result['uiThemeFallback'] = base['uiThemeFallback'];
+    } else {
+      result.remove('uiThemeFallback');
+    }
+    return result;
   }
 
   Future<Map<String, dynamic>> readOverride() async {
@@ -66,10 +114,9 @@ class MenuConfigLoader {
   /// 오버라이드가 없으면 기본 설정 전체를 반환하며, 병합 설정이 유효하지
   /// 않으면 앱과 동일하게 마지막 정상 설정을 사용한다.
   Future<Map<String, dynamic>> readEffective() async {
-    final defaults = await readDefaults();
+    final defaults = await _readRawDefaults();
     try {
-      final merged =
-          MenuConfigMerger.merge(defaults, await readOverride()).json;
+      final merged = await _mergeWithTheme(defaults, await readOverride());
       parse(merged);
       return merged;
     } catch (_) {
@@ -86,11 +133,21 @@ class MenuConfigLoader {
   }
 
   Future<void> saveOverride(Map<String, dynamic> config) async {
-    final defaults = await readDefaults();
+    final defaults = await _themeDefaults(await _readRawDefaults(), config);
+    final patch = jsonDecode(jsonEncode(config)) as Map<String, dynamic>;
+    UiThemeService.removeInheritedValues(patch);
     // 전체 유효 설정과 기존의 부분 override 입력을 모두 허용한다.
-    final effective = MenuConfigMerger.merge(defaults, config).json;
+    final effective = MenuConfigMerger.merge(defaults, patch).json;
     parse(effective);
     final override = MenuConfigMerger.createOverride(defaults, effective);
+    if (defaults.containsKey('uiTheme')) {
+      override['uiTheme'] = defaults['uiTheme'];
+      if (defaults.containsKey('uiThemeFallback')) {
+        override['uiThemeFallback'] = defaults['uiThemeFallback'];
+      } else {
+        override.remove('uiThemeFallback');
+      }
+    }
     final path = _overridePath;
     if (path == null) {
       throw UnsupportedError('메뉴 설정 저장 경로를 사용할 수 없습니다.');
@@ -110,7 +167,7 @@ class MenuConfigLoader {
   ///
   /// 파싱 실패 시 [FormatException]을 던진다.
   Future<MenuConfig> load() async {
-    final defaults = await readDefaults();
+    final defaults = await _readRawDefaults();
 
     await RuntimePaths.ensureStructure();
     try {
@@ -141,20 +198,22 @@ class MenuConfigLoader {
         }
       }
       final beforeHighContrastMigration = override;
-      override = await HighContrastDefaultMigration.runtime().apply(
+      override = await HighContrastDefaultMigration.runtime(
+        themeService: themeService,
+      ).apply(
         defaults,
         override,
-        validate: (candidate) {
-          parse(MenuConfigMerger.merge(defaults, candidate).json);
+        validate: (candidate) async {
+          parse(await _mergeWithTheme(defaults, candidate));
         },
       );
       if (!identical(beforeHighContrastMigration, override)) {
         AppLogger.info(
           LogCategory.app,
-          '업데이트 기본 테마를 고대비로 한 번 강제 적용했습니다.',
+          '고대비(텍스트) 테마를 한 번 강제 적용하고 기존 UI 모양 재정의를 제거했습니다.',
         );
       }
-      final merged = MenuConfigMerger.merge(defaults, override).json;
+      final merged = await _mergeWithTheme(defaults, override);
       final portableLastGood = json.decode(json.encode(merged));
       _resolveExternalMediaPaths(merged);
       final config = parse(merged);

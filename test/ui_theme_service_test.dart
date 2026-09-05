@@ -43,6 +43,7 @@ void main() {
     expect(themes.single.values['barColor'], '#111827');
     expect(themes.single.values['brightness'], 'light');
     expect(themes.single.values['hideItemIcons'], isFalse);
+    expect(themes.single.values['hideTopicIcons'], isFalse);
     expect(themes.single.values.containsKey('navPosition'), isFalse);
     expect(
       themes.single.values['languageSelection'],
@@ -54,6 +55,7 @@ void main() {
     final saved = await service.saveUserTheme('나의 테마', {
       'brightness': 'dark',
       'hideItemIcons': true,
+      'hideTopicIcons': true,
       'barColor': '#222222',
       'buttonGap': 10,
       'windowsKioskLockdown': false,
@@ -66,6 +68,7 @@ void main() {
     expect(saved.preloaded, isFalse);
     expect(saved.values['brightness'], 'dark');
     expect(saved.values['hideItemIcons'], isTrue);
+    expect(saved.values['hideTopicIcons'], isTrue);
     expect(saved.values.containsKey('windowsKioskLockdown'), isFalse);
     expect(saved.values['languageSelection'], {
       'fontFamily': 'Catholic',
@@ -116,6 +119,17 @@ void main() {
         (error) => error.code,
         'code',
         'invalid-theme-language-selection',
+      )),
+    );
+  });
+
+  test('주제 아이콘 숨김 테마 값은 bool만 허용한다', () async {
+    await expectLater(
+      service.saveUserTheme('Invalid topic icons', {'hideTopicIcons': 'true'}),
+      throwsA(isA<UiThemeException>().having(
+        (error) => error.code,
+        'code',
+        'invalid-theme-hide-topic-icons',
       )),
     );
   });

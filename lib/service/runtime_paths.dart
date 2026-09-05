@@ -30,7 +30,7 @@ class RuntimePaths {
   static String? get previousSettingsBackup =>
       child('state/previous-settings-backup.json');
   static String? get highContrastDefaultMigration =>
-      child('state/high-contrast-default-v1.json');
+      child('state/high-contrast-text-default-v2.json');
   static String? get appState => child('state/app-state.json');
   static String? get downloads => child('downloads');
   static String? get logs => child('logs');

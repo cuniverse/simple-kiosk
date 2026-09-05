@@ -53,6 +53,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 - **원격 파일 관리**: WEB 관리자에서 업데이트에 유지되는 `exdata/` 폴더의 파일을 Windows 탐색기 형태로 업로드·다운로드·이름 변경·삭제
 - **원격 운영·진단**: 로컬·원격 WEB 관리자에서 상태 확인, 1~5fps 화면 미리보기, 설정·업데이트·재시작, 진단 자료 내보내기와 GitHub 이슈 등록 지원
 - **UI 테마**: 레이아웃·동작과 UI 모양을 분리하고, 언어 선택 화면을 포함한 프리로드 테마 적용 및 편집한 모양의 사용자 테마 저장 지원
+  구버전에서 업데이트하면 고대비(텍스트) 테마를 한 번 강제 적용하고 기존 색상·UI 모양 재정의를 덮어씁니다. 이후에는 선택한 테마 ID(`uiTheme`)를 따라 최신 테마 색상과 설정을 자동 반영하며, 사용자가 다시 수정한 값은 유지합니다.
 
 ## 실행 방법
 
@@ -261,6 +262,9 @@ flutter pub get
 선택 화면 아이콘은 `icon`에 함께 배포되는 국기 이미지
 (`assets/icons/languages/kr.png` 등), `icon:language`, 다른 `assets/...` 경로
 또는 `https://...` 형식으로 지정합니다.
+주제 아이콘은 `layout.hideTopicIcons` 또는 테마의 `values.hideTopicIcons`로
+기본 표시 여부를 정합니다. 주제에 `showIcon: false`를 지정하면 아이콘 경로를
+유지한 채 감추고, `showIcon: true`를 지정하면 기본 감춤 설정에서도 표시합니다.
 영어 기본 아이콘은 미국·영국 국기를 대각선으로 합성한
 `assets/icons/languages/en-us-gb.png`를 사용합니다.
 언어·주제·메뉴 항목에 `"hidden": true`를 지정하면 해당 선택 화면 또는 툴바에서
@@ -302,6 +306,7 @@ WebView와 같은 확대 컨트롤이 나타나며 `25%` 단위 버튼 조절과
 | `brightness` | `light`/`dark` | `dark` (생략 시 `light`) | 테마의 밝은(White)·어두운(Dark) 계열 지정 |
 | `webViewBrightness` | `light`/`dark` | `light` | 웹 페이지의 `prefers-color-scheme`. UI 테마 `brightness`와 독립 |
 | `hideItemIcons` | bool | `true` | `showIcon`을 생략한 메뉴 아이콘을 기본적으로 감춤. 개별 `showIcon: true`는 표시 |
+| `hideTopicIcons` | bool | `true` | `showIcon`을 생략한 주제 선택 버튼의 아이콘을 기본적으로 감춤. 주제별 `showIcon: true/false`로 재정의 |
 | `navPosition` | `auto`/`left`/`right`/`top`/`bottom` | `right` | 네비게이션 위치. `auto` 는 폭 `breakpoint` 기준 자동 전환 |
 | `breakpoint` | number(dp) | `720` | `auto` 모드에서 사이드/하단을 가르는 폭 |
 | `sideWidth` | number(dp) | `230` | 사이드 모드 폭 |

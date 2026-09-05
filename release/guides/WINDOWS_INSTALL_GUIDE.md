@@ -146,8 +146,12 @@ UAC를 실행하지 않습니다. 승인을 취소해도 앱과 설정 저장은
 접속 전용 키를 사용하므로 외부 `ssh.exe`는 실행하지 않습니다. GW의
 `/run/signage/ysignage1.sock`부터 사용 가능한 ID를 자동으로 선택하고, 성공한 ID를
 `admin-api.json`에 저장합니다. 다음 연결에서는 저장된 ID를 먼저 사용하며 해당 ID가
-거절되면 1번부터 다시 탐색합니다. 연결 후 설정 화면에 표시되는
-`http://ysignage{숫자}.signage.cuniverse.net/` 링크를 눌러 접속할 수 있습니다. 프로그램은
+자동 배정 모드에서 거절되면 1번부터 다시 탐색합니다.
+고정 ID를 수동 지정한 경우에는 중복 등 배정 거절 시 `ysignage7-1`, `ysignage7-2`처럼
+번호를 붙여 시도하고 성공한 ID를 저장합니다. 재연결은 저장된 ID부터 시작하며,
+일반 SSH 연결 오류만으로 번호를 변경하지 않습니다. 연결 후 설정 화면에 표시되는
+`http://ysignage7.signage.cuniverse.net/` 또는 `http://ysignage7-1.signage.cuniverse.net/`
+링크를 눌러 접속할 수 있습니다. 프로그램은
 외부 URL을 통한 실제 reverse forwarding 왕복 상태를 30초마다 확인합니다. 실패하면
 상태와 마지막 정상 확인 시간을 표시하고 10초 간격으로 연결 및 ID 배정을 계속
 재시도합니다.

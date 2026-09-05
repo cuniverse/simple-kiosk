@@ -18,6 +18,7 @@ class LanguageSelection extends StatefulWidget {
   final String topicTitle;
   final String topicSubtitle;
   final bool skipSingleTopic;
+  final bool hideTopicIcons;
   final String? fontFamily;
   final Color? backgroundColor;
   final Color? foregroundColor;
@@ -40,6 +41,7 @@ class LanguageSelection extends StatefulWidget {
     this.topicTitle = '주제를 선택하세요',
     this.topicSubtitle = 'Please select a topic',
     this.skipSingleTopic = true,
+    this.hideTopicIcons = false,
     this.fontFamily,
     this.backgroundColor,
     this.foregroundColor,
@@ -321,6 +323,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
                 final topic = topics[topicIndex];
                 return _TopicButton(
                   topic: topic,
+                  showIcon: topic.showIcon ?? !widget.hideTopicIcons,
                   width: buttonWidth,
                   height: widget.buttonHeight,
                   fontFamily: widget.fontFamily,
@@ -356,6 +359,7 @@ class _LanguageSelectionState extends State<LanguageSelection> {
 
 class _TopicButton extends StatelessWidget {
   final MenuTopic topic;
+  final bool showIcon;
   final double width;
   final double height;
   final VoidCallback onPressed;
@@ -367,6 +371,7 @@ class _TopicButton extends StatelessWidget {
 
   const _TopicButton({
     required this.topic,
+    required this.showIcon,
     required this.width,
     required this.height,
     required this.onPressed,
@@ -384,7 +389,7 @@ class _TopicButton extends StatelessWidget {
         height: height,
         label: topic.label,
         subtitle: topic.subtitle,
-        icon: topic.icon,
+        icon: showIcon ? topic.icon : null,
         fontFamily: fontFamily,
         buttonColor: buttonColor,
         buttonForegroundColor: buttonForegroundColor,

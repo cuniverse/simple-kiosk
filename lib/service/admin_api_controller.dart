@@ -14,6 +14,7 @@ import 'configuration_backup_service.dart';
 import 'diagnostics_service.dart';
 import 'exdata_file_service.dart';
 import 'menu_config_loader.dart';
+import 'manual_update_service.dart';
 import 'mdns_service_controller.dart';
 import 'screen_preview_service.dart';
 import 'ui_theme_service.dart';
@@ -49,6 +50,8 @@ class AdminApiController extends ChangeNotifier {
     Future<void> Function()? onConfigurationImported,
     AdminNetworkSettingsSynchronizer? beforeNetworkStart,
     ScreenPreviewService? screenPreviewService,
+    ManualUpdateService? manualUpdateService,
+    this.uploadedUpdateInstaller,
   })  : _effectiveConfigReader = effectiveConfigReader ?? configReader,
         _defaultConfigReader =
             defaultConfigReader ?? effectiveConfigReader ?? configReader,
@@ -60,6 +63,7 @@ class AdminApiController extends ChangeNotifier {
         _diagnosticsService = diagnosticsService ?? const DiagnosticsService(),
         _exdataFileService = exdataFileService ?? ExdataFileService(),
         _uiThemeService = uiThemeService ?? UiThemeService(),
+        _manualUpdateService = manualUpdateService ?? ManualUpdateService(),
         _webAdminSshTunnelController =
             webAdminSshTunnelController ?? WebAdminSshTunnelController(),
         _onConfigurationImported = onConfigurationImported,
@@ -91,6 +95,8 @@ class AdminApiController extends ChangeNotifier {
   final DiagnosticsService _diagnosticsService;
   final ExdataFileService _exdataFileService;
   final UiThemeService _uiThemeService;
+  final ManualUpdateService _manualUpdateService;
+  final Future<void> Function(UploadedUpdate)? uploadedUpdateInstaller;
   final WebAdminSshTunnelController _webAdminSshTunnelController;
   final Future<void> Function()? _onConfigurationImported;
   final AdminNetworkSettingsSynchronizer? _beforeNetworkStart;
@@ -179,6 +185,7 @@ class AdminApiController extends ChangeNotifier {
   }
 
   Future<void> _validateSettings(AdminApiSettings updated) async {
+    AdminApiSettings.fromJson(updated.toJson());
     if (updated.port < 1 || updated.port > 65535) {
       throw const FormatException('관리 API 포트는 1~65535여야 합니다.');
     }
@@ -311,15 +318,21 @@ class AdminApiController extends ChangeNotifier {
   Future<void> _startWebAdminSshTunnel() async {
     final port = actualPort;
     if (port == null || !settings.webAdminSshForwardingEnabled) return;
+    var expectedId = settings.webAdminSshForwardingId;
+    final fixedId = settings.webAdminSshForwardingIdFixed;
     await _webAdminSshTunnelController.start(
       localPort: port,
-      preferredId: settings.webAdminSshForwardingId,
+      preferredId: expectedId,
+      fixedId: fixedId,
       onIdAssigned: (id) async {
         if (!settings.webAdminSshForwardingEnabled ||
+            settings.webAdminSshForwardingIdFixed != fixedId ||
+            settings.webAdminSshForwardingId != expectedId ||
             settings.webAdminSshForwardingId == id) {
           return;
         }
         settings = settings.copyWith(webAdminSshForwardingId: id);
+        expectedId = id;
         await _settingsStore.save(settings);
         notifyListeners();
       },
@@ -490,6 +503,43 @@ class AdminApiController extends ChangeNotifier {
           );
         await request.response.addStream(download.file.openRead());
         return await request.response.close();
+      }
+      if (request.method == 'PUT' && path == '/api/updates/upload') {
+        if (uploadedUpdateInstaller == null) {
+          return await _sendJson(
+              request.response, 501, {'error': 'ZIP 업데이트를 지원하지 않습니다.'});
+        }
+        final query = request.uri.queryParameters;
+        final result = await _manualUpdateService.upload(
+          filename: query['filename'] ?? '',
+          uploadId: query['uploadId'] ?? '',
+          offset: int.tryParse(query['offset'] ?? '') ?? -1,
+          total: int.tryParse(query['total'] ?? '') ?? -1,
+          complete: query['complete'] == 'true',
+          content: request,
+          contentLength:
+              request.contentLength >= 0 ? request.contentLength : null,
+        );
+        return await _sendJson(
+            request.response, result['complete'] == true ? 201 : 200, result);
+      }
+      if (request.method == 'POST' && path == '/api/updates/install') {
+        final installer = uploadedUpdateInstaller;
+        if (installer == null) {
+          return await _sendJson(
+              request.response, 501, {'error': 'ZIP 업데이트를 지원하지 않습니다.'});
+        }
+        final body = await _readJsonObject(request, maxBytes: 4096);
+        final uploadId = body['uploadId'];
+        if (uploadId is! String) throw const FormatException('업로드 ID가 필요합니다.');
+        final update = _manualUpdateService.prepared(uploadId);
+        await installer(update);
+        _manualUpdateService.markInstalling(uploadId);
+        return await _sendJson(request.response, 202, {
+          'ok': true,
+          'version': update.manifest.version,
+          'message': '업로드한 ZIP으로 설치를 시작합니다. 완료 후 다시 접속하세요.',
+        });
       }
       if (request.method == 'PUT' && path == '/api/files/upload') {
         final relativePath = request.uri.queryParameters['path'] ?? '';
@@ -754,7 +804,8 @@ class AdminApiController extends ChangeNotifier {
       }
       if (request.method == 'PUT' && path == '/api/server-settings') {
         final body = await _readJsonObject(request);
-        final updated = AdminApiSettings.fromJson(body);
+        final updated =
+            AdminApiSettings.fromJson({...settings.toJson(), ...body});
         await _validateSettings(updated);
         await _sendJson(request.response, 202, {
           'ok': true,

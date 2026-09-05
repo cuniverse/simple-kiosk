@@ -30,6 +30,7 @@ import 'package:simple_kiosk/service/media_scanner.dart';
 import 'package:simple_kiosk/service/system_keyboard.dart';
 import 'package:simple_kiosk/service/touch_input_guard.dart';
 import 'package:simple_kiosk/service/update_service.dart';
+import 'package:simple_kiosk/service/ui_theme_service.dart';
 import 'package:simple_kiosk/service/windows_startup_service.dart';
 import 'package:simple_kiosk/widget/idle_gate.dart';
 import 'package:simple_kiosk/widget/idle_overlay.dart';
@@ -344,14 +345,25 @@ void main() {
     expect(language, contains('if (_isAbsoluteFilePath(value))'));
   });
 
-  test('기본 UI 값은 프리로드 고대비 텍스트 테마와 정확히 일치한다', () {
+  test('기본 UI 값은 연결된 고대비 텍스트 테마의 최신 값을 따른다', () async {
     final defaults = jsonDecode(
       File('assets/config/menu.defaults.json').readAsStringSync(),
     ) as Map<String, dynamic>;
     final theme = jsonDecode(
       File('assets/themes/high-contrast-text.json').readAsStringSync(),
     ) as Map<String, dynamic>;
-    final layout = defaults['layout'] as Map<String, dynamic>;
+    final directory = await Directory.systemTemp.createTemp('default-theme-');
+    addTearDown(() => directory.delete(recursive: true));
+    final effective = await MenuConfigLoader(
+      defaultsReader: () async => defaults,
+      overridePath: '${directory.path}/menu.override.json',
+      themeService: UiThemeService(
+        userThemeDirectory: '${directory.path}/themes',
+        preloadedThemeLoader: () async => [theme],
+      ),
+    ).readEffective();
+    expect(effective['uiTheme'], 'preloaded:high-contrast-text');
+    final layout = effective['layout'] as Map<String, dynamic>;
     final values = theme['values'] as Map<String, dynamic>;
 
     for (final entry in values.entries.where(
@@ -360,7 +372,7 @@ void main() {
       expect(layout[entry.key], entry.value, reason: entry.key);
     }
     final languageSelection =
-        defaults['languageSelection'] as Map<String, dynamic>;
+        effective['languageSelection'] as Map<String, dynamic>;
     final themedLanguageSelection =
         values['languageSelection'] as Map<String, dynamic>;
     for (final entry in themedLanguageSelection.entries) {
@@ -1268,20 +1280,7 @@ void main() {
         .expand((topic) => topic.items)
         .map((item) => item.fontFamily)
         .toSet();
-    expect(
-      configuredItemFonts,
-      containsAll([
-        'Catholic',
-        'SeoulNamsan',
-        'MuseumClassic',
-      ]),
-    );
-    expect(
-      configuredItemFonts.difference(
-        const {'Catholic', 'SeoulNamsan', 'MuseumClassic'},
-      ),
-      isEmpty,
-    );
+    expect(configuredItemFonts, {'Catholic'});
     expect(
       config
           .language('ko')

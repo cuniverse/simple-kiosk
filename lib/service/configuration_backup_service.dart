@@ -33,7 +33,7 @@ class ConfigurationBackupService {
   }
 
   Future<AdminApiSettings> import(Map<String, dynamic> backup) async {
-    final validated = _validate(backup);
+    final validated = await _preserveFixedId(_validate(backup));
     final previous = await export();
     await saveCurrentAsPrevious();
 
@@ -60,7 +60,7 @@ class ConfigurationBackupService {
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('직전 설정 백업 파일이 올바르지 않습니다.');
     }
-    final validated = _validate(decoded);
+    final validated = await _preserveFixedId(_validate(decoded));
     await _apply(validated);
     return validated.adminApi;
   }
@@ -87,6 +87,24 @@ class ConfigurationBackupService {
       updatePolicy: UpdatePolicy.fromJson(updatePolicy),
     );
   }
+
+  Future<_ValidatedBackup> _preserveFixedId(_ValidatedBackup backup) async {
+    final local = await adminApiSettingsStore.load();
+    return _ValidatedBackup(
+      menu: backup.menu,
+      updatePolicy: backup.updatePolicy,
+      adminApi: preserveDeviceIdentity(backup.adminApi, local),
+    );
+  }
+
+  static AdminApiSettings preserveDeviceIdentity(
+          AdminApiSettings imported, AdminApiSettings local) =>
+      local.webAdminSshForwardingIdFixed
+          ? imported.copyWith(
+              webAdminSshForwardingId: local.webAdminSshForwardingId,
+              webAdminSshForwardingIdFixed: true,
+            )
+          : imported;
 
   Future<void> _apply(_ValidatedBackup backup) async {
     await menuLoader.saveOverride(backup.menu);

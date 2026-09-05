@@ -6,6 +6,8 @@ import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../model/admin_api_settings.dart';
+
 import 'app_logger.dart';
 
 enum WebAdminSshTunnelStatus {
@@ -45,6 +47,7 @@ class WebAdminSshTunnelController extends ChangeNotifier {
   int _generation = 0;
   int _localPort = 80;
   String? _preferredId;
+  bool _fixedId = false;
   Future<void> Function(String id)? _onIdAssigned;
 
   bool get connected => status == WebAdminSshTunnelStatus.connected;
@@ -77,25 +80,43 @@ class WebAdminSshTunnelController extends ChangeNotifier {
   }
 
   @visibleForTesting
-  static Iterable<String> candidateIds(String? preferredId) sync* {
-    if (preferredId != null &&
-        RegExp(r'^ysignage[1-9][0-9]*$').hasMatch(preferredId)) {
-      yield preferredId;
+  static Iterable<String> candidateIds(String? preferredId,
+      {bool fixed = false}) sync* {
+    final normalized = preferredId?.trim().toLowerCase();
+    final valid = normalized != null &&
+        AdminApiSettings.isValidWebAdminSshForwardingId(normalized);
+    if (valid) {
+      yield normalized;
+    }
+    if (fixed) {
+      if (!valid) return;
+      final parts = normalized.split('-');
+      final base = parts.first;
+      final previousSuffix =
+          parts.length == 2 ? BigInt.parse(parts.last) : BigInt.zero;
+      for (var offset = 1; offset <= _maximumId; offset++) {
+        final candidate = '$base-${previousSuffix + BigInt.from(offset)}';
+        if (!AdminApiSettings.isValidWebAdminSshForwardingId(candidate)) return;
+        yield candidate;
+      }
+      return;
     }
     for (var number = 1; number <= _maximumId; number++) {
       final candidate = '$idPrefix$number';
-      if (candidate != preferredId) yield candidate;
+      if (candidate != normalized) yield candidate;
     }
   }
 
   Future<void> start({
     required int localPort,
     required String? preferredId,
+    bool fixedId = false,
     required Future<void> Function(String id) onIdAssigned,
   }) async {
     await stop(notify: false);
     _localPort = localPort;
     _preferredId = preferredId;
+    _fixedId = fixedId;
     assignedId = preferredId;
     _onIdAssigned = onIdAssigned;
     status = WebAdminSshTunnelStatus.connecting;
@@ -173,7 +194,7 @@ class WebAdminSshTunnelController extends ChangeNotifier {
 
       SSHRemoteUnixForward? forward;
       String? selectedId;
-      for (final id in candidateIds(_preferredId)) {
+      for (final id in candidateIds(_preferredId, fixed: _fixedId)) {
         final candidate = await client.forwardRemoteUnix(
           '$socketDirectory/$id.sock',
         );
@@ -184,6 +205,10 @@ class WebAdminSshTunnelController extends ChangeNotifier {
         }
       }
       if (forward == null || selectedId == null) {
+        if (_fixedId) {
+          throw StateError(
+              '고정 ID $_preferredId 및 번호를 붙인 ID를 배정받지 못했습니다. 연결을 다시 시도합니다.');
+        }
         throw StateError('사용 가능한 원격 WEB 관리자 ID가 없습니다.');
       }
       if (generation != _generation) {

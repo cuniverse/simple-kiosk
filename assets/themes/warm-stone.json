@@ -6,6 +6,7 @@
   "values": {
     "brightness": "dark",
     "hideItemIcons": false,
+    "hideTopicIcons": false,
     "fontFamily": "Catholic",
     "menuFontFamily": "Catholic",
     "sideWidth": 224,

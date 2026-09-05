@@ -47,6 +47,7 @@ class UiThemeService {
   static const appearanceKeys = <String>{
     'brightness',
     'hideItemIcons',
+    'hideTopicIcons',
     'fontFamily',
     'menuFontFamily',
     'sideWidth',
@@ -88,6 +89,76 @@ class UiThemeService {
   Future<void> ensureReady() async {
     final directory = userThemeDirectory;
     if (directory != null) await Directory(directory).create(recursive: true);
+  }
+
+  Future<UiTheme?> find(String id) async {
+    for (final theme in await list()) {
+      if (theme.id == id) return theme;
+    }
+    return null;
+  }
+
+  /// 테마가 관리하는 모양 값만 복사한다. 메뉴와 동작 설정은 포함하지 않는다.
+  static Map<String, dynamic> appearanceValues(Map<String, dynamic> config) {
+    final layout = config['layout'];
+    final selection = config['languageSelection'];
+    return {
+      if (layout is Map)
+        for (final key in appearanceKeys)
+          if (layout.containsKey(key)) key: layout[key],
+      if (selection is Map)
+        'languageSelection': {
+          for (final key in languageSelectionAppearanceKeys)
+            if (selection.containsKey(key)) key: selection[key],
+        },
+    };
+  }
+
+  static void applyValues(
+    Map<String, dynamic> config,
+    Map<String, dynamic> values,
+  ) {
+    final layout = Map<String, dynamic>.from(config['layout'] as Map? ?? {});
+    for (final key in appearanceKeys) {
+      if (values.containsKey(key)) layout[key] = values[key];
+    }
+    config['layout'] = layout;
+    final rawSelection = values['languageSelection'];
+    if (rawSelection is Map) {
+      final selection =
+          Map<String, dynamic>.from(config['languageSelection'] as Map? ?? {});
+      for (final key in languageSelectionAppearanceKeys) {
+        if (rawSelection.containsKey(key)) selection[key] = rawSelection[key];
+      }
+      config['languageSelection'] = selection;
+    }
+  }
+
+  /// 이전 버전의 전체 설정을 저장해도 당시 테마에서 상속한 값은 고정하지 않는다.
+  static void removeInheritedValues(Map<String, dynamic> config) {
+    if (config['uiTheme'] is! String || (config['uiTheme'] as String).isEmpty) {
+      return;
+    }
+    final baseline = config['uiThemeFallback'];
+    if (baseline is! Map) return;
+    final layout = config['layout'];
+    if (layout is Map) {
+      for (final key in appearanceKeys) {
+        if (baseline.containsKey(key) && layout[key] == baseline[key]) {
+          layout.remove(key);
+        }
+      }
+    }
+    final selection = config['languageSelection'];
+    final selectionBaseline = baseline['languageSelection'];
+    if (selection is Map && selectionBaseline is Map) {
+      for (final key in languageSelectionAppearanceKeys) {
+        if (selectionBaseline.containsKey(key) &&
+            selection[key] == selectionBaseline[key]) {
+          selection.remove(key);
+        }
+      }
+    }
   }
 
   Future<List<UiTheme>> list() async {
@@ -311,6 +382,16 @@ class UiThemeService {
         400,
         'invalid-theme-hide-item-icons',
         '테마 hideItemIcons는 bool이어야 합니다.',
+      );
+    }
+    final hideTopicIcons = result['hideTopicIcons'];
+    if (hideTopicIcons == null) {
+      result['hideTopicIcons'] = false;
+    } else if (hideTopicIcons is! bool) {
+      throw const UiThemeException(
+        400,
+        'invalid-theme-hide-topic-icons',
+        '테마 hideTopicIcons는 bool이어야 합니다.',
       );
     }
     return result;

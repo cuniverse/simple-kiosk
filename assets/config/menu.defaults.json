@@ -1,9 +1,11 @@
 {
   "schemaVersion": 2,
+  "uiTheme": "preloaded:high-contrast-text",
   "layout": {
     "brightness": "dark",
     "webViewBrightness": "light",
     "hideItemIcons": true,
+    "hideTopicIcons": true,
     "fontFamily": "Catholic",
     "menuFontFamily": "Catholic",
     "navPosition": "right",
@@ -113,7 +115,7 @@
     "title": "언어를 선택하세요",
     "subtitle": "Please select your language",
     "topicTitle": "주제를 선택하세요",
-    "topicSubtitle": "Please select a topic",
+    "topicSubtitle": "",
     "skipSingleTopic": true
   },
   "webViewData": {
@@ -126,10 +128,10 @@
       "fontFamily": "Catholic",
       "icon": "assets/icons/languages/kr.png",
       "label": "한국어",
-      "languageSelectionBackLabel": "언어 선택으로 돌아가기",
+      "languageSelectionBackLabel": "처음으로",
       "languageSelectionLabel": "언어 선택",
       "topicSelectionTitle": "주제를 선택하세요",
-      "topicSelectionSubtitle": "원하는 주제를 선택하세요",
+      "topicSelectionSubtitle": "",
       "changeLanguageLabel": "다른 언어 선택",
       "subtitle": "",
       "defaultTopic": "ycatholic",
@@ -164,6 +166,30 @@
               "icon": "icon:book"
             },
             {
+              "id": "misa",
+              "title": "미사 안내",
+              "icon": "",
+              "showTitle": true,
+              "file": "exdata/여의도동성당 미사안내.jpg",
+              "fontFamily": "Catholic"
+            },
+            {
+              "id": "Floor",
+              "title": "층별 안내",
+              "icon": "",
+              "showTitle": true,
+              "fontFamily": "Catholic",
+              "file": "exdata/여의도동성당 층별안내.jpg"
+            },
+            {
+              "id": "goodnews",
+              "title": "굿뉴스",
+              "fontFamily": "Catholic",
+              "url": "https://www.catholic.or.kr/",
+              "icon": "assets/icons/goodnews",
+              "selectedIcon": "assets/icons/goodnews.png"
+            },
+            {
               "id": "aos",
               "title": "서울대교구",
               "fontFamily": "Catholic",
@@ -178,14 +204,6 @@
               "url": "https://martyrs.or.kr/_web/main/main.html",
               "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
-            },
-            {
-              "id": "goodnews",
-              "title": "굿뉴스",
-              "fontFamily": "Catholic",
-              "url": "https://www.catholic.or.kr/",
-              "icon": "assets/icons/goodnews",
-              "selectedIcon": "assets/icons/goodnews.png"
             }
           ]
         },
@@ -225,12 +243,6 @@
               "title": "카를로 아쿠티스",
               "fontFamily": "Catholic",
               "url": "https://sanacutis.cpbc.co.kr"
-            },
-            {
-              "id": "miracoli-eucaristici",
-              "title": "MIRACOLI EUCARISTICI",
-              "fontFamily": "Catholic",
-              "url": "https://www.miracolieucaristici.org/en/Liste/list.html"
             }
           ]
         },
@@ -244,31 +256,31 @@
             {
               "id": "seoul",
               "title": "서울특별시",
-              "fontFamily": "SeoulNamsan",
+              "fontFamily": "Catholic",
               "url": "https://www.seoul.go.kr/main/index.jsp"
             },
             {
               "id": "korean-visitkorea",
               "title": "대한민국 구석구석",
-              "fontFamily": "SeoulNamsan",
+              "fontFamily": "Catholic",
               "url": "https://korean.visitkorea.or.kr"
             },
             {
               "id": "museum",
               "title": "국립 중앙박물관",
-              "fontFamily": "MuseumClassic",
+              "fontFamily": "Catholic",
               "url": "https://www.museum.go.kr"
             },
             {
               "id": "sto",
               "title": "서울관광재단",
-              "fontFamily": "SeoulNamsan",
+              "fontFamily": "Catholic",
               "url": "https://www.sto.or.kr"
             },
             {
               "id": "seoul-transportation",
               "title": "서울대중교통",
-              "fontFamily": "SeoulNamsan",
+              "fontFamily": "Catholic",
               "url": "https://bus.go.kr"
             }
           ]
@@ -280,17 +292,17 @@
       "fontFamily": "Catholic",
       "icon": "assets/icons/languages/en-us-gb.png",
       "label": "English",
-      "languageSelectionBackLabel": "Languages",
+      "languageSelectionBackLabel": "Back to Home",
       "languageSelectionLabel": "Language",
       "topicSelectionTitle": "Select a topic",
-      "topicSelectionSubtitle": "Please select a topic",
+      "topicSelectionSubtitle": "",
       "changeLanguageLabel": "Choose another language",
       "subtitle": "",
       "defaultTopic": "wyd",
       "topics": [
         {
           "id": "ycatholic",
-          "label": "Yeouido-dong Catholic Church",
+          "label": "Catholic Church",
           "icon": "assets/icons/ycatholic.png",
           "defaultMenu": "ycatholic",
           "items": [
@@ -302,6 +314,24 @@
               "icon": "assets/icons/ycatholic",
               "selectedIcon": "assets/icons/ycatholic.png",
               "keepStateOnTap": true
+            },
+            {
+              "id": "menu4",
+              "title": "MISSA",
+              "icon": "icon:language",
+              "showTitle": true,
+              "hidden": false,
+              "file": "exdata/여의도동성당 미사안내.jpg",
+              "fontFamily": "Catholic"
+            },
+            {
+              "id": "menu5",
+              "title": "Floor information",
+              "icon": "icon:language",
+              "showTitle": true,
+              "hidden": false,
+              "file": "exdata/여의도동성당 층별안내.jpg",
+              "fontFamily": "Catholic"
             },
             {
               "id": "aos",
@@ -318,14 +348,6 @@
               "url": "https://martyrs.or.kr/en/main/main.html",
               "icon": "assets/icons/aos-toolbar",
               "selectedIcon": "assets/icons/aos-toolbar.png"
-            },
-            {
-              "id": "goodnews",
-              "title": "Good News",
-              "fontFamily": "Catholic",
-              "url": "https://www.catholic.or.kr/",
-              "icon": "assets/icons/goodnews",
-              "selectedIcon": "assets/icons/goodnews.png"
             }
           ]
         },
@@ -365,12 +387,6 @@
               "title": "Carlo Acutis",
               "fontFamily": "Catholic",
               "url": "https://www.carloacutis.com/en/association"
-            },
-            {
-              "id": "miracoli-eucaristici",
-              "title": "MIRACOLI EUCARISTICI",
-              "fontFamily": "Catholic",
-              "url": "https://www.miracolieucaristici.org/en/Liste/list.html"
             }
           ]
         },
@@ -383,13 +399,13 @@
           "items": [
             {
               "id": "seoul",
-              "title": "Seoul",
+              "title": "SEOUL MEROPOLITAN GOVERMENT",
               "fontFamily": "Catholic",
               "url": "https://english.seoul.go.kr"
             },
             {
               "id": "korean-visitkorea",
-              "title": "Visit Korea",
+              "title": "VISIT KOREA",
               "fontFamily": "Catholic",
               "url": "https://english.visitkorea.or.kr"
             },
@@ -406,14 +422,8 @@
               "url": "https://www.sto.or.kr/english/index"
             },
             {
-              "id": "seoul-transportation",
-              "title": "Seoul Public Transportation",
-              "fontFamily": "Catholic",
-              "url": "https://bus.go.kr"
-            },
-            {
               "id": "maps",
-              "title": "Maps",
+              "title": "Google Maps",
               "fontFamily": "Catholic",
               "url": "https://www.google.com/maps/?hl=en&entry=ttu&g_ep=EgoyMDI2MDkwMi4wIKXMDSoASAFQAw%3D%3D"
             }
@@ -425,8 +435,8 @@
       "id": "es",
       "fontFamily": "Catholic",
       "icon": "assets/icons/languages/es.png",
-      "label": "Español",
-      "languageSelectionBackLabel": "Volver a la selección de idioma",
+      "label": "Espanol",
+      "languageSelectionBackLabel": "Volver a la seleccion de idioma",
       "languageSelectionLabel": "Idioma",
       "topicSelectionTitle": "Seleccione un tema",
       "topicSelectionSubtitle": "Elija el tema que desea consultar",
@@ -492,11 +502,11 @@
       "id": "fr",
       "fontFamily": "Catholic",
       "icon": "assets/icons/languages/fr.png",
-      "label": "Français",
+      "label": "Francais",
       "languageSelectionBackLabel": "Retour au choix de la langue",
       "languageSelectionLabel": "Langue",
-      "topicSelectionTitle": "Choisissez un thème",
-      "topicSelectionSubtitle": "Veuillez sélectionner un thème",
+      "topicSelectionTitle": "Choisissez un theme",
+      "topicSelectionSubtitle": "Veuillez selectionner un theme",
       "changeLanguageLabel": "Choisir une autre langue",
       "subtitle": "",
       "defaultTopic": "general",
@@ -504,7 +514,7 @@
       "topics": [
         {
           "id": "general",
-          "label": "Général",
+          "label": "General",
           "subtitle": "",
           "icon": "icon:category",
           "defaultMenu": "home",
@@ -559,8 +569,8 @@
       "id": "pt",
       "fontFamily": "Catholic",
       "icon": "assets/icons/languages/pt.png",
-      "label": "Português",
-      "languageSelectionBackLabel": "Voltar à seleção de idioma",
+      "label": "Portugues",
+      "languageSelectionBackLabel": "Voltar a selecao de idioma",
       "languageSelectionLabel": "Idioma",
       "topicSelectionTitle": "Selecione um tema",
       "topicSelectionSubtitle": "Escolha o tema que deseja consultar",

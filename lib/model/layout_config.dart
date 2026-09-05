@@ -236,6 +236,9 @@ class LayoutConfig {
   /// 개별 재정의가 없는 메뉴 항목의 아이콘을 기본적으로 감출지 여부.
   final bool hideItemIcons;
 
+  /// 개별 재정의가 없는 주제 선택 버튼의 아이콘을 기본적으로 감출지 여부.
+  final bool hideTopicIcons;
+
   /// 앱 UI에 사용할 글꼴 이름. 비어 있으면 Flutter 기본 글꼴을 사용한다.
   final String? fontFamily;
 
@@ -346,6 +349,7 @@ class LayoutConfig {
     this.brightness = Brightness.light,
     this.webViewBrightness = Brightness.light,
     this.hideItemIcons = false,
+    this.hideTopicIcons = false,
     this.fontFamily = 'Catholic',
     this.menuFontFamily = 'Catholic',
     this.navPosition = NavPosition.auto,
@@ -419,6 +423,14 @@ class LayoutConfig {
         if (value is bool) return value;
         throw const FormatException(
           'menu.json layout.hideItemIcons: bool 필요',
+        );
+      }(),
+      hideTopicIcons: () {
+        final value = json['hideTopicIcons'];
+        if (value == null) return defaults.hideTopicIcons;
+        if (value is bool) return value;
+        throw const FormatException(
+          'menu.json layout.hideTopicIcons: bool 필요',
         );
       }(),
       fontFamily: () {

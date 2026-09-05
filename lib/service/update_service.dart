@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../model/update_manifest.dart';
 import 'runtime_paths.dart';
+import 'update_http_client.dart';
 
 class AvailableUpdate {
   final UpdateManifest manifest;
@@ -36,7 +37,7 @@ class UpdateService {
   final bool _ownsClient;
 
   UpdateService({http.Client? client})
-      : _client = client ?? http.Client(),
+      : _client = client ?? createUpdateHttpClient(),
         _ownsClient = client == null;
 
   static void validateCompatibility(UpdateManifest manifest) {

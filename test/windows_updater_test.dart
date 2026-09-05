@@ -6,6 +6,21 @@ import 'package:flutter_test/flutter_test.dart';
 import '../tool/windows_updater.dart';
 
 void main() {
+  test('same-version reinstall preserves the previous directory for rollback',
+      () async {
+    final root = await Directory.systemTemp.createTemp('reinstall-test-');
+    try {
+      final original = await Directory('${root.path}/1.2.36').create();
+      final file =
+          await File('${original.path}/ysignage.exe').writeAsString('original');
+      final slot = availableVersionSlot(root, '1.2.36');
+      expect(slot, startsWith('1.2.36-reinstall-'));
+      expect(await file.readAsString(), 'original');
+      expect(availableVersionSlot(root, '1.2.37'), '1.2.37');
+    } finally {
+      await root.delete(recursive: true);
+    }
+  });
   test('네이티브 업데이트 실행기 인수를 파싱한다', () {
     final options = NativeUpdateOptions.parse([
       '--package',

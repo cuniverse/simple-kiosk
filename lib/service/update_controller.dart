@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../model/update_policy.dart';
+import '../model/update_manifest.dart';
 import 'update_policy_store.dart';
 import 'update_service.dart';
 import 'app_logger.dart';
@@ -29,6 +30,11 @@ class UpdateController extends ChangeNotifier {
   int _consecutiveFailures = 0;
   Future<void>? _initializing;
   Future<void> _startupUpdate = Future<void>.value();
+  Timer? _uploadedInstallTimer;
+  Future<void> _uploadedInstall = Future<void>.value();
+
+  @visibleForTesting
+  Future<void> get uploadedInstallDone => _uploadedInstall;
 
   UpdateController({
     UpdateService? service,
@@ -279,8 +285,43 @@ class UpdateController extends ChangeNotifier {
     }
   }
 
+  /// Reserve the updater immediately, then let the HTTP response reach the browser.
+  void queueUploadedInstall(File package, UpdateManifest manifest) {
+    if (!supported) throw UnsupportedError('Windows ZIP 업데이트만 지원합니다.');
+    if (busy) throw StateError('다른 업데이트 작업이 진행 중입니다. 완료 후 다시 시도하세요.');
+    UpdateService.validateCompatibility(manifest);
+    busy = true;
+    _retryTimer?.cancel();
+    status = '업로드한 v${manifest.version} ZIP 설치 준비 중';
+    notifyListeners();
+    final done = Completer<void>();
+    _uploadedInstall = done.future;
+    _uploadedInstallTimer = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        await _service.requestInstall(
+          package,
+          manifest,
+          retainVersions: policy.retainVersions,
+          logRetentionDays: policy.logRetentionDays,
+          forceRetry: true,
+        );
+        status = '앱 종료 후 업로드한 ZIP 설치 예정';
+        notifyListeners();
+        _exitApplication(0);
+      } catch (error, stackTrace) {
+        AppLogger.error(LogCategory.update, error, stackTrace);
+        status = 'ZIP 설치 실패: $error';
+        busy = false;
+        notifyListeners();
+      } finally {
+        done.complete();
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _uploadedInstallTimer?.cancel();
     _timer?.cancel();
     _retryTimer?.cancel();
     _service.close();

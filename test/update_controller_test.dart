@@ -10,6 +10,55 @@ import 'package:simple_kiosk/service/update_controller.dart';
 import 'package:simple_kiosk/service/update_service.dart';
 
 void main() {
+  for (final installedVersion in ['1.2.24', '2.0.0']) {
+    test(
+        'uploaded ZIP installs over $installedVersion with no network version check',
+        () async {
+      final service = _FakeUpdateService(updateAvailable: false);
+      var exits = 0;
+      final controller = UpdateController(
+        service: service,
+        supportedOverride: true,
+        currentVersionLoader: () async => installedVersion,
+        policyLoader: () async => const UpdatePolicy(enabled: false),
+        exitApplication: (_) => exits++,
+      );
+      addTearDown(controller.dispose);
+      await controller.initialize();
+      controller.queueUploadedInstall(File('uploaded.zip'), service._manifest);
+      expect(controller.busy, isTrue);
+      expect(
+          () => controller.queueUploadedInstall(
+              File('another.zip'), service._manifest),
+          throwsStateError);
+      await controller.uploadedInstallDone;
+      expect(service.checkCalls, 0);
+      expect(service.downloadCalls, 0);
+      expect(service.installCalls, 1);
+      expect(service.lastForceRetry, isTrue);
+      expect(exits, 1);
+    });
+  }
+
+  test('uploaded ZIP install failure keeps the application running', () async {
+    final service =
+        _FakeUpdateService(updateAvailable: false, failNativeInstall: true);
+    var exits = 0;
+    final controller = UpdateController(
+      service: service,
+      supportedOverride: true,
+      currentVersionLoader: () async => '1.2.24',
+      policyLoader: () async => const UpdatePolicy(enabled: false),
+      exitApplication: (_) => exits++,
+    );
+    addTearDown(controller.dispose);
+    await controller.initialize();
+    controller.queueUploadedInstall(File('uploaded.zip'), service._manifest);
+    await controller.uploadedInstallDone;
+    expect(controller.busy, isFalse);
+    expect(controller.status, contains('ZIP 설치 실패'));
+    expect(exits, 0);
+  });
   test('GitHub API 없이 공개 Release 페이지만 사용해 업데이트를 확인한다', () async {
     const packageHash =
         'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

@@ -7,6 +7,9 @@ class MenuTopic {
   final bool hidden;
   final String? subtitle;
   final String? icon;
+
+  /// 생략하면 layout.hideTopicIcons를 따르는 아이콘 표시 재정의.
+  final bool? showIcon;
   final List<MenuItem> items;
   final String? _defaultMenuId;
 
@@ -23,6 +26,7 @@ class MenuTopic {
     String? defaultMenuId,
     this.subtitle,
     this.icon,
+    this.showIcon,
   }) : _defaultMenuId = defaultMenuId;
 
   factory MenuTopic.fromJson(
@@ -35,6 +39,7 @@ class MenuTopic {
     final label = json['label'];
     final subtitle = json['subtitle'];
     final icon = json['icon'];
+    final showIcon = json['showIcon'];
     final rawItems = json['items'];
     final defaultMenu = json['defaultMenu'];
     final hidden = json['hidden'];
@@ -52,6 +57,9 @@ class MenuTopic {
     }
     if (hidden != null && hidden is! bool) {
       throw FormatException('$path.hidden: bool 필요');
+    }
+    if (showIcon != null && showIcon is! bool) {
+      throw FormatException('$path.showIcon: bool 필요');
     }
     if (rawItems is! List || rawItems.isEmpty) {
       throw FormatException('$path.items: 한 개 이상 필요');
@@ -97,6 +105,7 @@ class MenuTopic {
           ? subtitle.trim()
           : null,
       icon: icon is String && icon.trim().isNotEmpty ? icon.trim() : null,
+      showIcon: showIcon as bool?,
       items: List.unmodifiable(items),
       defaultMenuId: defaultMenuId,
     );

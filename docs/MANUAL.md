@@ -262,6 +262,7 @@ android:usesCleartextTraffic="true"
   "brightness": "dark",
   "webViewBrightness": "light",
   "hideItemIcons": true,
+  "hideTopicIcons": true,
   "navPosition": "bottom",
   "sideWidth": 230,
   "barHeight": 102,
@@ -289,6 +290,7 @@ android:usesCleartextTraffic="true"
 | `brightness` | `light` / `dark` | `dark` (생략 시 `light`) | 테마의 밝은(White)·어두운(Dark) 계열 지정 |
 | `webViewBrightness` | `light` / `dark` | `light` | WebView 페이지의 `prefers-color-scheme`. 테마 `brightness`와 독립 |
 | `hideItemIcons` | bool | `true` | 개별 `showIcon`이 없는 메뉴의 아이콘을 기본적으로 감춤 |
+| `hideTopicIcons` | bool | `true` | 주제 선택 버튼의 아이콘을 기본적으로 감춤. 주제별 `showIcon: true/false`로 표시 여부 재정의 |
 | `navPosition` | `auto`\|`left`\|`right`\|`top`\|`bottom` | `right` | 네비 위치. `auto`는 화면 폭에 따라 자동 |
 | `sideWidth` | 숫자 > 0 | `230` | `left`/`right`일 때 사이드 폭(dp) |
 | `barHeight` | 숫자 > 0 | `102` | `top`/`bottom`일 때 바 높이(dp) |
@@ -854,9 +856,23 @@ Windows에서는 툴바로 다른 메뉴를 선택해 화면 뒤로 간 WebView�
 - 설정 화면의 업데이트 상태는 마우스로 선택·복사할 수 있습니다. 문제를 신고할 때는
   **진단 정보로 이슈 등록**을 사용하면 추가 입력·확인 없이 시스템 정보,
   최근 로그와 업데이트 상태를 수집해 GitHub 이슈를 바로 등록합니다.
+- Windows에서 업데이트 HTTPS 인증서 검증이 실패하면 Windows 인증서 저장소와 SSL
+  정책으로 서버 인증서를 다시 검증합니다. 검증에 성공한 인증서·서버 주소·포트에만
+  재시도를 허용하며, 인증서 신뢰·유효기간·서버 주소·폐기 확인을 생략하지 않습니다.
+  브라우저에서는 다운로드되지만 구버전 앱에서 `CERTIFICATE_VERIFY_FAILED`가 발생하면
+  이 수정이 포함된 Setup을 브라우저로 다운로드해 한 번 수동 설치해야 합니다.
 - GitHub 비인증 API의 공인 IP당 시간당 요청 한도가 소진되어 403/429가 발생하면 API를
   사용하지 않는 공개 Release 경로로 자동 전환합니다. 여러 PC가 같은 인터넷 회선을
   사용해도 API 한도 때문에 업데이트 확인이 중단되지 않습니다.
+
+웹 관리자 **실행 상태 → ZIP 강제 업데이트**에서 릴리스 페이지의
+`simple-kiosk-windows-버전.zip`을 선택하고 **ZIP 업로드**를 누릅니다.
+업로드한 버전을 확인한 뒤 **이 ZIP으로 강제 업데이트**를 누르면 설치와 재시작을
+진행합니다. Source code ZIP과 Setup EXE는 이 기능에서 사용하지 않습니다.
+최대 2GB이며 원격 연결에서도 작은 조각으로 나누어 업로드합니다.
+GitHub 접속 없이 같은 버전 재설치와 이전 버전 설치를 요청할 수 있습니다.
+패키지 구성·경로와 설치 전 ZIP 무결성을 검사하고, 기존 설치 폴더는 복구용으로 보존합니다.
+업로드한 ZIP의 출처는 관리자에게 맡기며, 계산한 SHA-256은 업로드 이후 파일 변조 검사에 사용합니다.
 
 ### Windows 시스템 트레이
 
@@ -893,9 +909,19 @@ Windows에서는 툴바로 다른 메뉴를 선택해 화면 뒤로 간 WebView�
 - **원격 WEB 관리자 연결**은 기본으로 켜집니다. 앱에 포함된 접속 전용 SSH 키로 GW에
   연결하고 `/run/signage/ysignage1.sock`부터 사용 가능한 ID를 찾습니다. 연결에 성공한
   ID는 `config/admin-api.json`에 저장되어 다음 접속 때 먼저 사용됩니다. 저장된 ID가
-  거절되면 다시 `ysignage1`부터 사용 가능한 ID를 찾아 저장값을 갱신합니다.
+  거절되면 자동 배정 모드에서는 다시 `ysignage1`부터 사용 가능한 ID를 찾아 저장값을 갱신합니다.
+- 앱 설정의 **원격 접속 ID 고정** 또는 웹 관리자 **관리 API 설정 → ID 지정 방식 → 수동 고정**에서
+  `ysignage7`처럼 ID를 직접 입력하고 관리 API 설정을 저장할 수 있습니다.
+  고정 여부(`webAdminSshForwardingIdFixed`)와 ID는 버전 폴더 밖의
+  `config/admin-api.json`에 저장하여 재시작·업데이트 후에도 유지합니다.
+  설정 백업 가져오기와 직전 설정 복원도 해당 PC의 고정 ID를 보존합니다.
+  고정 ID 배정이 중복 등으로 거절되면 `ysignage7-1`, `ysignage7-2`처럼 번호를 붙여
+  시도합니다. 이미 `ysignage7-2`라면 다음 후보는 `ysignage7-3`이며 번호를 중첩하지 않습니다.
+  성공한 ID를 저장하고 다음 연결에서 먼저 사용합니다. SSH 접속·인증 등 일반 연결 오류는
+  저장된 ID로 재시도하며 번호를 변경하지 않습니다.
+  다른 ID를 쓰려면 직접 변경하여 저장하거나 자동 배정으로 전환하세요.
 - ID가 배정되면 설정의 **원격 WEB 관리자 연결** 바로 아래에
-  `http://ysignage{숫자}.signage.cuniverse.net/` 주소가 표시되며 클릭해서 접속할 수
+  `http://ysignage7.signage.cuniverse.net/` 또는 `http://ysignage7-1.signage.cuniverse.net/` 주소가 표시되며 클릭해서 접속할 수
   있습니다. 연결 직후와 이후 30초 간격으로 외부 URL에서 관리 HTTP 서버까지 실제 왕복
   접속을 확인하고, 실패하면 상태를 **끊김·재시도**로 표시한 뒤 10초 간격으로 SSH 연결과
   ID 배정을 계속 재시도합니다. 설정 화면에는 실제 forwarding 상태와 마지막 정상 확인
@@ -933,6 +959,8 @@ Windows에서는 툴바로 다른 메뉴를 선택해 화면 뒤로 간 WebView�
 - `exdata/`에 올린 운영 파일은 업데이트 후에도 유지되며 설정에서는 `exdata/photos/`, `exdata/welcome.jpg` 같은 상대경로로 지정할 수 있습니다. 폴더 전체는 `*` 대신 폴더 경로 자체를 사용합니다.
 - **사이니지 구성 → UI 모양·테마**에서는 밝기 계열, 메뉴 아이콘 기본 표시, 글꼴, 툴바·버튼 크기와 간격, 색상 및 **언어 선택 화면의 글꼴·배경·버튼 크기·색상**을 테마로 적용합니다. 툴바 위치, 표시 기능, 키오스크 잠금 같은 레이아웃·동작 값은 바뀌지 않습니다.
 - 프리로드 테마 이름은 각 `assets/themes/*.json` 파일에서 읽습니다. 직접 편집한 UI 모양은 데이터 루트의 `themes/`에 사용자 테마로 별도 저장되며 업데이트 후에도 유지됩니다. 프리로드 테마와 같은 이름은 사용할 수 없습니다.
+- 선택한 테마 ID는 `uiTheme`에 저장됩니다. 업데이트 후 앱이 재실행되거나 설정을 다시 불러오면 최신 테마를 적용하고, 직접 수정한 값만 별도 재정의로 유지합니다. 기본 설정이 바뀌어도 선택한 테마는 유지됩니다. 테마가 삭제되면 저장된 예비 모양(`uiThemeFallback`)을 사용합니다.
+- 구버전 업데이트 후 첫 실행에서는 기존 테마 선택과 색상·UI 모양 재정의를 덮어쓰고 **고대비(텍스트)**에 자동 연결합니다. 언어·주제 선택 화면의 색상도 함께 적용합니다. 메뉴 구성, 문구, 툴바 위치와 동작 설정은 유지합니다. `state/high-contrast-text-default-v2.json`에 완료 상태를 기록하며, 과거 v1 적용 이력이 있어도 이번 전환은 한 번 실행됩니다. 이후 사용자가 다시 선택한 테마나 수정한 값은 재실행 시 초기화하지 않습니다.
 - 테마 적용 후 UI 모양 값을 직접 바꾸면 경고가 표시됩니다. 다른 테마를 적용하기 전에 현재 모양을 사용자 테마로 저장할 수 있습니다.
 - 기본 테마는 **고대비(텍스트)**입니다. 메뉴 아이콘은 기본적으로 감추며, 메뉴별 `showIcon: true`로 명시한 항목만 표시합니다. 기존 고대비 기본값 마이그레이션은 툴바 위치와 키오스크 동작을 유지하며, 이전 설정은 `backups/menu.override.before-high-contrast-*.json`에 백업합니다.
 - 메뉴 설정은 저장 전에 기본 설정과 병합 검증되며, 올바른 설정은 저장 직후 사이니지에 적용됩니다.

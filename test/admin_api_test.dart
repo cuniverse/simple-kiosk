@@ -4,13 +4,16 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:archive/archive_io.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_kiosk/model/admin_api_settings.dart';
 import 'package:simple_kiosk/service/admin_api_controller.dart';
 import 'package:simple_kiosk/service/admin_api_settings_store.dart';
 import 'package:simple_kiosk/service/admin_pin_store.dart';
+import 'package:simple_kiosk/service/configuration_backup_service.dart';
 import 'package:simple_kiosk/service/exdata_file_service.dart';
 import 'package:simple_kiosk/service/mdns_service_controller.dart';
+import 'package:simple_kiosk/service/manual_update_service.dart';
 import 'package:simple_kiosk/service/screen_preview_service.dart';
 import 'package:simple_kiosk/service/ui_theme_service.dart';
 import 'package:simple_kiosk/service/web_admin_ssh_tunnel_controller.dart';
@@ -45,7 +48,129 @@ class _BlockingStopMdnsPublisher extends _FakeMdnsPublisher {
   }
 }
 
+class _AssigningTunnel extends WebAdminSshTunnelController {
+  Future<void> Function(String)? assign;
+  String? preferred;
+  bool fixed = false;
+
+  @override
+  Future<void> start(
+      {required int localPort,
+      required String? preferredId,
+      bool fixedId = false,
+      required Future<void> Function(String) onIdAssigned}) async {
+    preferred = preferredId;
+    fixed = fixedId;
+    assign = onIdAssigned;
+  }
+}
+
 void main() {
+  test(
+      'fixed forwarding ID survives save, reload and unrelated settings changes',
+      () async {
+    final directory = await Directory.systemTemp.createTemp('fixed-id-test-');
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/admin-api.json');
+    final settings = AdminApiSettings.fromJson({
+      'webAdminSshForwardingId': ' YSIGNAGE42 ',
+      'webAdminSshForwardingIdFixed': true,
+    });
+    await AdminApiSettingsStore(file: file).save(settings);
+    final reloaded = await AdminApiSettingsStore(file: file).load();
+    await AdminApiSettingsStore(file: file).save(reloaded.copyWith(port: 8080));
+    final restored = await AdminApiSettingsStore(file: file).load();
+    expect(restored.webAdminSshForwardingId, 'ysignage42');
+    expect(restored.webAdminSshForwardingIdFixed, isTrue);
+    final imported = ConfigurationBackupService.preserveDeviceIdentity(
+      const AdminApiSettings(port: 9000, webAdminSshForwardingId: 'ysignage99'),
+      restored,
+    );
+    expect(imported.webAdminSshForwardingId, 'ysignage42');
+    expect(imported.webAdminSshForwardingIdFixed, isTrue);
+    expect(imported.port, 9000);
+    expect(
+        WebAdminSshTunnelController.candidateIds('ysignage42', fixed: true)
+            .take(4)
+            .toList(),
+        ['ysignage42', 'ysignage42-1', 'ysignage42-2', 'ysignage42-3']);
+    expect(
+        WebAdminSshTunnelController.candidateIds(null, fixed: true), isEmpty);
+    expect(
+        () => AdminApiSettings.fromJson({'webAdminSshForwardingIdFixed': true}),
+        throwsFormatException);
+  });
+
+  test('suffixed IDs are valid and continue without nested suffixes', () {
+    final settings = AdminApiSettings.fromJson({
+      'webAdminSshForwardingId': ' YSIGNAGE42-2 ',
+      'webAdminSshForwardingIdFixed': true,
+    });
+    expect(settings.webAdminSshForwardingId, 'ysignage42-2');
+    expect(
+        WebAdminSshTunnelController.candidateIds(
+                settings.webAdminSshForwardingId,
+                fixed: true)
+            .take(4),
+        ['ysignage42-2', 'ysignage42-3', 'ysignage42-4', 'ysignage42-5']);
+    for (final invalid in [
+      'ysignage7-0',
+      'ysignage7-1-1',
+      'ysignage7-',
+      'ysignage7/1'
+    ]) {
+      expect(AdminApiSettings.isValidWebAdminSshForwardingId(invalid), isFalse);
+    }
+  });
+
+  test(
+      'assigned suffix persists as fixed and stale connections cannot overwrite a new ID',
+      () async {
+    final root = await Directory.systemTemp.createTemp('assigned-id-test-');
+    final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final port = probe.port;
+    await probe.close();
+    final store =
+        AdminApiSettingsStore(file: File('${root.path}/admin-api.json'));
+    await store.save(AdminApiSettings(
+        port: port,
+        mdnsEnabled: false,
+        webAdminSshForwardingId: 'ysignage7',
+        webAdminSshForwardingIdFixed: true));
+    final tunnel = _AssigningTunnel();
+    final controller = AdminApiController(
+      settingsStore: store,
+      webAdminSshTunnelController: tunnel,
+      exdataFileService: ExdataFileService(rootPath: '${root.path}/exdata'),
+      uiThemeService: UiThemeService(
+          userThemeDirectory: '${root.path}/themes',
+          preloadedThemeLoader: () async => []),
+      mdnsPublisher: _FakeMdnsPublisher(),
+      statusProvider: () async => {},
+      actionHandler: (_) async => {},
+      configReader: () async => {},
+      configWriter: (_) async {},
+    );
+    try {
+      await controller.initialize();
+      final oldAssignment = tunnel.assign!;
+      await oldAssignment('ysignage7-1');
+      expect((await store.load()).webAdminSshForwardingId, 'ysignage7-1');
+      expect((await store.load()).webAdminSshForwardingIdFixed, isTrue);
+      await oldAssignment('ysignage7-2');
+      await controller.updateSettings(controller.settings);
+      expect(tunnel.preferred, 'ysignage7-2');
+      expect(tunnel.fixed, isTrue);
+      await controller.updateSettings(
+          controller.settings.copyWith(webAdminSshForwardingId: 'ysignage99'));
+      await oldAssignment('ysignage7-3');
+      expect((await store.load()).webAdminSshForwardingId, 'ysignage99');
+    } finally {
+      await controller.close();
+      controller.dispose();
+      await root.delete(recursive: true);
+    }
+  });
   test('mDNS 설정은 ysignage.local을 기본값으로 사용한다', () {
     final settings = AdminApiSettings.fromJson(const {});
 
@@ -125,12 +250,18 @@ void main() {
       },
     };
     String? action;
+    String? installedUploadVersion;
     final mdnsPublisher = _FakeMdnsPublisher();
     var networkSyncCalls = 0;
     var synchronizedBeforeInitialBind = false;
     final controller = AdminApiController(
       pinStore: AdminPinStore(file: pinFile, iterations: 1),
       settingsStore: settingsStore,
+      manualUpdateService:
+          ManualUpdateService(rootPath: '${directory.path}/manual-upload'),
+      uploadedUpdateInstaller: (update) async {
+        installedUploadVersion = update.manifest.version;
+      },
       exdataFileService: ExdataFileService(
         rootPath: '${directory.path}${Platform.pathSeparator}exdata',
       ),
@@ -210,6 +341,56 @@ void main() {
         'authorization': 'Bearer $token',
         'content-type': 'application/json',
       };
+
+      const zipName = 'simple-kiosk-windows-1.2.36.zip';
+      const zipUploadId = 'admin-upload-123';
+      final archive = Archive();
+      for (final name in [
+        'ysignage.exe',
+        'ysignage_launcher.exe',
+        'flutter_windows.dll',
+        'data/app.so',
+        'updater/ysignage_updater.exe'
+      ]) {
+        archive.addFile(
+            ArchiveFile('simple-kiosk-windows-1.2.36/$name', 3, [1, 2, 3]));
+      }
+      final zip = ZipEncoder().encode(archive);
+      final uploadUri = Uri.parse('http://127.0.0.1:$port/api/updates/upload')
+          .replace(queryParameters: {
+        'filename': zipName,
+        'uploadId': zipUploadId,
+        'offset': '0',
+        'total': '${zip.length}',
+        'complete': 'true',
+      });
+      expect((await client.put(uploadUri, body: zip)).statusCode, 401);
+      expect(installedUploadVersion, isNull);
+      final uploaded = await client.put(uploadUri,
+          headers: {
+            ...headers,
+            'content-type': 'application/octet-stream',
+          },
+          body: zip);
+      expect(uploaded.statusCode, 201, reason: uploaded.body);
+      expect(installedUploadVersion, isNull);
+      final installUri =
+          Uri.parse('http://127.0.0.1:$port/api/updates/install');
+      expect(
+          (await client.post(installUri,
+                  body: json.encode({'uploadId': zipUploadId})))
+              .statusCode,
+          401);
+      final installed = await client.post(installUri,
+          headers: headers, body: json.encode({'uploadId': zipUploadId}));
+      expect(installed.statusCode, 202);
+      expect(installedUploadVersion, '1.2.36');
+      expect(
+          (await client.post(installUri,
+                  headers: headers,
+                  body: json.encode({'uploadId': zipUploadId})))
+              .statusCode,
+          404);
 
       final status = await client.get(
         Uri.parse('http://127.0.0.1:$port/api/status'),

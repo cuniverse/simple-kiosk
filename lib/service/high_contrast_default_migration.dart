@@ -1,30 +1,37 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'runtime_paths.dart';
 import 'ui_theme_service.dart';
 
-typedef MenuOverrideValidator = void Function(Map<String, dynamic> override);
+typedef MenuOverrideValidator = FutureOr<void> Function(
+    Map<String, dynamic> override);
 
-/// 고대비 UI 기본값을 기존 설치에 한 번 강제 적용한다.
+/// 구버전의 테마와 모양 재정의를 제거하고 고대비 텍스트 테마에 한 번 연결한다.
 class HighContrastDefaultMigration {
-  static const migrationId = 'high-contrast-default-v1';
+  static const migrationId = 'high-contrast-text-default-v2';
+  static const themeId = 'preloaded:high-contrast-text';
 
   final String? markerPath;
   final String? overridePath;
   final String? backupRoot;
+  final UiThemeService? themeService;
 
   const HighContrastDefaultMigration({
     this.markerPath,
     this.overridePath,
     this.backupRoot,
+    this.themeService,
   });
 
-  factory HighContrastDefaultMigration.runtime() =>
+  factory HighContrastDefaultMigration.runtime(
+          {UiThemeService? themeService}) =>
       HighContrastDefaultMigration(
         markerPath: RuntimePaths.highContrastDefaultMigration,
         overridePath: RuntimePaths.menuOverride,
         backupRoot: RuntimePaths.backups,
+        themeService: themeService,
       );
 
   Future<Map<String, dynamic>?> apply(
@@ -37,8 +44,15 @@ class HighContrastDefaultMigration {
 
     var result = override;
     if (override != null) {
-      result = applyAppearanceDefaults(defaults, override);
-      validate?.call(result);
+      final theme = await (themeService ?? UiThemeService()).find(themeId);
+      if (theme == null) {
+        throw const FormatException('마이그레이션에 필요한 high-contrast-text 테마가 없습니다.');
+      }
+      final themedDefaults =
+          jsonDecode(jsonEncode(defaults)) as Map<String, dynamic>;
+      UiThemeService.applyValues(themedDefaults, theme.values);
+      result = applyAppearanceDefaults(themedDefaults, override);
+      await validate?.call(result);
       final destination = overridePath;
       if (destination != null) {
         final file = File(destination);
@@ -57,6 +71,7 @@ class HighContrastDefaultMigration {
       marker,
       const JsonEncoder.withIndent('  ').convert({
         'migration': migrationId,
+        'uiTheme': themeId,
         'appliedAt': DateTime.now().toUtc().toIso8601String(),
       }),
     );
@@ -77,11 +92,19 @@ class HighContrastDefaultMigration {
         ? Map<String, dynamic>.from(existingLayout)
         : <String, dynamic>{};
     for (final key in UiThemeService.appearanceKeys) {
-      if (defaultLayout.containsKey(key)) {
-        layout[key] = jsonDecode(jsonEncode(defaultLayout[key]));
-      }
+      layout.remove(key);
     }
     result['layout'] = layout;
+    final existingSelection = result['languageSelection'];
+    if (existingSelection is Map) {
+      final selection = Map<String, dynamic>.from(existingSelection);
+      for (final key in UiThemeService.languageSelectionAppearanceKeys) {
+        selection.remove(key);
+      }
+      result['languageSelection'] = selection;
+    }
+    result['uiTheme'] = themeId;
+    result['uiThemeFallback'] = UiThemeService.appearanceValues(defaults);
     return result;
   }
 

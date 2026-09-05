@@ -485,6 +485,13 @@ class _KioskHomeState extends State<_KioskHome> {
     _adminApiController = AdminApiController(
       statusProvider: _adminStatus,
       actionHandler: _handleAdminAction,
+      uploadedUpdateInstaller: Platform.isWindows
+          ? (update) async {
+              await _updateController.initialize();
+              _updateController.queueUploadedInstall(
+                  update.file, update.manifest);
+            }
+          : null,
       configReader: configLoader.readOverride,
       effectiveConfigReader: configLoader.readEffective,
       defaultConfigReader: configLoader.readDefaults,
@@ -1767,6 +1774,7 @@ class _KioskHomeState extends State<_KioskHome> {
                       topicTitle: widget.topicSelectionTitle,
                       topicSubtitle: widget.topicSelectionSubtitle,
                       skipSingleTopic: widget.skipSingleTopic,
+                      hideTopicIcons: widget.layout.hideTopicIcons,
                       onSelected: _selectLanguageAndTopic,
                       onReturnToIdle: _idleGateController.enterIdle,
                       versionLabel: _versionLabel,
