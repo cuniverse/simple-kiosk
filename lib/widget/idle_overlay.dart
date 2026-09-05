@@ -157,7 +157,7 @@ class _HintBadgeState extends State<_HintBadge>
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: Tween(begin: 0.8, end: 1.0).animate(_ctrl),
+      opacity: Tween(begin: 0.55, end: 1.0).animate(_ctrl),
       child: Container(
         padding: EdgeInsets.symmetric(
           horizontal: widget.config.hintPaddingHorizontal,
