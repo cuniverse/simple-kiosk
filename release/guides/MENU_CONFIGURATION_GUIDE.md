@@ -592,7 +592,45 @@ WebView 앞·뒤, 키보드·설정·화면 보호기·툴바 감추기 기능 �
 `url`은 반드시 단독 모드여야 하며 `image`, `none`도 복수 조합에 사용할 수 없습니다.
 기존 `mode`, `folder.path`, `gallery.url` 형식도 계속 지원합니다.
 
-## 8. 용도별 설정 예
+## 8. WebView 쿠키와 메모리 정책: `webViewData`
+
+화면보호기 진입 시 쿠키와 사이트 데이터를 정리하는 방법을 설정합니다.
+
+```json
+{
+  "webViewData": {
+    "idlePolicy": "cookiesOnly",
+    "preserveCookies": [
+      "example.com|CookieConsent",
+      "example.com|OptanonConsent"
+    ],
+    "preserveDomains": []
+  }
+}
+```
+
+| 필드 | 기본값 | 설명 |
+|---|---:|---|
+| `idlePolicy` | `cookiesOnly` | `keep`, `cookiesOnly`, `allSiteData` 중 하나 |
+| `preserveCookies` | `[]` | `도메인|쿠키이름` 형식으로 지정한 쿠키만 보존 |
+| `preserveDomains` | `[]` | 지정 도메인과 하위 도메인의 모든 쿠키 보존 |
+
+`preserveCookies`의 쿠키 이름은 대소문자를 구분합니다. 사이트 개발자 도구의
+Application/Storage > Cookies에서 동의 저장에 실제 사용되는 이름을 확인하세요.
+`CookieConsent`, `OptanonConsent`, `OptanonAlertBoxClosed` 등은 예시일 뿐이며 사이트마다
+다릅니다. 인증·세션 쿠키 이름을 넣으면 다음 사용자에게 로그인 상태가 이어질 수 있습니다.
+
+`preserveDomains`는 로그인 쿠키까지 모두 남으므로 동의 배너만 반복되지 않게 하려면
+`preserveCookies`를 권장합니다. 두 보존 항목은 `cookiesOnly`에서만 의미가 있습니다.
+`allSiteData`는 Local Storage와 IndexedDB도 삭제하므로 쿠키 하나만 보존하는 용도에는
+적합하지 않습니다.
+
+Windows에서는 선택하지 않은 메뉴의 WebView를 일시 중지하고 다시 선택할 때 재개합니다.
+WebView 자체를 교체하지 않으므로 페이지·스크롤 상태는 유지되지만, 백그라운드 동영상과
+JavaScript 타이머는 일시 중지될 수 있습니다. 화면보호기 진입 시에는 홈 이외 WebView를
+제거해 메모리를 더 적극적으로 회수합니다.
+
+## 9. 용도별 설정 예
 
 ### 하단 툴바와 메뉴 상태 유지
 
@@ -632,7 +670,7 @@ WebView 앞·뒤, 키보드·설정·화면 보호기·툴바 감추기 기능 �
 }
 ```
 
-## 9. 완성 예제
+## 10. 완성 예제
 
 아래 예제는 그대로 복사한 뒤 URL과 메뉴 이름만 바꾸어 사용할 수 있습니다.
 
@@ -710,7 +748,7 @@ WebView 앞·뒤, 키보드·설정·화면 보호기·툴바 감추기 기능 �
 }
 ```
 
-## 10. 변경 후 확인 목록
+## 11. 변경 후 확인 목록
 
 - JSON 문법 검사에서 오류가 없는지
 - `defaultTopic`과 `defaultMenu`가 원하는 첫 화면을 가리키는지
@@ -721,7 +759,7 @@ WebView 앞·뒤, 키보드·설정·화면 보호기·툴바 감추기 기능 �
 - 대기화면 진입 시간, 이미지 순서, 동영상 재생과 터치 해제가 정상인지
 - 앱을 재부팅한 후에도 동일하게 동작하는지
 
-## 11. 문제 해결
+## 12. 문제 해결
 
 ### 앱에 설정 오류 화면이 표시됨
 

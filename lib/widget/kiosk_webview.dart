@@ -9,6 +9,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../service/keyboard_controller.dart';
 import '../service/app_logger.dart';
 import '../service/system_keyboard.dart';
+import 'webview_loading_overlay.dart';
 
 const _keyboardFocusScript = r'''
   (function () {
@@ -106,6 +107,9 @@ class KioskWebView extends StatefulWidget {
   /// 웹 페이지의 `prefers-color-scheme`. 앱 UI 테마와 독립적이다.
   final Brightness webViewBrightness;
 
+  /// WebView 내부 페이지 이동 중 표시할 로딩 팝업 제목.
+  final String loadingTitle;
+
   const KioskWebView({
     super.key,
     this.initialUrl,
@@ -117,6 +121,7 @@ class KioskWebView extends StatefulWidget {
     this.onCheckUpdate,
     this.active = true,
     this.webViewBrightness = Brightness.light,
+    this.loadingTitle = '페이지',
   }) : assert((initialUrl == null) != (initialFile == null));
 
   @override
@@ -301,6 +306,21 @@ class _KioskWebViewState extends State<KioskWebView> {
   String? _errorMessage;
   String? _currentUrl;
   bool _initialLoadReadyReported = false;
+
+  /// Windows WebView2는 메뉴별로 별도 프로세스를 사용할 수 있으므로 보이지
+  /// 않는 WebView를 일시 중지해 메모리·CPU 사용을 낮춘다. 작업을 직렬화해
+  /// 빠른 메뉴 전환 때 늦게 끝난 pause가 활성 WebView를 다시 멈추지 않게 한다.
+  bool _windowsWebViewPaused = false;
+  bool _windowsPauseDesired = false;
+  Future<void> _windowsActivityQueue = Future<void>.value();
+
+  /// 최초 메뉴 준비 이후 WebView 내부 링크 탐색에 표시하는 로딩 팝업 상태.
+  Timer? _navigationOverlayTimer;
+  Timer? _navigationOverlayTimeoutTimer;
+  bool _showNavigationOverlay = false;
+  bool _navigationOverlayTimedOut = false;
+  static const Duration _navigationOverlayDelay = Duration(milliseconds: 200);
+  static const Duration _navigationOverlayTimeout = Duration(seconds: 12);
 
   String get _configuredTarget => widget.initialUrl ?? widget.initialFile!;
   bool get _isLocalPage =>
@@ -490,7 +510,7 @@ class _KioskWebViewState extends State<KioskWebView> {
   /// 정해진 시간 내 응답이 없으면 WebView 가 죽은 것으로 보고 재생성한다.
   Timer? _loadResponseWatchdog;
   String? _pendingLoadUrl;
-  static const Duration _loadResponseTimeout = Duration(seconds: 3);
+  static const Duration _loadResponseTimeout = Duration(seconds: 12);
 
   /// OS 가상 키보드 hide debounce. 한 input 에서 다른 input 으로 포커스가
   /// 옮겨질 때 focusout → focusin 이 연속으로 호출되며, 그 사이에 키보드를
@@ -627,17 +647,69 @@ class _KioskWebViewState extends State<KioskWebView> {
   void didUpdateWidget(covariant KioskWebView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.active && !oldWidget.active) {
+      _requestWindowsWebViewPaused(false);
       KeyboardController.instance.attach(_handleKeyEvent);
       _startHealthCheck();
       if (_errorMessage != null) _scheduleAutoRetry();
     } else if (!widget.active && oldWidget.active) {
+      if (_initialLoadReadyReported) _requestWindowsWebViewPaused(true);
       KeyboardController.instance.detach(_handleKeyEvent);
       // IndexedStack 뒤에 숨은 WebView의 JavaScript 타이머는 OS가 늦출 수 있다.
       // 비활성 메뉴를 heartbeat 실패로 오판하지 않도록 감시를 중지한다.
       _stopHealthCheck();
       // 보이지 않는 메뉴가 백그라운드에서 계속 새로고침되지 않게 한다.
       _cancelAutoRetry();
+      _clearNavigationOverlay();
     }
+  }
+
+  void _startNavigationOverlay({bool showImmediately = false}) {
+    _clearNavigationOverlay();
+    _showNavigationOverlay = showImmediately;
+    if (!showImmediately) {
+      _navigationOverlayTimer = Timer(_navigationOverlayDelay, () {
+        if (!mounted || !widget.active || !_isLoading) return;
+        setState(() => _showNavigationOverlay = true);
+      });
+    }
+    _navigationOverlayTimeoutTimer = Timer(_navigationOverlayTimeout, () {
+      if (!mounted || !widget.active || !_isLoading) return;
+      setState(() {
+        _showNavigationOverlay = true;
+        _navigationOverlayTimedOut = true;
+      });
+    });
+  }
+
+  void _clearNavigationOverlay() {
+    _navigationOverlayTimer?.cancel();
+    _navigationOverlayTimeoutTimer?.cancel();
+    _navigationOverlayTimer = null;
+    _navigationOverlayTimeoutTimer = null;
+    _showNavigationOverlay = false;
+    _navigationOverlayTimedOut = false;
+  }
+
+  Future<void> _cancelNavigationLoad() async {
+    _loadingFallback?.cancel();
+    _clearNavigationOverlay();
+    if (mounted) setState(() => _isLoading = false);
+    try {
+      await _webController?.stopLoading();
+    } catch (_) {
+      // 탐색이 이미 종료된 경우에는 별도 처리가 필요 없다.
+    }
+  }
+
+  void _retryNavigationLoad() {
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+      _startNavigationOverlay(showImmediately: true);
+    });
+    _scheduleLoadingFallback();
+    unawaited(_reloadCurrentTarget());
   }
 
   void _scheduleLoadingFallback() {
@@ -650,8 +722,15 @@ class _KioskWebViewState extends State<KioskWebView> {
 
   void _finishLoading() {
     _loadingFallback?.cancel();
-    if (_isLoading) {
-      setState(() => _isLoading = false);
+    _navigationOverlayTimer?.cancel();
+    _navigationOverlayTimeoutTimer?.cancel();
+    if (_isLoading || _showNavigationOverlay) {
+      setState(() {
+        _isLoading = false;
+        _clearNavigationOverlay();
+      });
+    } else {
+      _clearNavigationOverlay();
     }
     _reportInitialLoadReady();
   }
@@ -660,6 +739,34 @@ class _KioskWebViewState extends State<KioskWebView> {
     if (_initialLoadReadyReported) return;
     _initialLoadReadyReported = true;
     widget.onInitialLoadReady?.call();
+    if (!widget.active) _requestWindowsWebViewPaused(true);
+  }
+
+  void _requestWindowsWebViewPaused(bool paused) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) return;
+    _windowsPauseDesired = paused;
+    _windowsActivityQueue = _windowsActivityQueue.then((_) async {
+      if (!mounted || _windowsWebViewPaused == _windowsPauseDesired) return;
+      final controller = _webController;
+      if (controller == null) return;
+      final shouldPause = _windowsPauseDesired;
+      try {
+        if (shouldPause) {
+          await controller.pause();
+        } else {
+          await controller.resume();
+        }
+        if (mounted && identical(controller, _webController)) {
+          _windowsWebViewPaused = shouldPause;
+        }
+      } catch (error) {
+        AppLogger.warning(
+          LogCategory.webview,
+          'Failed to ${shouldPause ? 'pause' : 'resume'} inactive WebView: '
+          '$error',
+        );
+      }
+    });
   }
 
   /// watchdog 시작. 이미 실행 중이면 재시작한다.
@@ -739,6 +846,7 @@ class _KioskWebViewState extends State<KioskWebView> {
   void _showMainFrameLoadError(String description) {
     if (!mounted) return;
     setState(() {
+      _clearNavigationOverlay();
       _isLoading = false;
       _errorMessage = '페이지를 불러올 수 없습니다.\n($description)';
     });
@@ -937,6 +1045,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     if (source != null && !identical(source, _webController)) return;
     _cancelAutoRetry();
     _loadingFallback?.cancel();
+    _clearNavigationOverlay();
     _cancelDeferredConnectionAbort();
     _zoomUpdateDebounce?.cancel();
     _zoomUpdateDebounce = null;
@@ -954,6 +1063,7 @@ class _KioskWebViewState extends State<KioskWebView> {
     _kioskController?._dispose();
     _webController = null;
     _kioskController = null;
+    _windowsWebViewPaused = false;
     _consecutiveErrors = 0;
     if (!mounted) return;
     setState(() {
@@ -976,6 +1086,8 @@ class _KioskWebViewState extends State<KioskWebView> {
     _loadResponseWatchdog?.cancel();
     _keyboardHideDebounce?.cancel();
     _zoomUpdateDebounce?.cancel();
+    _navigationOverlayTimer?.cancel();
+    _navigationOverlayTimeoutTimer?.cancel();
     _zoomUpdateDebounce = null;
     _pendingNativeZoomScale = null;
     _kioskController?._dispose();
@@ -989,6 +1101,9 @@ class _KioskWebViewState extends State<KioskWebView> {
   // WebView 동작 정책 설정.
   final InAppWebViewSettings _settings = InAppWebViewSettings(
     javaScriptEnabled: true,
+    // Android의 타사 쿠키를 포함해 WebView 쿠키 저장을 허용한다. 사이트 자체
+    // 동의 배너는 강제로 누르지 않고, 설정한 동의 쿠키를 유휴 정리 때 보존한다.
+    thirdPartyCookiesEnabled: true,
     // shouldOverrideUrlLoading 콜백 사용 활성화.
     useShouldOverrideUrlLoading: true,
     // 새 창 차단 정책과 함께 동작.
@@ -1069,6 +1184,7 @@ class _KioskWebViewState extends State<KioskWebView> {
               onWebViewCreated: (controller) {
                 if (!mounted) return;
                 _webController = controller;
+                _windowsWebViewPaused = false;
                 unawaited(_applyPreferredColorScheme(controller));
                 final kc = KioskWebViewController._(controller);
                 _kioskController = kc;
@@ -1137,6 +1253,8 @@ class _KioskWebViewState extends State<KioskWebView> {
               },
               onLoadStart: (controller, url) {
                 if (!mounted) return;
+                final showInternalNavigationOverlay =
+                    _initialLoadReadyReported && widget.active;
                 _cancelDeferredConnectionAbort();
                 // 이전 문서의 heartbeat를 새 탐색 중에 검사하지 않는다.
                 _heartbeatArmed = false;
@@ -1150,6 +1268,9 @@ class _KioskWebViewState extends State<KioskWebView> {
                   _errorMessage = null;
                   _currentUrl = url?.toString();
                 });
+                if (showInternalNavigationOverlay) {
+                  _startNavigationOverlay();
+                }
                 _scheduleLoadingFallback();
                 // 응답이 도착했으므로 메뉴 클릭 watchdog 해제.
                 _cancelLoadResponseWatchdog();
@@ -1303,6 +1424,7 @@ class _KioskWebViewState extends State<KioskWebView> {
                 if (request.isForMainFrame == true &&
                     (errorResponse.statusCode ?? 0) >= 400) {
                   setState(() {
+                    _clearNavigationOverlay();
                     _isLoading = false;
                     _errorMessage =
                         '페이지 오류 (HTTP ${errorResponse.statusCode}): '
@@ -1365,6 +1487,16 @@ class _KioskWebViewState extends State<KioskWebView> {
               left: 0,
               right: 0,
               child: LinearProgressIndicator(minHeight: 4),
+            ),
+
+          if (_showNavigationOverlay && widget.active && _errorMessage == null)
+            Positioned.fill(
+              child: WebViewLoadingOverlay(
+                title: widget.loadingTitle,
+                timedOut: _navigationOverlayTimedOut,
+                onCancel: () => unawaited(_cancelNavigationLoad()),
+                onRetry: _retryNavigationLoad,
+              ),
             ),
 
           if ((_zoomScale - 1).abs() > 0.01)

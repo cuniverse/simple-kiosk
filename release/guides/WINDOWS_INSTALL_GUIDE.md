@@ -398,7 +398,8 @@ $actual -eq $expected
 - `layout`: 메뉴 위치, 크기, 색상 및 표시 옵션
 - `idle`: 대기화면과 전환 시간
 - `webViewData.idlePolicy`: 화면보호기 진입 시 WebView 데이터 유지·쿠키 삭제·전체 삭제 정책
-- `webViewData.preserveDomains`: 로그인 상태를 유지할 도메인 예외 목록
+- `webViewData.preserveCookies`: `도메인|쿠키이름` 형식으로 동의 쿠키만 선택 보존
+- `webViewData.preserveDomains`: 로그인 쿠키까지 모두 유지할 도메인 예외 목록
 
 전체 필드와 용도별 예시는 패키지에 포함된 `MENU_CONFIG_GUIDE.md`를 참고하세요.
 

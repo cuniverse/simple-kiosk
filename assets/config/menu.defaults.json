@@ -280,7 +280,7 @@
       "fontFamily": "Catholic",
       "icon": "assets/icons/languages/en-us-gb.png",
       "label": "English",
-      "languageSelectionBackLabel": "Back to language selection",
+      "languageSelectionBackLabel": "Languages",
       "languageSelectionLabel": "Language",
       "topicSelectionTitle": "Select a topic",
       "topicSelectionSubtitle": "Please select a topic",
@@ -384,32 +384,38 @@
             {
               "id": "seoul",
               "title": "Seoul",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://english.seoul.go.kr"
             },
             {
               "id": "korean-visitkorea",
               "title": "Visit Korea",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://english.visitkorea.or.kr"
             },
             {
               "id": "museum",
               "title": "National Museum of Korea",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.museum.go.kr/ENG"
             },
             {
               "id": "sto",
               "title": "Seoul Tourism Organization",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://www.sto.or.kr/english/index"
             },
             {
               "id": "seoul-transportation",
               "title": "Seoul Public Transportation",
-              "fontFamily": "Pretendard",
+              "fontFamily": "Catholic",
               "url": "https://bus.go.kr"
+            },
+            {
+              "id": "maps",
+              "title": "Maps",
+              "fontFamily": "Catholic",
+              "url": "https://www.google.com/maps/?hl=en&entry=ttu&g_ep=EgoyMDI2MDkwMi4wIKXMDSoASAFQAw%3D%3D"
             }
           ]
         }

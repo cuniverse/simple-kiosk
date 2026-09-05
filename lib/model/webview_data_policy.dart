@@ -1,12 +1,29 @@
 enum IdleWebDataPolicy { keep, cookiesOnly, allSiteData }
 
+class PreservedCookieRule {
+  final String domain;
+  final String name;
+
+  const PreservedCookieRule({required this.domain, required this.name});
+
+  String get configValue => '$domain|$name';
+
+  bool matches(String cookieDomain, String cookieName) {
+    if (name != cookieName) return false;
+    final host = WebViewDataPolicy.normalizeDomain(cookieDomain);
+    return host == domain || host.endsWith('.$domain');
+  }
+}
+
 class WebViewDataPolicy {
   final IdleWebDataPolicy idlePolicy;
   final List<String> preserveDomains;
+  final List<PreservedCookieRule> preserveCookies;
 
   const WebViewDataPolicy({
     this.idlePolicy = IdleWebDataPolicy.cookiesOnly,
     this.preserveDomains = const [],
+    this.preserveCookies = const [],
   });
 
   static const defaults = WebViewDataPolicy();
@@ -42,9 +59,43 @@ class WebViewDataPolicy {
       }
       if (!domains.contains(normalized)) domains.add(normalized);
     }
+
+    final rawCookies = json['preserveCookies'];
+    if (rawCookies != null && rawCookies is! List) {
+      throw const FormatException(
+        'menu.json webViewData.preserveCookies: "도메인|쿠키이름" 문자열 배열 필요',
+      );
+    }
+    final cookies = <PreservedCookieRule>[];
+    final cookieKeys = <String>{};
+    for (final value in rawCookies as List? ?? const []) {
+      if (value is! String) {
+        throw const FormatException(
+          'menu.json webViewData.preserveCookies: "도메인|쿠키이름" 문자열 필요',
+        );
+      }
+      final separator = value.indexOf('|');
+      if (separator <= 0 || separator == value.length - 1) {
+        throw FormatException(
+          'menu.json webViewData.preserveCookies: "도메인|쿠키이름" 형식 필요 ($value)',
+        );
+      }
+      final domain = normalizeDomain(value.substring(0, separator));
+      final name = value.substring(separator + 1).trim();
+      if (domain.isEmpty || name.isEmpty || name.contains('|')) {
+        throw FormatException(
+          'menu.json webViewData.preserveCookies: 올바르지 않은 값 ($value)',
+        );
+      }
+      final key = '$domain\u0000$name';
+      if (cookieKeys.add(key)) {
+        cookies.add(PreservedCookieRule(domain: domain, name: name));
+      }
+    }
     return WebViewDataPolicy(
       idlePolicy: policy,
       preserveDomains: List.unmodifiable(domains),
+      preserveCookies: List.unmodifiable(cookies),
     );
   }
 
@@ -66,5 +117,10 @@ class WebViewDataPolicy {
     return preserveDomains.any(
       (domain) => host == domain || host.endsWith('.$domain'),
     );
+  }
+
+  bool preservesCookie(String domain, String name) {
+    return preserves(domain) ||
+        preserveCookies.any((rule) => rule.matches(domain, name));
   }
 }

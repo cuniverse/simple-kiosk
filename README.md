@@ -5,7 +5,7 @@ GitHub: https://github.com/cuniverse/simple-kiosk
 성당 로비용 Flutter 디지털 사이니지 WebView 앱입니다.
 좌측(또는 하단) 네비게이션 버튼을 누르면 설정된 URL을 우측 WebView 영역에 표시합니다.
 
-- 최신 안정 버전: [`v1.2.32`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.32)
+- 최신 안정 버전: [`v1.2.37`](https://github.com/cuniverse/simple-kiosk/releases/tag/v1.2.37)
 - 변경 내역: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 운영자 매뉴얼: [docs/MANUAL.md](docs/MANUAL.md)
 - Windows 최초 설치: [docs/WINDOWS_FIRST_INSTALL.md](docs/WINDOWS_FIRST_INSTALL.md)
@@ -37,11 +37,12 @@ GitHub: https://github.com/cuniverse/simple-kiosk
   - 페이지 로드 에러 시 5초 후 자동 재시도, 3회 실패 시 WebView 통째로 재생성
   - 렌더러 프로세스 종료/응답없음 감지 → 자동 재생성
   - JS heartbeat 검사 (4초) — Alt+F4 등으로 WebView2 자식 창만 닫혀도 자동 복구
-  - 메뉴 클릭 후 3초 내 응답 없으면 WebView 재생성
+  - 메뉴 클릭 후 12초 내 응답 없으면 WebView 재생성
   - 메뉴 JSON 로드 실패 시 5초 후 자동 재시도
 - **세션/메모리 위생**:
   - 대기화면 진입 시 설정에 따라 쿠키만 삭제(기본), 모든 사이트 데이터 삭제 또는 유지
-  - 보존 도메인을 제외한 세션 정리 + 홈 외 모든 WebView 마운트 해제(메모리 회수)
+  - 사이트별 동의 쿠키만 선택 보존하고 나머지 세션 정리
+  - 비활성 Windows WebView 일시 중지 + 대기화면에서 홈 외 WebView 마운트 해제
 - **자체 가상 키보드 (멀티 OS)**:
   - 한글(두벌식 자모 조합) / 영문(QWERTY) / 숫자·특수문자 모드
   - 드래그 가능한 플로팅 윈도우

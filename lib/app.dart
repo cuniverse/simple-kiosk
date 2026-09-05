@@ -606,6 +606,9 @@ class _KioskHomeState extends State<_KioskHome> {
         },
         'idlePolicy': widget.webViewDataPolicy.idlePolicy.name,
         'preserveDomains': widget.webViewDataPolicy.preserveDomains,
+        'preserveCookies': widget.webViewDataPolicy.preserveCookies
+            .map((rule) => rule.configValue)
+            .toList(growable: false),
       },
       'update': {
         'status': _updateController.status,
@@ -1627,6 +1630,7 @@ class _KioskHomeState extends State<_KioskHome> {
                             initialFile: assetPage,
                             active: slot == _selectedSlot,
                             webViewBrightness: widget.layout.webViewBrightness,
+                            loadingTitle: item.title,
                             onShowManual: _showUserManual,
                             onShowVersion: _showVersionInfo,
                             onCheckUpdate: _checkUpdateFromShortcut,

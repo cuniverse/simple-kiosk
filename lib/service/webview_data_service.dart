@@ -27,7 +27,7 @@ class WebViewDataService {
     Iterable<String> knownUrls,
   ) async {
     final manager = CookieManager.instance();
-    if (policy.preserveDomains.isEmpty) {
+    if (policy.preserveDomains.isEmpty && policy.preserveCookies.isEmpty) {
       await manager.deleteAllCookies();
       return;
     }
@@ -36,7 +36,9 @@ class WebViewDataService {
       final cookies = await manager.getAllCookies();
       for (final cookie in cookies) {
         final domain = cookie.domain;
-        if (domain == null || policy.preserves(domain)) continue;
+        if (domain == null || policy.preservesCookie(domain, cookie.name)) {
+          continue;
+        }
         final host = WebViewDataPolicy.normalizeDomain(domain);
         if (host.isEmpty) continue;
         await manager.deleteCookie(
@@ -52,17 +54,42 @@ class WebViewDataService {
         'Cookie enumeration unavailable; using configured URL cleanup: $error',
       );
       // Windows WebView2처럼 전체 쿠키 열거를 제공하지 않는 플랫폼에서는 설정된
-      // 메뉴 URL별로 쿠키를 지운다. 예외 도메인의 URL은 건드리지 않는다.
-      final visitedHosts = <String>{};
+      // 메뉴 URL별 쿠키를 열거해 보존 규칙에 없는 쿠키만 지운다.
+      final visitedUrls = <String>{};
+      final deletedCookies = <String>{};
       for (final value in knownUrls) {
         final uri = Uri.tryParse(value);
         if (uri == null ||
             !uri.hasAuthority ||
             policy.preserves(uri.host) ||
-            !visitedHosts.add(uri.host.toLowerCase())) {
+            !visitedUrls.add(uri.toString())) {
           continue;
         }
-        await manager.deleteCookies(url: WebUri(uri.origin));
+        try {
+          final cookies = await manager.getCookies(url: WebUri(uri.toString()));
+          for (final cookie in cookies) {
+            final domain = cookie.domain ?? uri.host;
+            if (policy.preservesCookie(domain, cookie.name)) continue;
+            final key = '${WebViewDataPolicy.normalizeDomain(domain)}\u0000'
+                '${cookie.path ?? '/'}\u0000${cookie.name}';
+            if (!deletedCookies.add(key)) continue;
+            await manager.deleteCookie(
+              url: WebUri(uri.origin),
+              name: cookie.name,
+              domain: cookie.domain,
+              path: cookie.path ?? '/',
+            );
+          }
+        } catch (urlError) {
+          // 개별 열거도 불가능하면 보안 정책을 우선해 해당 URL의 쿠키를 모두
+          // 삭제한다. 이 경우 동의 배너가 다시 나타날 수 있다.
+          AppLogger.warning(
+            LogCategory.webview,
+            'Cookie cleanup fallback failed for ${uri.origin}; '
+            'deleting all URL cookies: $urlError',
+          );
+          await manager.deleteCookies(url: WebUri(uri.origin));
+        }
       }
     }
   }

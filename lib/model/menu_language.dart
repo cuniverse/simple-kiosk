@@ -369,7 +369,7 @@ class MenuLanguage {
   final normalized =
       languageId.trim().toLowerCase().split(RegExp(r'[-_]')).first;
   return switch (normalized) {
-    'en' => ('Back to language selection', 'Language'),
+    'en' => ('Languages', 'Language'),
     'es' => ('Volver a la selección de idioma', 'Idioma'),
     'fr' => ('Retour au choix de la langue', 'Langue'),
     'pt' => ('Voltar à seleção de idioma', 'Idioma'),

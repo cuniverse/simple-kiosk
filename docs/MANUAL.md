@@ -796,7 +796,7 @@ Windows에서는 기본적으로 Windows 화상 키보드를 사용합니다. **
 | 3회 연속 실패 | WebView 위젯을 통째로 재생성 + 홈으로 복귀 |
 | 렌더러 프로세스 종료/응답없음 | 즉시 위젯 재생성 |
 | Alt+F4 등으로 WebView2 자식창만 닫힘 | JS heartbeat (4초 도착 없음) 감지 → 자동 재생성 |
-| 메뉴 클릭 후 3초 내 응답 없음 | WebView 재생성, 사용자가 가려던 URL 로 이동 |
+| 메뉴 클릭 후 12초 내 응답 없음 | WebView 재생성, 사용자가 가려던 URL 로 이동 |
 | 메뉴 JSON 로드 실패 | 5초 후 자동 재시도 (반복) |
 
 ### WebView 데이터 정책
@@ -808,15 +808,24 @@ Windows에서는 기본적으로 Windows 화상 키보드를 사용합니다. **
 - `cookiesOnly`(기본): 쿠키만 삭제하고 캐시·Local Storage는 유지
 - `allSiteData`: 쿠키·캐시·Local Storage·IndexedDB 등 사이트 데이터 전체 삭제
 
-`preserveDomains`에 `catholic.or.kr`처럼 도메인을 한 줄씩 지정하면 해당 도메인과
-하위 도메인의 로그인 데이터는 삭제 대상에서 제외합니다. 프로그램 시작 시에는 데이터를
-임의로 삭제하지 않으며, 화면보호기 진입 시 선택한 정책을 적용합니다.
+쿠키 동의만 기억시키려면 `preserveCookies`에 `도메인|쿠키이름`을 지정합니다. 예를 들어
+`example.com|CookieConsent`는 `example.com`과 그 하위 도메인의 이름이 정확히
+`CookieConsent`인 쿠키만 남깁니다. 쿠키 이름은 대소문자를 구분합니다.
+
+`preserveDomains`에 `catholic.or.kr`처럼 지정하면 해당 도메인과 하위 도메인의 **모든
+쿠키**가 남아 로그인 세션도 유지될 수 있습니다. 꼭 필요한 경우에만 사용하세요.
+`preserveCookies`는 `cookiesOnly` 정책에만 적용되며, 프로그램 시작 시에는 데이터를
+임의로 삭제하지 않습니다.
 
 ### 메모리 정리 (대기화면 진입 시)
 
 메뉴별로 독립 된 WebView 가 생성되므로, 대기화면 진입 시점에
 **홈(`defaultMenu`) 이외의 모든 WebView 마운트를 해제**해 WebView2 인스턴스를 회수합니다.
 다음 사용자가 다른 메뉴를 누르면 그 시점에 새로 mount 됩니다.
+
+Windows에서는 툴바로 다른 메뉴를 선택해 화면 뒤로 간 WebView도 `pause()` 상태로 전환하고,
+다시 선택하면 `resume()`합니다. 같은 WebView 인스턴스를 유지하므로 스크롤·페이지 상태는
+그대로이며, 백그라운드 JavaScript·미디어는 선택할 때까지 일시 중지될 수 있습니다.
 
 ---
 

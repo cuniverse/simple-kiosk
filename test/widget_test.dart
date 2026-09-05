@@ -147,6 +147,7 @@ void main() {
     expect(page, contains('주제 선택 후 첫 메뉴'));
     expect(page, contains('주제 추가'));
     expect(page, contains("webViewData.idlePolicy"));
+    expect(page, contains("webViewData.preserveCookies"));
     expect(page, contains('layout.menuFontFamily'));
     expect(page, contains('언어 선택 전체 글꼴'));
     expect(page, contains('언어 선택 돌아가기 문구'));
@@ -738,7 +739,7 @@ void main() {
     expect(config.language('ko').defaultItem.id, 'home');
     expect(
       config.language('en').languageSelectionBackLabel,
-      'Back to language selection',
+      'Languages',
     );
     expect(config.language('en').languageSelectionLabel, 'Language');
   });
@@ -1124,11 +1125,16 @@ void main() {
     expect(config.languages.map((language) => language.id), ['visible']);
   });
 
-  test('WebView 데이터 정책과 로그인 유지 하위 도메인을 파싱한다', () {
+  test('WebView 데이터 정책과 도메인·동의 쿠키 보존 규칙을 파싱한다', () {
     final config = MenuConfigLoader.parse({
       'webViewData': {
         'idlePolicy': 'allSiteData',
         'preserveDomains': ['https://Catholic.or.kr/path'],
+        'preserveCookies': [
+          'Example.com|CookieConsent',
+          'example.com|OptanonConsent',
+          'example.com|CookieConsent',
+        ],
       },
       'items': [
         {'id': 'home', 'title': '홈', 'url': 'https://example.com'},
@@ -1141,6 +1147,42 @@ void main() {
     );
     expect(config.webViewDataPolicy.preserves('www.catholic.or.kr'), isTrue);
     expect(config.webViewDataPolicy.preserves('notcatholic.or.kr'), isFalse);
+    expect(config.webViewDataPolicy.preserveCookies.length, 2);
+    expect(
+      config.webViewDataPolicy.preservesCookie(
+        '.www.example.com',
+        'CookieConsent',
+      ),
+      isTrue,
+    );
+    expect(
+      config.webViewDataPolicy.preservesCookie(
+        'example.com',
+        'cookieconsent',
+      ),
+      isFalse,
+    );
+    expect(
+      config.webViewDataPolicy.preservesCookie(
+        'www.catholic.or.kr',
+        'session',
+      ),
+      isTrue,
+    );
+  });
+
+  test('동의 쿠키 보존 규칙 형식을 검증한다', () {
+    expect(
+      () => MenuConfigLoader.parse({
+        'webViewData': {
+          'preserveCookies': ['example.com'],
+        },
+        'items': [
+          {'id': 'home', 'title': '홈', 'url': 'https://example.com'},
+        ],
+      }),
+      throwsFormatException,
+    );
   });
 
   test('기본 메뉴 설정은 한국어와 English 메뉴를 제공한다', () {
@@ -1230,14 +1272,13 @@ void main() {
       configuredItemFonts,
       containsAll([
         'Catholic',
-        'Pretendard',
         'SeoulNamsan',
         'MuseumClassic',
       ]),
     );
     expect(
       configuredItemFonts.difference(
-        const {'Catholic', 'Pretendard', 'SeoulNamsan', 'MuseumClassic'},
+        const {'Catholic', 'SeoulNamsan', 'MuseumClassic'},
       ),
       isEmpty,
     );
@@ -1541,6 +1582,16 @@ void main() {
     final source = File('lib/widget/kiosk_webview.dart').readAsStringSync();
     expect(source, contains('onPageCommitVisible:'));
     expect(source, contains('_reportInitialLoadReady();'));
+  });
+
+  test('Windows 비활성 WebView를 일시 중지하고 탐색 응답은 12초 기다린다', () {
+    final source = File('lib/widget/kiosk_webview.dart').readAsStringSync();
+    expect(source, contains('await controller.pause();'));
+    expect(source, contains('await controller.resume();'));
+    expect(
+      source,
+      contains('_loadResponseTimeout = Duration(seconds: 12)'),
+    );
   });
 
   test('WebView 테마는 UI brightness와 분리하고 light를 기본으로 사용한다', () {
