@@ -401,6 +401,7 @@ class _CustomPlatformViewState extends State<CustomPlatformView> {
                     },
                     onPointerSignal: (signal) {
                       if (signal is PointerScrollEvent) {
+                        _controller._setCursorPos(signal.localPosition);
                         _controller._setScrollDelta(
                             -signal.scrollDelta.dx, -signal.scrollDelta.dy);
                       }

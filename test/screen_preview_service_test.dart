@@ -5,6 +5,44 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_kiosk/service/screen_preview_service.dart';
 
 void main() {
+  test('wheel validates frame, position, delta and excludes active drags',
+      () async {
+    var now = DateTime.utc(2026, 9, 6);
+    final events = <(int, int, double, double)>[];
+    final service = ScreenPreviewService(
+        clock: () => now,
+        frameCapturer: (_) async => ScreenPreviewFrame(
+            jpegBytes: Uint8List(0),
+            width: 640,
+            height: 360,
+            capturedAt: now,
+            target: const ScreenPreviewTarget(
+                window: 1, left: -1920, top: -100, width: 1920, height: 1080)),
+        wheelSender: (_, x, y, dx, dy) => events.add((x, y, dx, dy)),
+        pointerSender: (_, __, ___, ____) {});
+    final frame = await service.capture(maxFramesPerSecond: 2);
+    void scroll({double x = 0.5, double dy = 120}) =>
+        service.wheel(frameId: frame.id, x: x, y: 0.5, deltaX: -16, deltaY: dy);
+    scroll();
+    expect(events, [(-960, 440, -16.0, 120.0)]);
+    expect(() => scroll(x: 1.01), throwsA(isA<ScreenPreviewException>()));
+    expect(
+        () => scroll(dy: double.nan), throwsA(isA<ScreenPreviewException>()));
+    expect(() => scroll(dy: 2001), throwsA(isA<ScreenPreviewException>()));
+    service.pointer(
+        owner: 'test',
+        gestureId: 'drag',
+        sequence: 1,
+        phase: 'down',
+        frameId: frame.id,
+        x: 0.5,
+        y: 0.5);
+    expect(scroll, throwsA(isA<ScreenPreviewException>()));
+    service.cancelPointer();
+    now = now.add(const Duration(seconds: 6));
+    expect(scroll, throwsA(isA<ScreenPreviewException>()));
+    expect(events.length, 1);
+  });
   testWidgets('드래그 입력 순서·소유권을 확인하고 연결이 끊기면 누름을 해제한다', (tester) async {
     final events = <(String, int, int)>[];
     final service = ScreenPreviewService(

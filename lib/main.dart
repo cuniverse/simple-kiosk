@@ -11,6 +11,7 @@ import 'app.dart';
 import 'app_identity.dart';
 import 'service/app_logger.dart';
 import 'service/windows_kiosk_mode.dart';
+import 'service/windows_startup_service.dart';
 
 /// 앱 진입점.
 ///
@@ -66,6 +67,9 @@ Future<void> main(List<String> arguments) async {
   }
 
   runApp(const KioskApp());
+  if (!kIsWeb && Platform.isWindows) {
+    unawaited(WindowsStartupService().migrateLegacyRegistration());
+  }
 
   if (desktop) {
     WidgetsBinding.instance.addPostFrameCallback((_) {

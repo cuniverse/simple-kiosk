@@ -254,7 +254,10 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
       if (!mounted) return;
       setState(() => _startupStatus = status);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Windows 시작프로그램에 등록했습니다.')),
+        SnackBar(
+            content: Text(status.fastStartup
+                ? 'Windows 로그인 직후 자동 실행하도록 등록했습니다.'
+                : 'Windows 시작프로그램에 등록했습니다.')),
       );
     } catch (error) {
       if (!mounted) return;
@@ -290,7 +293,10 @@ class _UpdateAdminPanelState extends State<_UpdateAdminPanel> {
     if (status == null) return '상태 확인 중…';
     if (!status.registered) return '등록 안 됨';
     final mode = status.mode == StartupLaunchMode.hidden ? '숨김 모드' : '사이니지 모드';
-    return status.targetMatches ? '등록됨 · $mode' : '기존 등록 발견 · 설치 위치 불일치';
+    if (!status.enabled) return '자동 실행 사용 중지됨 · 등록 정보를 저장하면 다시 활성화됩니다.';
+    final timing =
+        status.fastStartup ? '로그인 직후 실행' : '일반 시작프로그램 · 빠른 실행으로 전환 가능';
+    return status.targetMatches ? '$timing · $mode' : '기존 등록 발견 · 설치 위치 불일치';
   }
 
   bool _validTime(String value) {

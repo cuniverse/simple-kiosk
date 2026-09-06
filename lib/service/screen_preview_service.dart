@@ -3,8 +3,10 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:ffi/ffi.dart';
+import 'package:flutter/gestures.dart';
 import 'package:image/image.dart' as image;
 import 'package:win32/win32.dart';
 
@@ -60,6 +62,9 @@ typedef ScreenPreviewPointerSender = void Function(
   String phase,
 );
 
+typedef ScreenPreviewWheelSender = void Function(
+    ScreenPreviewTarget target, int x, int y, double deltaX, double deltaY);
+
 class _PreviewDrag {
   final String owner;
   final String id;
@@ -109,15 +114,18 @@ class ScreenPreviewService {
     ScreenPreviewClock? clock,
     ScreenPreviewClicker? clicker,
     ScreenPreviewPointerSender? pointerSender,
+    ScreenPreviewWheelSender? wheelSender,
   })  : _frameCapturer = frameCapturer ?? _captureWindowsFrame,
         _clicker = clicker ?? _clickWindowsScreen,
         _pointerSender = pointerSender ?? _pointerWindowsScreen,
+        _wheelSender = wheelSender ?? _wheelWindowsScreen,
         _clock = clock ?? DateTime.now;
 
   final ScreenFrameCapturer _frameCapturer;
   final ScreenPreviewClock _clock;
   final ScreenPreviewClicker _clicker;
   final ScreenPreviewPointerSender _pointerSender;
+  final ScreenPreviewWheelSender _wheelSender;
   _PreviewDrag? _drag;
   Timer? _dragTimeout;
   final Map<String, ({ScreenPreviewTarget target, DateTime capturedAt})>
@@ -225,6 +233,44 @@ class ScreenPreviewService {
     } finally {
       _clickBusy = false;
     }
+  }
+
+  void wheel(
+      {required String frameId,
+      required double x,
+      required double y,
+      required double deltaX,
+      required double deltaY}) {
+    if (!x.isFinite ||
+        !y.isFinite ||
+        x < 0 ||
+        x > 1 ||
+        y < 0 ||
+        y > 1 ||
+        !deltaX.isFinite ||
+        !deltaY.isFinite ||
+        deltaX.abs() > 2000 ||
+        deltaY.abs() > 2000) {
+      throw const ScreenPreviewException('invalid-wheel', '스크롤 입력이 올바르지 않습니다.');
+    }
+    if (_clickBusy || _drag != null) {
+      throw const ScreenPreviewException('click-busy', '이전 입력을 처리 중입니다.');
+    }
+    final frame = _clickTargets[frameId];
+    if (frame == null ||
+        _clock().difference(frame.capturedAt) > const Duration(seconds: 5)) {
+      throw const ScreenPreviewException(
+          'stale-frame', '미리보기를 갱신한 뒤 다시 스크롤해 주세요.');
+    }
+    if (deltaX == 0 && deltaY == 0) return;
+    final target = frame.target;
+    _wheelSender(
+        target,
+        target.left + (x * target.width).floor().clamp(0, target.width - 1),
+        target.top + (y * target.height).floor().clamp(0, target.height - 1),
+        deltaX,
+        deltaY);
+    _cachedFrame = null;
   }
 
   void pointer(
@@ -506,16 +552,73 @@ void _pointerWindowsScreen(
     ScreenPreviewTarget target, int x, int y, String phase) {
   if (!Platform.isWindows) {
     throw const ScreenPreviewException(
+        'unsupported', '원격 입력은 Windows에서만 지원합니다.');
+  }
+  try {
+    if (phase == 'cancel') {
+      _previewTouchInput.send(x, y, 'cancel');
+      return;
+    }
+    _validateWindowsPreviewPoint(target, x, y);
+    if (phase == 'click') {
+      try {
+        _previewTouchInput.send(x, y, 'down');
+        _previewTouchInput.send(x, y, 'up');
+      } finally {
+        _previewTouchInput.send(x, y, 'cancel');
+      }
+    } else {
+      _previewTouchInput.send(x, y, phase);
+    }
+  } on WindowsTouchInputException catch (error) {
+    throw ScreenPreviewException('input-failed', error.message);
+  }
+}
+
+void _wheelWindowsScreen(
+    ScreenPreviewTarget target, int x, int y, double deltaX, double deltaY) {
+  _validateWindowsPreviewPoint(target, x, y);
+  final point = calloc<POINT>();
+  final rect = calloc<RECT>();
+  try {
+    point.ref
+      ..x = x
+      ..y = y;
+    final view = GestureBinding.instance.platformDispatcher.implicitView;
+    if (view == null ||
+        ScreenToClient(target.window, point) == 0 ||
+        GetClientRect(target.window, rect) == 0 ||
+        point.ref.x < 0 ||
+        point.ref.y < 0 ||
+        point.ref.x >= rect.ref.right ||
+        point.ref.y >= rect.ref.bottom) {
+      throw const ScreenPreviewException(
+          'outside-signage', '사이니지 화면 안에서 스크롤해 주세요.');
+    }
+    // The runner's Flutter child fills the client area. Inject a pointer signal
+    // at that logical position so Flutter and the embedded WebView both scroll
+    // there, independent of the PC's physical mouse cursor/focused application.
+    GestureBinding.instance.handlePointerEvent(PointerScrollEvent(
+      viewId: view.viewId,
+      position: ui.Offset(point.ref.x / view.devicePixelRatio,
+          point.ref.y / view.devicePixelRatio),
+      scrollDelta: ui.Offset(deltaX, deltaY),
+    ));
+  } finally {
+    calloc.free(rect);
+    calloc.free(point);
+  }
+}
+
+void _validateWindowsPreviewPoint(ScreenPreviewTarget target, int x, int y) {
+  if (!Platform.isWindows) {
+    throw const ScreenPreviewException(
         'unsupported', '원격 클릭은 Windows에서만 지원합니다.');
   }
   final monitorInfo = calloc<MONITORINFO>();
   final point = calloc<POINT>();
   final processId = calloc<Uint32>();
   try {
-    if (phase == 'cancel') {
-      _previewTouchInput.send(x, y, 'cancel');
-      return;
-    }
     GetWindowThreadProcessId(target.window, processId);
     if (processId.value != GetCurrentProcessId() ||
         IsWindowVisible(target.window) == 0 ||
@@ -542,18 +645,6 @@ void _pointerWindowsScreen(
       throw const ScreenPreviewException(
           'outside-signage', '사이니지가 표시된 영역만 클릭할 수 있습니다.');
     }
-    if (phase == 'click') {
-      try {
-        _previewTouchInput.send(x, y, 'down');
-        _previewTouchInput.send(x, y, 'up');
-      } finally {
-        _previewTouchInput.send(x, y, 'cancel');
-      }
-    } else {
-      _previewTouchInput.send(x, y, phase);
-    }
-  } on WindowsTouchInputException catch (error) {
-    throw ScreenPreviewException('input-failed', error.message);
   } finally {
     calloc.free(processId);
     calloc.free(point);

@@ -7,11 +7,13 @@ import 'package:simple_kiosk/service/windows_touch_input.dart';
 void main() {
   test('drag uses touch and updates final coordinates before release', () {
     var initializations = 0;
+    var maxContacts = 0;
     final frames = <(int, int, int)>[];
     final input = WindowsTouchInput(
       initialize: (count, feedback) {
         expect(count, 1);
         expect(feedback, 3);
+        maxContacts = count;
         initializations++;
         return 1;
       },
@@ -19,7 +21,9 @@ void main() {
         expect(count, 1);
         final contact = contacts.ref;
         expect(contact.pointerInfo.pointerType, PT_TOUCH);
-        expect(contact.pointerInfo.pointerId, 1);
+        // A mock that accepts ID 1 with maxCount 1 misses Windows error 87.
+        expect(contact.pointerInfo.pointerId,
+            inInclusiveRange(0, maxContacts - 1));
         expect(contact.pressure, inInclusiveRange(0, 1024));
         expect(contact.rcContact.right - contact.rcContact.left, 4);
         frames.add((

@@ -91,7 +91,9 @@ class WindowsTouchInput {
     try {
       contact.ref.pointerInfo
         ..pointerType = PT_TOUCH
-        ..pointerId = 1
+        // Injection IDs are zero-based within the initialized contact count.
+        // InitializeTouchInjection(1, ...) reserves only contact 0.
+        ..pointerId = 0
         ..pointerFlags = flags;
       contact.ref.pointerInfo.ptPixelLocation
         ..x = x

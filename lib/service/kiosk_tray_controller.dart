@@ -103,7 +103,7 @@ class KioskTrayController with TrayListener, WindowListener {
     await windowManager.show();
     await WindowsKioskMode.recoverRenderingSurface();
     await WindowsKioskMode.setWebViewsVisible(true);
-    await windowManager.focus();
+    await WindowsKioskMode.activateWindow();
   }
 
   Future<void> hideWindow() async {

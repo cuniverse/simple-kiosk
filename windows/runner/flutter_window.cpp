@@ -1,4 +1,5 @@
 #include "flutter_window.h"
+#include "window_activation.h"
 
 #include <atomic>
 #include <cstdint>
@@ -75,6 +76,42 @@ void ApplyDisplayPowerPolicy() {
     state |= ES_DISPLAY_REQUIRED;
   }
   ::SetThreadExecutionState(state);
+}
+
+DWORD ScheduleComputerShutdown() {
+  HANDLE token = nullptr;
+  if (!::OpenProcessToken(::GetCurrentProcess(),
+                          TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token)) {
+    return ::GetLastError();
+  }
+  TOKEN_PRIVILEGES requested{};
+  requested.PrivilegeCount = 1;
+  if (!::LookupPrivilegeValueW(nullptr, SE_SHUTDOWN_NAME,
+                               &requested.Privileges[0].Luid)) {
+    const DWORD error = ::GetLastError();
+    ::CloseHandle(token);
+    return error;
+  }
+  requested.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+  TOKEN_PRIVILEGES previous{};
+  DWORD previous_size = sizeof(previous);
+  ::SetLastError(ERROR_SUCCESS);
+  const BOOL adjusted = ::AdjustTokenPrivileges(
+      token, FALSE, &requested, sizeof(previous), &previous, &previous_size);
+  DWORD error = ::GetLastError();
+  if (adjusted && error == ERROR_SUCCESS) {
+    // Allow the API response to reach the admin before Windows shuts down.
+    // FALSE keeps applications' unsaved-work prompts instead of forcing close.
+    wchar_t message[] = L"WEB 관리자에서 PC 종료를 요청했습니다.";
+    if (!::InitiateSystemShutdownExW(
+            nullptr, message, 5, FALSE, FALSE,
+            SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_FLAG_PLANNED)) {
+      error = ::GetLastError();
+    }
+    ::AdjustTokenPrivileges(token, FALSE, &previous, 0, nullptr, nullptr);
+  }
+  ::CloseHandle(token);
+  return error == ERROR_SUCCESS && !adjusted ? ERROR_PRIVILEGE_NOT_HELD : error;
 }
 
 void ArmEmergencyExit(std::atomic_uint64_t* active_token,
@@ -648,6 +685,18 @@ bool FlutterWindow::OnCreate() {
         } else if (call.method_name() == "recoverSurface") {
           RecoverRenderingSurface(true);
           result->Success(flutter::EncodableValue(true));
+        } else if (call.method_name() == "activateWindow") {
+          result->Success(flutter::EncodableValue(
+              ActivateSignageWindow(g_kiosk_window, g_flutter_view_window)));
+        } else if (call.method_name() == "shutdownComputer") {
+          const DWORD error = ScheduleComputerShutdown();
+          if (error == ERROR_SUCCESS) {
+            result->Success();
+          } else {
+            result->Error("pc-shutdown-failed",
+                "PC 종료를 요청하지 못했습니다. Windows 종료 권한을 확인해 주세요. (" +
+                    std::to_string(error) + ")");
+          }
         } else if (call.method_name() == "hideProcessWindows") {
           HideApplicationProcessWindows();
           result->Success(flutter::EncodableValue(true));

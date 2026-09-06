@@ -528,6 +528,46 @@ class AdminApiController extends ChangeNotifier {
           });
         }
       }
+      if (request.method == 'POST' && path == '/api/screen-preview/wheel') {
+        final body = await _readJsonObject(request, maxBytes: 4096);
+        final frameId = body['frameId'];
+        final x = body['x'], y = body['y'];
+        final deltaX = body['deltaX'], deltaY = body['deltaY'];
+        if (frameId is! String ||
+            x is! num ||
+            y is! num ||
+            deltaX is! num ||
+            deltaY is! num ||
+            !x.isFinite ||
+            !y.isFinite ||
+            x < 0 ||
+            x > 1 ||
+            y < 0 ||
+            y > 1 ||
+            !deltaX.isFinite ||
+            !deltaY.isFinite ||
+            deltaX.abs() > 2000 ||
+            deltaY.abs() > 2000) {
+          return await _sendJson(request.response, 400, {
+            'error': 'invalid-wheel',
+            'message': '스크롤 입력이 올바르지 않습니다.',
+          });
+        }
+        try {
+          _screenPreviewService.wheel(
+              frameId: frameId,
+              x: x.toDouble(),
+              y: y.toDouble(),
+              deltaX: deltaX.toDouble(),
+              deltaY: deltaY.toDouble());
+          return await _sendJson(request.response, 200, {'ok': true});
+        } on ScreenPreviewException catch (error) {
+          return await _sendJson(
+              request.response,
+              error.code == 'unsupported' ? 501 : 409,
+              {'error': error.code, 'message': error.message});
+        }
+      }
       if (request.method == 'PUT' && path == '/api/screen-preview/settings') {
         final body = await _readJsonObject(request, maxBytes: 4096);
         final fps = body['fps'] ?? settings.screenPreviewFps;
@@ -906,13 +946,29 @@ class AdminApiController extends ChangeNotifier {
       }
       if (request.method == 'POST' && path.startsWith('/api/actions/')) {
         final action = path.substring('/api/actions/'.length);
-        const allowed = {'show', 'hide', 'restart', 'shutdown', 'update'};
+        const allowed = {
+          'show',
+          'hide',
+          'restart',
+          'shutdown',
+          'shutdown-pc',
+          'update'
+        };
         if (!allowed.contains(action)) {
           return await _sendJson(
             request.response,
             404,
             {'error': 'unknown-action'},
           );
+        }
+        if (action == 'shutdown-pc') {
+          final body = await _readJsonObject(request, maxBytes: 4096);
+          if (body['confirmed'] != true) {
+            return await _sendJson(request.response, 400, {
+              'error': 'confirmation-required',
+              'message': 'PC 종료 확인이 필요합니다.',
+            });
+          }
         }
         final result = await actionHandler(action);
         return await _sendJson(

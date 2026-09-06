@@ -230,8 +230,19 @@ void ReleaseInstanceMutex(HANDLE mutex) {
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t* command_line, _In_ int show_command) {
+  std::vector<std::string> command_line_arguments = GetCommandLineArguments();
+  bool startup_launch = false;
+  for (const auto& argument : command_line_arguments) {
+    if (argument == "--startup-mode") startup_launch = true;
+  }
   HANDLE instance_mutex = CreateMutexW(nullptr, TRUE, kInstanceMutexName);
   const bool instance_already_exists = GetLastError() == ERROR_ALREADY_EXISTS;
+  if (instance_mutex != nullptr && instance_already_exists && startup_launch) {
+    // A leftover startup shortcut and the logon task may race during upgrades.
+    // Do not restart the healthy instance that won the startup race.
+    CloseHandle(instance_mutex);
+    return EXIT_SUCCESS;
+  }
   if (instance_mutex == nullptr ||
       (instance_already_exists && !RestartExistingInstance(instance_mutex))) {
     if (instance_mutex != nullptr) {
@@ -270,9 +281,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
-
-  std::vector<std::string> command_line_arguments =
-      GetCommandLineArguments();
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 

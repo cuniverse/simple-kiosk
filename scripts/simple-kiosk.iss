@@ -78,7 +78,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; WorkingD
 Name: "{userstartup}\{#AppName}"; Filename: "{app}\{#LauncherExeName}"; Parameters: "--startup-mode signage"; WorkingDir: "{app}"; Tasks: startup
 
 [Tasks]
-Name: "startup"; Description: "Windows 로그인 시 {#AppName} 자동 실행"; GroupDescription: "자동 실행:"
+Name: "startup"; Description: "Windows 로그인 직후 {#AppName} 자동 실행"; GroupDescription: "자동 실행:"
 Name: "desktopicon"; Description: "바탕 화면 바로가기 만들기"; GroupDescription: "추가 바로가기:"; Flags: unchecked
 Name: "firewall"; Description: "사설 네트워크에서 WEB 관리 자동 허용 (권장, 관리자 승인 1회)"; GroupDescription: "네트워크:"
 
@@ -110,13 +110,36 @@ begin
     (ResultCode = 0);
 end;
 
+function ConfigureStartup(const Action: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  ResultCode := -1;
+  Result := Exec(
+    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+    ExpandConstant('{app}\updater\configure-startup.ps1') +
+    '" -Action ' + Action + ' -InstallRoot "' + ExpandConstant('{app}') +
+    '" -OnlyMatchingTarget',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   MarkerPath: String;
 begin
-  if (CurStep <> ssPostInstall) or
-     WizardSilent then
-    Exit;
+  if CurStep <> ssPostInstall then Exit;
+  if WizardIsTaskSelected('startup') then
+  begin
+    if not ConfigureStartup('Register') then
+      SuppressibleMsgBox(
+        '로그인 직후 자동 실행 등록에 실패하여 일반 시작프로그램 방식을 유지합니다.' + #13#10 +
+        '프로그램 설정의 Windows 시작프로그램에서 등록 정보를 다시 저장해 주세요.',
+        mbInformation, MB_OK, IDOK);
+  end
+  else
+    ConfigureStartup('Unregister');
+  if WizardSilent then Exit;
 
   MarkerPath := ExpandConstant('{app}\state\firewall-managed');
   if WizardIsTaskSelected('firewall') then
@@ -249,6 +272,8 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
+    if not ConfigureStartup('Unregister') then
+      Log('Could not remove the Windows startup task.');
     FirewallMarker := ExpandConstant('{app}\state\firewall-managed');
     if FileExists(FirewallMarker) then
     begin

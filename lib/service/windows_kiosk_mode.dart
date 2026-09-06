@@ -83,6 +83,36 @@ class WindowsKioskMode {
     }
   }
 
+  /// 명시적인 보이기 요청에서 창을 복원하고 전면 활성화·키보드 포커스를 확인한다.
+  static Future<void> activateWindow() async {
+    if (!Platform.isWindows) return;
+    bool focused;
+    try {
+      focused = await _channel.invokeMethod<bool>('activateWindow') ?? false;
+    } on MissingPluginException {
+      await windowManager.focus();
+      focused = await windowManager.isFocused();
+    }
+    if (!focused) {
+      throw PlatformException(
+        code: 'foreground-denied',
+        message: '사이니지를 표시했지만 Windows에서 포커스 전환을 허용하지 않았습니다. 다시 보이기를 눌러 주세요.',
+      );
+    }
+  }
+
+  /// Windows가 5초 뒤 정상 종료를 시작하도록 요청한다.
+  static Future<void> shutdownComputer() async {
+    if (!Platform.isWindows) {
+      throw UnsupportedError('PC 종료는 Windows에서만 지원합니다.');
+    }
+    try {
+      await _channel.invokeMethod<void>('shutdownComputer');
+    } on MissingPluginException {
+      throw UnsupportedError('PC 종료 기능을 사용하려면 사이니지를 업데이트해 주세요.');
+    }
+  }
+
   /// Windows 렌더 표면을 실제 크기 변경으로 다시 동기화한다.
   ///
   /// 전체화면 전환, 숨김 복원, 디스플레이 절전 복귀 과정에서 Flutter 프레임은

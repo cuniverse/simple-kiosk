@@ -298,6 +298,7 @@ void main() {
     String? installedUploadVersion;
     final previewClicks = <(int, int)>[];
     final previewPointerEvents = <String>[];
+    final previewWheels = <(int, int, double, double)>[];
     final mdnsPublisher = _FakeMdnsPublisher();
     var networkSyncCalls = 0;
     var synchronizedBeforeInitialBind = false;
@@ -327,6 +328,7 @@ void main() {
         clock: () => DateTime.utc(2026, 8, 29, 12),
         clicker: (_, x, y) async => previewClicks.add((x, y)),
         pointerSender: (_, x, y, phase) => previewPointerEvents.add(phase),
+        wheelSender: (_, x, y, dx, dy) => previewWheels.add((x, y, dx, dy)),
         frameCapturer: (_) async => ScreenPreviewFrame(
           jpegBytes: Uint8List.fromList([0xff, 0xd8, 0xff, 0xd9]),
           width: 1280,
@@ -526,6 +528,39 @@ void main() {
           body: json.encode({'frameId': 'unknown', 'x': 0, 'y': 0}));
       expect(staleClick.statusCode, 409);
       expect(previewClicks.length, 1);
+      final wheelUri =
+          Uri.parse('http://127.0.0.1:$port/api/screen-preview/wheel');
+      final wheelBody = {
+        'frameId': preview.headers['x-frame-id'],
+        'x': 0.5,
+        'y': 0.25,
+        'deltaX': -16,
+        'deltaY': 120
+      };
+      expect(
+          (await client.post(wheelUri, body: json.encode(wheelBody)))
+              .statusCode,
+          401);
+      expect(previewWheels, isEmpty);
+      expect(
+          (await client.post(wheelUri,
+                  headers: headers, body: json.encode(wheelBody)))
+              .statusCode,
+          200);
+      expect(previewWheels, [(-960, 270, -16.0, 120.0)]);
+      expect(
+          (await client.post(wheelUri,
+                  headers: headers,
+                  body: json.encode({...wheelBody, 'deltaY': 2001})))
+              .statusCode,
+          400);
+      expect(
+          (await client.post(wheelUri,
+                  headers: headers,
+                  body: json.encode({...wheelBody, 'frameId': 'old'})))
+              .statusCode,
+          409);
+      expect(previewWheels.length, 1);
       final pointerUri =
           Uri.parse('http://127.0.0.1:$port/api/screen-preview/pointer');
       final pointerBody = {
@@ -787,6 +822,22 @@ void main() {
       );
       expect(hide.statusCode, 202);
       expect(action, 'hide');
+
+      final shutdownPcUrl =
+          Uri.parse('http://127.0.0.1:$port/api/actions/shutdown-pc');
+      final unauthenticatedShutdown = await client.post(shutdownPcUrl,
+          body: json.encode({'confirmed': true}));
+      expect(unauthenticatedShutdown.statusCode, 401);
+      expect(action, 'hide');
+      final unconfirmedShutdown = await client.post(shutdownPcUrl,
+          headers: headers, body: json.encode({'confirmed': false}));
+      expect(unconfirmedShutdown.statusCode, 400);
+      expect(action, 'hide');
+      final confirmedShutdown = await client.post(shutdownPcUrl,
+          headers: headers, body: json.encode({'confirmed': true}));
+      expect(confirmedShutdown.statusCode, 202);
+      expect(
+          action, 'shutdown-pc'); // Fake action handler; never powers off a PC.
 
       await controller.updateSettings(
         controller.settings.copyWith(

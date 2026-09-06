@@ -42,6 +42,7 @@ import 'service/update_controller.dart';
 import 'service/update_service.dart';
 import 'service/user_manual_service.dart';
 import 'service/windows_firewall_service.dart';
+import 'service/windows_kiosk_mode.dart';
 import 'widget/kiosk_shortcuts.dart';
 import 'widget/language_selection.dart';
 import 'widget/update_admin_dialog.dart';
@@ -645,6 +646,9 @@ class _KioskHomeState extends State<_KioskHome> {
           () => unawaited(_trayController.exitApplication()),
         );
         return {'message': '사이니지를 완전히 종료합니다.'};
+      case 'shutdown-pc':
+        await WindowsKioskMode.shutdownComputer();
+        return {'message': '5초 뒤 PC 종료를 시작합니다. 종료되면 원격 접속이 끊어집니다.'};
       case 'update':
         await _updateController.initialize();
         final available = await _updateController.check(rethrowErrors: true);

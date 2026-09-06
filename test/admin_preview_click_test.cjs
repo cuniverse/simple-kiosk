@@ -112,6 +112,57 @@ async function verify() {
   context.startPreviewGesture(click);
   assert.equal(requests.length, count);
   assert.equal(notices.length, 0);
+  context.document.hidden = false;
+  let prevented = 0;
+  const wheel = {clientX: 500, clientY: 275, deltaX: 0, deltaY: 3,
+    deltaMode: 1, preventDefault() {prevented++;}};
+  context.queuePreviewWheel({...wheel, clientX: 110}); // Letterbox.
+  context.queuePreviewWheel({...wheel, ctrlKey: true}); // Browser zoom.
+  assert.equal(prevented, 0);
+  context.queuePreviewWheel(wheel);
+  context.queuePreviewWheel(wheel);
+  const flushWheel = async () => {
+    const entry = [...timers.entries()].find(([, timer]) => timer.ms === 60);
+    assert.ok(entry);
+    timers.delete(entry[0]);
+    await entry[1].fn();
+  };
+  await flushWheel();
+  assert.equal(requests.at(-1)[0], '/api/screen-preview/wheel');
+  assert.equal(requests.at(-1)[1].headers.Authorization, 'Bearer admin-token');
+  assert.deepEqual(JSON.parse(requests.at(-1)[1].body),
+    {x: 0.5, y: 0.5, frameId: 'frame-1', deltaX: 0, deltaY: 96});
+  assert.equal(timers.size, 0);
+  context.queuePreviewWheel({...wheel, shiftKey: true});
+  await flushWheel();
+  assert.equal(JSON.parse(requests.at(-1)[1].body).deltaX, 48);
+  assert.equal(JSON.parse(requests.at(-1)[1].body).deltaY, 0);
+  context.queuePreviewWheel({...wheel, deltaMode: 2, deltaY: 1});
+  await flushWheel();
+  assert.equal(JSON.parse(requests.at(-1)[1].body).deltaY, 450);
+  const beforeCancelledWheel = requests.length;
+  context.queuePreviewWheel(wheel);
+  context.cancelPreviewWheel();
+  assert.equal(timers.size, 0);
+  assert.equal(requests.length, beforeCancelledWheel);
+  context.queuePreviewWheel(wheel);
+  context.token = 'new-token';
+  await flushWheel(); // Queued input must not cross authentication sessions.
+  assert.equal(requests.length, beforeCancelledWheel);
+  context.token = 'admin-token';
+  let reauths = 0;
+  context.requireReauthentication = () => reauths++;
+  context.fetch = async (...args) => {
+    requests.push(args);
+    return {ok: false, status: 401, json: async () => ({error: 'unauthorized'})};
+  };
+  context.queuePreviewWheel(wheel);
+  await flushWheel();
+  await settle();
+  assert.equal(reauths, 1);
+  assert.equal(requests.length, beforeCancelledWheel + 1); // No replay after 401.
+  assert.equal(timers.size, 0);
+  console.log('Admin preview: wheel coalescing, units, Shift, cancellation and authentication checks passed.');
   console.log('Admin preview: click/drag ordering, move coalescing, cancellation and coordinate checks passed.');
 }
 
